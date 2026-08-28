@@ -37,7 +37,8 @@
 
 **⚫ 从 GitHub 直接安装**
 
-[![GitHub Install](https://img.shields.io/badge/点击安装-GitHub-black?style=for-the-badge&logo=github)](https://raw.githubusercontent.com/YDGG123/hover-image-zoom/main/鼠标悬停图片自动放大预览.user.js)
+[![GitHub Install](https://img.shields.io/badge/点击安装-GitHub-black?style=for-the-badge&logo=github)](https://raw.githubusercontent.com/YDGG123/hover-image-zoom/main/hover-image-zoom.user.js
+)
 
 </div>
 
