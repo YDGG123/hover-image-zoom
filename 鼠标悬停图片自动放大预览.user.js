@@ -29,12 +29,12 @@
             zoomZIndex: 9999,
             transition: 'all 0.3s ease',
             scrollSpeed: 50,
-            smallImgThreshold: 280,
+            smallImgThreshold: 20,
             smallImgWidth: 500,
             smallImgHeight: 430,
             avoidClickConflict: true
         };
-
+    
         const states = new WeakMap();
         let isEnabled = true;
         let isMinimized = false;
@@ -44,16 +44,16 @@
         let currentZoomContainer = null;
         let toggleButton = null;
         let excludedHomepages = [];
-
+    
         const fullBtnWidth = 80;
         const fullBtnHeight = 32;
         const miniBtnDiameter = 32;
         const miniBtnRadius = miniBtnDiameter / 2;
         const exposeRatio = 0.15;
-
+    
         // 【调试开关】改为 true 后，被跳过的图片会在控制台 (F12) 打印原因
         const DEBUG_IMAGE_CHECK = false;
-
+    
         function getDomain() {
             try {
                 return new URL(window.location.href).hostname;
@@ -61,26 +61,26 @@
                 return window.location.hostname;
             }
         }
-
+    
         function getCurrentHomepage() {
             const url = new URL(window.location.href);
             return `${url.protocol}//${url.hostname}/`;
         }
-
+    
         function isHomepageExcluded() {
             const currentHomepage = getCurrentHomepage();
             return excludedHomepages.includes(currentHomepage);
         }
-
+    
         function loadExcludedHomepages() {
             const saved = GM_getValue(`image_zoom_excluded_homepages_${currentDomain}`, []);
             excludedHomepages = Array.isArray(saved) ? saved : [];
         }
-
+    
         function saveExcludedHomepages() {
             GM_setValue(`image_zoom_excluded_homepages_${currentDomain}`, excludedHomepages);
         }
-
+    
         function toggleCurrentHomepageExclusion() {
             const currentHomepage = getCurrentHomepage();
             const index = excludedHomepages.indexOf(currentHomepage);
@@ -98,12 +98,12 @@
             updateExclusionButtonState();
             updateButtonState();
         }
-
+    
         function isHomepage() {
             const path = window.location.pathname;
             return path === '/' || path === '/index.html' || path === '/index.php' || path === '';
         }
-
+    
         function showToast(message) {
             let toast = document.getElementById('image-zoom-toast');
             if (!toast) {
@@ -133,7 +133,7 @@
                 toast.style.opacity = '0';
             }, 2000);
         }
-
+    
         function debounce(func, wait) {
             let timeout;
             return function(...args) {
@@ -145,7 +145,7 @@
                 timeout = setTimeout(later, wait);
             };
         }
-
+    
         function validateConfig(cfg) {
             const validated = { ...cfg };
             validated.delay = Math.max(0, Math.min(2000, validated.delay));
@@ -160,7 +160,7 @@
             validated.smallImgHeight = Math.max(100, Math.min(2000, validated.smallImgHeight));
             return validated;
         }
-
+    
         function loadConfig() {
             const savedConfig = GM_getValue(`image_zoom_config_${currentDomain}`);
             if (savedConfig) {
@@ -168,11 +168,11 @@
                 config = { ...defaultConfig, ...validatedConfig };
             }
         }
-
+    
         function saveConfig() {
             GM_setValue(`image_zoom_config_${currentDomain}`, config);
         }
-
+    
         function loadState() {
             const savedState = GM_getValue(`image_zoom_enabled_${currentDomain}`);
             isEnabled = savedState !== false;
@@ -180,7 +180,7 @@
                 isEnabled = false;
             }
         }
-
+    
         function injectStyles() {
             const style = document.createElement('style');
             style.textContent = `
@@ -206,7 +206,7 @@
             `;
             document.head.appendChild(style);
         }
-
+    
         function createToggleButton() {
             const button = document.createElement('div');
             button.id = 'image-zoom-toggle';
@@ -234,21 +234,21 @@
                 overflow: visible;
                 user-select: none;
             `;
-
+    
             const textSpan = document.createElement('span');
             textSpan.className = 'btn-text';
             textSpan.textContent = '图片放大：开';
             textSpan.style.transition = 'opacity 0.3s ease';
-
+    
             const arrowSpan = document.createElement('span');
             arrowSpan.className = 'btn-arrow';
             arrowSpan.textContent = '▶';
             arrowSpan.style.cssText = `margin-left: 5px; font-size: 14px; transition: transform 0.3s ease;`;
-
+    
             button.appendChild(textSpan);
             button.appendChild(arrowSpan);
             button.title = '左键：切换功能 / 右键：打开设置 / 点击箭头：吸附边缘';
-
+    
             const savedPos = GM_getValue(`image_zoom_button_pos_${currentDomain}`);
             if (savedPos) {
                 button.style.top = savedPos.top;
@@ -256,10 +256,10 @@
                 button.style.bottom = "auto";
                 button.style.right = "auto";
             }
-
+    
             button.addEventListener('mouseenter', () => button.style.opacity = '1');
             button.addEventListener('mouseleave', () => button.style.opacity = isMinimized ? '0.5' : '0.2');
-
+    
             button.addEventListener('click', (e) => {
                 if (e.target.classList.contains('btn-arrow') || e.target.parentNode.classList.contains('btn-arrow')) {
                     e.stopPropagation();
@@ -270,18 +270,18 @@
                 if (e.button !== 0) return;
                 toggleEnabled();
             });
-
+    
             button.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 toggleConfigPanel();
             });
-
+    
             makeDraggable(button);
             document.body.appendChild(button);
             updateButtonState();
             return button;
         }
-
+    
         function minimizeButton() {
             if (isMinimized) return;
             originalPos = {
@@ -292,7 +292,7 @@
                 width: toggleButton.style.width,
                 height: toggleButton.style.height
             };
-
+    
             const rect = toggleButton.getBoundingClientRect();
             const viewportWidth = window.innerWidth;
             const distances = {
@@ -300,7 +300,7 @@
                 left: rect.left
             };
             const nearestEdge = Object.entries(distances).sort((a, b) => a[1] - b[1])[0][0];
-
+    
             toggleButton.style.top = 'auto';
             toggleButton.style.left = 'auto';
             toggleButton.style.bottom = 'auto';
@@ -309,11 +309,11 @@
             toggleButton.style.height = `${miniBtnDiameter}px`;
             toggleButton.style.borderRadius = '50%';
             toggleButton.querySelector('.btn-text').style.opacity = '0';
-
+    
             const arrowSpan = toggleButton.querySelector('.btn-arrow');
             const exposeWidth = miniBtnDiameter * exposeRatio;
             arrowSpan.style.cssText = `margin: 0; font-size: 12px; position: absolute; top: 50%; transform: translateY(-50%);`;
-
+    
             if (nearestEdge === 'left') {
                 arrowSpan.textContent = '▶';
                 arrowSpan.style.left = `${miniBtnDiameter * (1 - exposeRatio) + exposeWidth * 0.5}px`;
@@ -321,7 +321,7 @@
                 arrowSpan.textContent = '◀';
                 arrowSpan.style.left = `${exposeWidth * 0.5}px`;
             }
-
+    
             const centerY = rect.top + rect.height/2;
             const hiddenOffset = miniBtnDiameter * (1 - exposeRatio);
             if (nearestEdge === 'left') {
@@ -334,7 +334,7 @@
             toggleButton.style.opacity = '0.5';
             isMinimized = true;
         }
-
+    
         function restoreButton() {
             if (!isMinimized || !originalPos) return;
             toggleButton.style.width = originalPos.width;
@@ -353,7 +353,7 @@
             toggleButton.style.opacity = '0.2';
             isMinimized = false;
         }
-
+    
         function toggleEnabled() {
             isEnabled = !isEnabled;
             GM_setValue(`image_zoom_enabled_${currentDomain}`, isEnabled);
@@ -364,7 +364,7 @@
                 cleanup();
             }
         }
-
+    
         function cleanup() {
             if (currentZoomContainer) {
                 currentZoomContainer.remove();
@@ -402,7 +402,7 @@
                 states.delete(img);
             });
         }
-
+    
         function updateButtonState() {
             if (!toggleButton) return;
             const textSpan = toggleButton.querySelector('.btn-text');
@@ -414,7 +414,7 @@
                 toggleButton.style.backgroundColor = isEnabled ? '#4CAF50' : '#f44336';
             }
         }
-
+    
         function makeDraggable(element) {
             let isDragging = false;
             element.onmousedown = (e) => {
@@ -428,7 +428,7 @@
                 document.addEventListener('mousemove', dragMove);
                 document.addEventListener('mouseup', dragEnd);
             };
-
+    
             function dragMove(e) {
                 if (!isDragging) return;
                 e.preventDefault();
@@ -444,7 +444,7 @@
                 const viewportHalf = window.innerWidth / 2;
                 arrowSpan.textContent = left < viewportHalf ? '◀' : '▶';
             }
-
+    
             function dragEnd() {
                 if (!isDragging) return;
                 isDragging = false;
@@ -456,7 +456,7 @@
                 document.removeEventListener('mouseup', dragEnd);
             }
         }
-
+    
         function updateExclusionButtonState() {
             const exclusionBtn = document.getElementById('homepage-exclusion-btn');
             const exclusionStatus = document.getElementById('exclusion-status');
@@ -468,7 +468,7 @@
                 exclusionStatus.style.color = isExcluded ? '#ff9800' : '#4CAF50';
             }
         }
-
+    
         function checkImageClickBehavior(img) {
             const commonSelectors = ['[onclick*="zoom"]', '[onclick*="lightbox"]', '[onclick*="gallery"]', '[onclick*="preview"]', '[data-action*="zoom"]', '[data-lightbox]', '[data-gallery]', '[data-fancybox]', '.zoomable', '.lightbox', '.gallery-item', '.fancybox', '.stretched-link'];
             for (const selector of commonSelectors) {
@@ -485,7 +485,7 @@
             }
             return false;
         }
-
+    
         function isImageInLightboxMode(img) {
             const commonLightboxSelectors = ['.lightbox-open', '.fancybox-open', '.modal-open', '.zoom-overlay-open'];
             for (const selector of commonLightboxSelectors) {
@@ -495,7 +495,7 @@
             }
             return false;
         }
-
+    
         // 增强的图片验证：兼容 Discuz 轮播图/选项卡/懒加载
         function isValidImage(img) {
             if (!img || !img.parentNode) return false;
@@ -528,53 +528,53 @@
             if (rect.width < 10 || rect.height < 10) return false;
             return true;
         }
-
+    
         function createConfigPanel() {
             const panel = document.createElement('div');
             panel.id = 'image-zoom-config';
             panel.style.cssText = `position: fixed; bottom: 70px; right: 20px; width: 320px; background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); padding: 15px; z-index: 99998; display: none; font-family: Arial, sans-serif; max-height: 80vh; overflow-y: auto;`;
-
+    
             const title = document.createElement('h3');
             title.textContent = '图片放大设置';
             title.style.cssText = 'margin: 0 0 15px; padding-bottom: 8px; border-bottom: 1px solid #eee;';
             panel.appendChild(title);
-
+    
             const exclusionSection = document.createElement('div');
             exclusionSection.style.cssText = `margin: 15px 0; padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #ff9800;`;
-
+    
             const exclusionTitle = document.createElement('h4');
             exclusionTitle.textContent = '如果此主页面图片不显示可以尝试禁用';
             exclusionTitle.style.cssText = 'margin: 0 0 8px; color: #333;';
             exclusionSection.appendChild(exclusionTitle);
-
+    
             const exclusionDesc = document.createElement('p');
             exclusionDesc.textContent = '在当前网站主页禁用图片放大功能，不影响其他的子页面';
             exclusionDesc.style.cssText = 'margin: 0 0 10px; font-size: 12px; color: #666;';
             exclusionSection.appendChild(exclusionDesc);
-
+    
             const exclusionStatus = document.createElement('div');
             exclusionStatus.id = 'exclusion-status';
             exclusionStatus.style.cssText = 'margin: 8px 0; font-size: 13px; font-weight: bold;';
             exclusionSection.appendChild(exclusionStatus);
-
+    
             const exclusionBtn = document.createElement('button');
             exclusionBtn.id = 'homepage-exclusion-btn';
             exclusionBtn.style.cssText = `width: 100%; padding: 8px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;`;
             exclusionBtn.addEventListener('click', toggleCurrentHomepageExclusion);
             exclusionSection.appendChild(exclusionBtn);
-
+    
             const exclusionListTitle = document.createElement('h5');
             exclusionListTitle.textContent = '已排除的主页:';
             exclusionListTitle.style.cssText = 'margin: 15px 0 8px; color: #333;';
             exclusionSection.appendChild(exclusionListTitle);
-
+    
             const exclusionList = document.createElement('div');
             exclusionList.id = 'exclusion-list';
             exclusionList.style.cssText = 'max-height: 120px; overflow-y: auto; font-size: 12px;';
             exclusionSection.appendChild(exclusionList);
-
+    
             panel.appendChild(exclusionSection);
-
+    
             function updateExclusionList() {
                 exclusionList.innerHTML = '';
                 if (excludedHomepages.length === 0) {
@@ -609,7 +609,7 @@
                     });
                 }
             }
-
+    
             const avoidConflictItem = document.createElement('div');
             avoidConflictItem.style.marginBottom = '12px';
             const avoidConflictLabel = document.createElement('label');
@@ -636,7 +636,7 @@
             avoidConflictDesc.style.cssText = 'font-size: 12px; color: #666; margin-top: 4px;';
             avoidConflictItem.appendChild(avoidConflictDesc);
             panel.appendChild(avoidConflictItem);
-
+    
             function addConfigInput(label, key, type = 'number', min, max, step) {
                 const item = document.createElement('div');
                 item.style.marginBottom = '12px';
@@ -660,7 +660,7 @@
                 item.appendChild(input);
                 panel.appendChild(item);
             }
-
+    
             addConfigInput('悬停延迟(毫秒)', 'delay', 'number', 0, 2000, 100);
             addConfigInput('大图放大倍数', 'scale', 'number', 1, 5, 0.1);
             addConfigInput('大图最小倍数', 'minScale', 'number', 1, 3, 0.1);
@@ -672,20 +672,20 @@
             addConfigInput('小图强制宽度(像素)', 'smallImgWidth', 'number', 300, 1000, 10);
             addConfigInput('小图强制高度(像素)', 'smallImgHeight', 'number', 300, 1000, 10);
             addConfigInput('包装层层级', 'wrapperZIndex', 'number', 0, 100, 1);
-
+    
             const bilibiliVolumeSection = document.createElement('div');
             bilibiliVolumeSection.style.cssText = `margin: 20px 0 15px 0; padding: 12px; background: #f0f8ff; border-radius: 6px; border-left: 4px solid #2196F3;`;
-
+    
             const bilibiliTitle = document.createElement('h4');
             bilibiliTitle.textContent = 'B站播放器辅助';
             bilibiliTitle.style.cssText = 'margin: 0 0 8px; color: #333;';
             bilibiliVolumeSection.appendChild(bilibiliTitle);
-
+    
             const bilibiliDesc = document.createElement('p');
             bilibiliDesc.textContent = 'B站全屏时滚轮调节音量（脚本接管）；方向键只防页面穿透滚动，音量/快进调节由B站原生逻辑处理';
             bilibiliDesc.style.cssText = 'margin: 0 0 10px; font-size: 12px; color: #666;';
             bilibiliVolumeSection.appendChild(bilibiliDesc);
-
+    
             const bilibiliLabel = document.createElement('label');
             bilibiliLabel.style.cssText = 'display: flex; align-items: center; margin-bottom: 5px; font-size: 14px; cursor: pointer;';
             const bilibiliCheckbox = document.createElement('input');
@@ -701,7 +701,7 @@
             bilibiliLabel.appendChild(bilibiliText);
             bilibiliVolumeSection.appendChild(bilibiliLabel);
             panel.appendChild(bilibiliVolumeSection);
-
+    
             const resetBtn = document.createElement('button');
             resetBtn.textContent = '恢复默认设置';
             resetBtn.style.cssText = `width: 100%; padding: 8px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; margin-top: 10px;`;
@@ -716,13 +716,13 @@
                 }
             });
             panel.appendChild(resetBtn);
-
+    
             document.body.appendChild(panel);
             updateExclusionList();
             updateExclusionButtonState();
             return panel;
         }
-
+    
         function toggleConfigPanel() {
             const panel = document.getElementById('image-zoom-config');
             if (panel) {
@@ -733,7 +733,7 @@
                 }
             }
         }
-
+    
         // 【改造】放大态滚轮处理，返回 true 表示事件已被放大功能接管
         function onWheel(e) {
             if (currentZoomContainer && isEnabled) {
@@ -744,7 +744,7 @@
             }
             return false;
         }
-
+    
         const debounceMove = debounce(function(e) {
             if (!currentZoomContainer || !isEnabled) return;
             const zoomedImg = currentZoomContainer.querySelector('img');
@@ -753,13 +753,13 @@
             const currentMarginTop = parseFloat(zoomedImg.style.marginTop) || 0;
             zoomedImg.style.marginTop = (currentMarginTop + moveDistance) + 'px';
         }, 16);
-
+    
         function handleResize() {
             if (isMinimized) {
                 minimizeButton();
             }
         }
-
+    
         function addKeyboardSupport() {
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
@@ -774,18 +774,18 @@
                 }
             });
         }
-
+    
         function createZoomedImage(img, hasClickFunctionality = false) {
             if (!isEnabled) return null;
             try {
                 const rect = img.getBoundingClientRect();
                 if (rect.width === 0 || rect.height === 0) return null;
-
+    
                 const isSmallImg = rect.width < config.smallImgThreshold || rect.height < config.smallImgThreshold;
                 const isPortrait = rect.height / rect.width > config.portraitRatio;
-
+    
                 let scale, zoomedImgStyle;
-
+    
                 if (isSmallImg) {
                     scale = isPortrait ? config.smallImgHeight / rect.height : config.smallImgWidth / rect.width;
                     zoomedImgStyle = `width: ${rect.width * scale}px; height: ${rect.height * scale}px; transform: scale(0.95); transition: ${config.transition}; box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin-top: 0;`;
@@ -801,34 +801,34 @@
                     const maxHeight = isPortrait ? config.maxHeight + 200 : config.maxHeight;
                     zoomedImgStyle = `max-width: ${config.maxWidth}px; max-height: ${maxHeight}px; width: auto; height: auto; transform: scale(0.95); transition: ${config.transition}; box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin-top: 0;`;
                 }
-
+    
                 const zoomContainer = document.createElement('div');
                 zoomContainer.className = 'image-zoom-container';
                 const zoomZIndex = hasClickFunctionality ? config.zoomZIndex - 1 : config.zoomZIndex;
                 zoomContainer.style.cssText = `position: fixed; z-index: ${zoomZIndex}; opacity: 0; transition: ${config.transition}; pointer-events: none; left: 0; top: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; background-color: rgba(0,0,0,0.1);`;
-
+    
                 const zoomedImg = document.createElement('img');
                 zoomedImg.src = img.src || img.currentSrc;
                 zoomedImg.alt = img.alt;
                 zoomedImg.style.cssText = zoomedImgStyle;
                 zoomContainer.appendChild(zoomedImg);
                 document.body.appendChild(zoomContainer);
-
+    
                 if (currentZoomContainer) currentZoomContainer.remove();
                 currentZoomContainer = zoomContainer;
-
+    
                 setTimeout(() => {
                     zoomContainer.style.opacity = '1';
                     zoomedImg.style.transform = `scale(${scale})`;
                 }, 10);
-
+    
                 return zoomContainer;
             } catch (error) {
                 console.warn('创建放大图失败:', error);
                 return null;
             }
         }
-
+    
         function showZoom(img) {
             if (!isEnabled) return;
             if (config.avoidClickConflict && isImageInLightboxMode(img)) return;
@@ -838,7 +838,7 @@
             if (!zoomContainer) return;
             states.set(img, { ...state, isZoomed: true, zoomContainer });
         }
-
+    
         function hideZoom(img) {
             const state = states.get(img);
             if (!state || !state.isZoomed || !state.zoomContainer) return;
@@ -853,7 +853,7 @@
                 states.set(img, { ...state, isZoomed: false, zoomContainer: null, timer: null });
             }, 300);
         }
-
+    
         function handleStretchedLink(img) {
             const card = img.closest('.card');
             if (!card) return;
@@ -871,13 +871,13 @@
                 }
             });
         }
-
+    
         function processImage(img) {
             if (!isEnabled) return;
             try {
                 if (!img || !img.parentNode) return;
                 if (!isValidImage(img)) return;
-
+    
                 let containers = [];
                 let current = img.parentNode;
                 while (current && current !== document.body) {
@@ -886,21 +886,21 @@
                     current = current.parentNode;
                 }
                 const container = containers.length > 0 ? containers[containers.length - 1] : img.parentNode;
-
+    
                 const hasClickFunctionality = config.avoidClickConflict ? (checkImageClickBehavior(img) || container.tagName === 'A' || container.classList.contains('stretched-link')) : false;
-
+    
                 if (img.classList.contains('image-zoom-processed')) return;
                 img.classList.add('image-zoom-processed');
-
+    
                 if (!hasClickFunctionality) {
                     img.classList.add('image-zoom-hover');
                     if (img.parentNode && img.parentNode !== document.body) {
                         img.parentNode.classList.add('image-zoom-hover');
                     }
                 }
-
+    
                 handleStretchedLink(img);
-
+    
                 const directParent = img.parentNode;
                 const handleParentMouseEnter = (e) => {
                     const rect = img.getBoundingClientRect();
@@ -920,11 +920,11 @@
                         directParent.addEventListener('mouseleave', handleParentMouseLeave);
                     }
                 }
-
+    
                 let timer = null;
                 let isZoomed = false;
                 let zoomContainer = null;
-
+    
                 const handleMouseEnter = (e) => {
                     if (!isEnabled || isZoomed) return;
                     if (config.avoidClickConflict && isImageInLightboxMode(img)) return;
@@ -936,7 +936,7 @@
                         }
                     }, config.delay);
                 };
-
+    
                 const handleMouseLeave = (e) => {
                     if (timer) {
                         clearTimeout(timer);
@@ -956,15 +956,15 @@
                         }, 300);
                     }
                 };
-
+    
                 const handleClick = (e) => {
                     if (isZoomed && zoomContainer) hideZoom(img);
                 };
-
+    
                 img.addEventListener('mouseenter', handleMouseEnter);
                 img.addEventListener('mouseleave', handleMouseLeave);
                 img.addEventListener('click', handleClick, true);
-
+    
                 // 保存事件处理函数引用，便于清理
                 states.set(img, {
                     isZoomed, timer, zoomContainer, hasClickFunctionality,
@@ -982,7 +982,7 @@
                 console.warn('图片处理失败:', error);
             }
         }
-
+    
         // 悬停自愈机制：第一次悬停未处理的图片时，重新检测并直接触发放大
         function setupLazyHoverProcessor() {
             document.addEventListener('mouseover', debounce((e) => {
@@ -998,7 +998,7 @@
                 }
             }, 80), true);
         }
-
+    
         function setupLightboxObserver() {
             const observer = new MutationObserver((mutations) => {
                 mutations.forEach((mutation) => {
@@ -1024,7 +1024,7 @@
             observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
             observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
         }
-
+    
         function initImages() {
             if (isHomepage() && isHomepageExcluded()) return;
             const imgs = Array.from(document.querySelectorAll('img:not(.image-zoom-processed)'));
@@ -1048,7 +1048,7 @@
                 processBatch({ timeRemaining: () => 5 });
             }
         }
-
+    
         function startObserver() {
             let processingQueue = false;
             const observer = new MutationObserver(mutations => {
@@ -1095,7 +1095,7 @@
                 attributeFilter: ['src', 'data-src', 'srcset']
             });
         }
-
+    
         function init() {
             loadConfig();
             loadExcludedHomepages();
@@ -1110,10 +1110,10 @@
             setupLazyHoverProcessor(); // 悬停自愈机制
             startObserver();           // 注意：wheel 监听已移至 mainInit 的统一调度器
         }
-
+    
         return { init, cleanup, onWheel };
     })();
-
+    
     // ================================
     // B站播放器辅助模块（v3.3.1 修正版）
     // 滚轮调音量：脚本接管（B站原生滚轮在网页全屏下不可靠，已实测）
@@ -1124,7 +1124,7 @@
         let isEnabled = GM_getValue('bilibili_volume_enabled', true);
         let toast = null;
         let currentFullscreenElement = null;
-
+    
         function isInFullscreenMode() {
             const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
             if (fullscreenElement) {
@@ -1143,7 +1143,7 @@
             currentFullscreenElement = null;
             return false;
         }
-
+    
         function findVideoElement() {
             if (currentFullscreenElement) {
                 const video = currentFullscreenElement.querySelector('video');
@@ -1151,7 +1151,7 @@
             }
             return document.querySelector('.bpx-player-container video, video');
         }
-
+    
         // 优先走 B站官方 player API（0~100），播放器自己的音量条状态会同步更新
         function applyVolume(video, newVolume) {
             const clamped = Math.max(0, Math.min(1, newVolume));
@@ -1169,7 +1169,7 @@
             video.volume = clamped;
             video.muted = false;
         }
-
+    
         function getVolume(video) {
             try {
                 const player = window.player;
@@ -1177,14 +1177,14 @@
             } catch (err) {}
             return video.volume;
         }
-
+    
         function getVolumeIcon(volume) {
             if (volume === 0) {
                 return `<svg width="28" height="28" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><path d="M64 362.67v298.66h198.33L512 911V113L262.33 362.67H64zM736 512c0-43.56-11.28-83.22-33.83-119-22.56-35.78-52.5-63-89.83-81.67v399c37.33-17.11 67.28-43.55 89.83-79.33C724.72 595.22 736 555.56 736 512z" fill="currentColor"></path><path d="M704.5 320.5l-384 384M320.5 320.5l384 384" stroke="currentColor" stroke-width="56" stroke-linecap="round" fill="none"></path></svg>`;
             }
             return `<svg width="28" height="28" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><path d="M64 362.67v298.66h198.33L512 911V113L262.33 362.67H64zM736 512c0-43.56-11.28-83.22-33.83-119-22.56-35.78-52.5-63-89.83-81.67v399c37.33-17.11 67.28-43.55 89.83-79.33C724.72 595.22 736 555.56 736 512zM612.33 75.67v102.67c71.56 21.78 130.67 63.39 177.33 124.83 46.67 61.44 70 131.06 70 208.83 0 77.78-23.33 147.39-70 208.83C743 782.28 683.89 823.89 612.33 845.66v102.67C677.67 932.78 736.78 904 789.67 862s94.5-93.33 124.83-154S960 582 960 512s-15.17-135.33-45.5-196c-30.34-60.67-71.94-112-124.83-154s-112-70.78-177.34-86.33z" fill="currentColor"></path></svg>`;
         }
-
+    
         function showVolumeToast(volume) {
             if (!toast) {
                 toast = document.createElement('div');
@@ -1228,7 +1228,7 @@
                 if (toast) toast.style.opacity = '0';
             }, 2000);
         }
-
+    
         // 【滚轮】脚本接管：调音量 + 防穿透（B站原生滚轮调音量在网页全屏下不可靠）
         function onWheel(e) {
             if (!isEnabled || !isInFullscreenMode()) return false;
@@ -1241,7 +1241,7 @@
             showVolumeToast(target);
             return true;
         }
-
+    
         // 【方向键守卫】保留：只挡页面穿透滚动，调节交给 B站原生（已实测可用）
         function handleKeydown(e) {
             if (!isEnabled) return;
@@ -1250,7 +1250,7 @@
                 e.preventDefault();
             }
         }
-
+    
         // 【音量提示】监听 volumechange（capture 阶段，不依赖冒泡）
         // 覆盖非脚本来源的音量变化（如拖动B站音量条），统一弹出提示
         function handleVolumeChange(e) {
@@ -1260,14 +1260,14 @@
             const video = e.target;
             showVolumeToast(video.muted ? 0 : video.volume);
         }
-
+    
         function init() {
             if (!window.location.hostname.includes('bilibili.com')) return;
             isInFullscreenMode();
             window.addEventListener('keydown', handleKeydown);
             document.addEventListener('volumechange', handleVolumeChange, { capture: true });
         }
-
+    
         function setEnabled(enabled) {
             isEnabled = enabled;
             GM_setValue('bilibili_volume_enabled', enabled);
@@ -1279,7 +1279,7 @@
                 document.removeEventListener('volumechange', handleVolumeChange, { capture: true });
             }
         }
-
+    
         return {
             init,
             setEnabled,
@@ -1287,14 +1287,14 @@
             get isEnabled() { return isEnabled; }
         };
     })();
-
+    
     // ================================
     // 主初始化函数
     // ================================
     function mainInit() {
         imageZoomModule.init();
         bilibiliVolumeModule.init();
-
+    
         // 【统一滚轮调度】全脚本唯一 wheel 监听器
         // 优先级：图片放大态 > B站全屏滚轮音量 > 浏览器默认行为
         document.addEventListener('wheel', (e) => {
@@ -1303,7 +1303,7 @@
             // 都不接管时，不 preventDefault，页面正常滚动
         }, { capture: true, passive: false });
     }
-
+    
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', mainInit);
     } else {
