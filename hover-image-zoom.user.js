@@ -29,7 +29,7 @@
             zoomZIndex: 9999,
             transition: 'all 0.3s ease',
             scrollSpeed: 50,
-            smallImgThreshold: 20,
+            smallImgThreshold: 280,
             smallImgWidth: 500,
             smallImgHeight: 430,
             avoidClickConflict: true
