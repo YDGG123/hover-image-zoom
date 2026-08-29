@@ -1,0 +1,33 @@
+name: Update meta.js
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'hover-image-zoom.user.js'   # 只在脚本文件变动时触发
+
+permissions:
+  contents: write
+
+jobs:
+  update-meta:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate meta.js
+        run: |
+          # 提取 ==UserScript== 到 ==/UserScript== 之间的内容
+          sed -n '/==UserScript==/,/==\/UserScript==/p' hover-image-zoom.user.js > hover-image-zoom.meta.js
+          echo "Generated meta.js:"
+          cat hover-image-zoom.meta.js
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add hover-image-zoom.meta.js
+          git diff --cached --quiet || git commit -m "chore: update meta.js to version $(grep -oP '(?<=@version\s).+' hover-image-zoom.user.js | head -1)"
+          git push
+
