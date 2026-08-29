@@ -1,15 +1,20 @@
 // ==UserScript==
 // @name         鼠标悬停图片自动放大预览
-// @namespace    http://tampermonkey.net/
-// @version      3.3.3
-// @description  一款好用的网页图片放大工具，鼠标悬停即可自动放大图片，支持自定义配置，适配所有网页～ 
+// @namespace    https://github.com/YDGG123
+// @version      3.4.0
+// @description  一款好用的网页图片放大工具，鼠标悬停即可自动放大图片，支持自定义配置，适配所有网页～
 // @author       益达哥哥
 // @match        *://*/*
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @run-at       document-end
+// @noframes
 // @license      MIT
+// @homepageURL  https://github.com/YDGG123/hover-image-zoom
+// @supportURL   https://github.com/YDGG123/hover-image-zoom/issues
+// @downloadURL  https://raw.githubusercontent.com/YDGG123/hover-image-zoom/main/hover-image-zoom.user.js
 // ==/UserScript==
+
 
 (function() {
     'use strict';
@@ -44,6 +49,9 @@
         let currentZoomContainer = null;
         let toggleButton = null;
         let excludedHomepages = [];
+        let zoomObserver = null;       // MutationObserver 实例引用（startObserver）
+        let lightboxObserver = null;   // MutationObserver 实例引用（setupLightboxObserver）
+        let styleElement = null;       // injectStyles 创建的 style 元素引用
     
         const fullBtnWidth = 80;
         const fullBtnHeight = 32;
@@ -54,11 +62,20 @@
         // 【调试开关】改为 true 后，被跳过的图片会在控制台 (F12) 打印原因
         const DEBUG_IMAGE_CHECK = false;
     
+        // 【修复 #6】提取为模块级常量，避免每次调用重建
+        const COMMON_SELECTORS = [
+            '[onclick*="zoom"]', '[onclick*="lightbox"]', '[onclick*="gallery"]',
+            '[onclick*="preview"]', '[data-action*="zoom"]', '[data-lightbox]',
+            '[data-gallery]', '[data-fancybox]', '.zoomable', '.lightbox',
+            '.gallery-item', '.fancybox', '.stretched-link'
+        ];
+    
+        // 【修复 #15】getDomain fallback 增强
         function getDomain() {
             try {
                 return new URL(window.location.href).hostname;
             } catch (e) {
-                return window.location.hostname;
+                return window.location.hostname || 'unknown';
             }
         }
     
@@ -104,6 +121,7 @@
             return path === '/' || path === '/index.html' || path === '/index.php' || path === '';
         }
     
+        // 【修复 #16】Toast 元素在动画结束后从 DOM 移除
         function showToast(message) {
             let toast = document.getElementById('image-zoom-toast');
             if (!toast) {
@@ -129,32 +147,44 @@
             }
             toast.textContent = message;
             toast.style.opacity = '1';
-            setTimeout(() => {
+            // 清除之前的定时器（如果有）
+            if (toast.timeoutId) clearTimeout(toast.timeoutId);
+            toast.timeoutId = setTimeout(() => {
                 toast.style.opacity = '0';
+                // 【修复】等待 transition 结束后从 DOM 移除
+                setTimeout(() => {
+                    if (toast && toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                        toast = null;
+                    }
+                }, 300);
             }, 2000);
         }
     
+        // 【修复 #5】debounce 函数保存并恢复 this 上下文
         function debounce(func, wait) {
             let timeout;
             return function(...args) {
+                const context = this;
                 const later = () => {
                     clearTimeout(timeout);
-                    func(...args);
+                    func.apply(context, args);
                 };
                 clearTimeout(timeout);
                 timeout = setTimeout(later, wait);
             };
         }
     
+        // 【修复 #8】validateConfig 与 UI 输入框 max/min 值统一
         function validateConfig(cfg) {
             const validated = { ...cfg };
             validated.delay = Math.max(0, Math.min(2000, validated.delay));
-            validated.scale = Math.max(1, Math.min(10, validated.scale));
+            validated.scale = Math.max(1, Math.min(5, validated.scale));        // 与 UI max=5 一致
             validated.maxWidth = Math.max(100, Math.min(5000, validated.maxWidth));
             validated.maxHeight = Math.max(100, Math.min(5000, validated.maxHeight));
-            validated.minScale = Math.max(1, Math.min(5, validated.minScale));
+            validated.minScale = Math.max(1, Math.min(3, validated.minScale));   // 与 UI max=3 一致
             validated.portraitRatio = Math.max(1, Math.min(5, validated.portraitRatio));
-            validated.scrollSpeed = Math.max(1, Math.min(100, validated.scrollSpeed));
+            validated.scrollSpeed = Math.max(1, Math.min(50, validated.scrollSpeed)); // 与 UI max=50 一致
             validated.smallImgThreshold = Math.max(50, Math.min(1000, validated.smallImgThreshold));
             validated.smallImgWidth = Math.max(100, Math.min(2000, validated.smallImgWidth));
             validated.smallImgHeight = Math.max(100, Math.min(2000, validated.smallImgHeight));
@@ -181,7 +211,10 @@
             }
         }
     
+        // 【修复 #12】injectStyles 增加清理机制，避免重复注入
         function injectStyles() {
+            // 如果已存在 style 元素则不再重复添加
+            if (styleElement) return;
             const style = document.createElement('style');
             style.textContent = `
                 .image-zoom-wrapper * {
@@ -205,6 +238,7 @@
                 }
             `;
             document.head.appendChild(style);
+            styleElement = style;  // 保存引用以便后续清理
         }
     
         function createToggleButton() {
@@ -365,7 +399,18 @@
             }
         }
     
+        // 【修复 #2】cleanup 中增加 MutationObserver 断开和 style 移除
         function cleanup() {
+            // 断开所有 MutationObserver
+            if (zoomObserver) {
+                zoomObserver.disconnect();
+                zoomObserver = null;
+            }
+            if (lightboxObserver) {
+                lightboxObserver.disconnect();
+                lightboxObserver = null;
+            }
+    
             if (currentZoomContainer) {
                 currentZoomContainer.remove();
                 currentZoomContainer = null;
@@ -401,6 +446,11 @@
                 img.classList.remove('image-zoom-hover');
                 states.delete(img);
             });
+            // 【修复 #12】移除注入的 style 元素
+            if (styleElement && styleElement.parentNode) {
+                styleElement.parentNode.removeChild(styleElement);
+                styleElement = null;
+            }
         }
     
         function updateButtonState() {
@@ -469,9 +519,9 @@
             }
         }
     
+        // 【修复 #6】使用模块级常量 COMMON_SELECTORS
         function checkImageClickBehavior(img) {
-            const commonSelectors = ['[onclick*="zoom"]', '[onclick*="lightbox"]', '[onclick*="gallery"]', '[onclick*="preview"]', '[data-action*="zoom"]', '[data-lightbox]', '[data-gallery]', '[data-fancybox]', '.zoomable', '.lightbox', '.gallery-item', '.fancybox', '.stretched-link'];
-            for (const selector of commonSelectors) {
+            for (const selector of COMMON_SELECTORS) {
                 if (img.matches(selector)) return true;
             }
             let parent = img.parentElement;
@@ -486,7 +536,8 @@
             return false;
         }
     
-        function isImageInLightboxMode(img) {
+        // 【修复 #7】去掉无用的 img 参数
+        function isImageInLightboxMode() {
             const commonLightboxSelectors = ['.lightbox-open', '.fancybox-open', '.modal-open', '.zoom-overlay-open'];
             for (const selector of commonLightboxSelectors) {
                 if (document.body.classList.contains(selector.replace('.', '')) || document.documentElement.classList.contains(selector.replace('.', ''))) {
@@ -527,6 +578,30 @@
             const rect = img.getBoundingClientRect();
             if (rect.width < 10 || rect.height < 10) return false;
             return true;
+        }
+    
+        // 【修复 #3】createConfigPanel 改为 updateConfigPanel，只更新值不重建 DOM
+        function updateConfigPanel() {
+            const panel = document.getElementById('image-zoom-config');
+            if (!panel) return;
+    
+            // 更新所有配置输入框的值
+            const inputs = panel.querySelectorAll('input[type="number"]');
+            const configKeys = ['delay', 'scale', 'minScale', 'maxWidth', 'maxHeight', 'portraitRatio', 'scrollSpeed', 'smallImgThreshold', 'smallImgWidth', 'smallImgHeight', 'wrapperZIndex'];
+            inputs.forEach((input, index) => {
+                if (configKeys[index]) {
+                    input.value = config[configKeys[index]];
+                }
+            });
+    
+            // 更新避免冲突复选框
+            const avoidCheckbox = panel.querySelector('input[type="checkbox"]');
+            if (avoidCheckbox) {
+                avoidCheckbox.checked = config.avoidClickConflict;
+            }
+    
+            updateExclusionList();
+            updateExclusionButtonState();
         }
     
         function createConfigPanel() {
@@ -702,6 +777,7 @@
             bilibiliVolumeSection.appendChild(bilibiliLabel);
             panel.appendChild(bilibiliVolumeSection);
     
+            // 【修复 #3】恢复默认设置改为只更新值，不重建 DOM
             const resetBtn = document.createElement('button');
             resetBtn.textContent = '恢复默认设置';
             resetBtn.style.cssText = `width: 100%; padding: 8px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; margin-top: 10px;`;
@@ -709,10 +785,7 @@
                 if (confirm('确定要恢复默认设置吗？')) {
                     config = { ...defaultConfig };
                     saveConfig();
-                    const newPanel = createConfigPanel();
-                    if (panel.parentNode) {
-                        panel.parentNode.replaceChild(newPanel, panel);
-                    }
+                    updateConfigPanel();  // 只更新现有面板的值，不重建 DOM
                 }
             });
             panel.appendChild(resetBtn);
@@ -754,9 +827,14 @@
             zoomedImg.style.marginTop = (currentMarginTop + moveDistance) + 'px';
         }, 16);
     
+        // 【修复 #10】handleResize 增加放大图位置调整
         function handleResize() {
             if (isMinimized) {
                 minimizeButton();
+            }
+            // 窗口大小变化时，如果当前有放大图，隐藏它避免超出可视区域
+            if (currentZoomContainer && isEnabled) {
+                currentZoomContainer.style.opacity = '0';
             }
         }
     
@@ -775,9 +853,18 @@
             });
         }
     
+        // 【修复 #13】createZoomedImage 增加竞态处理
         function createZoomedImage(img, hasClickFunctionality = false) {
             if (!isEnabled) return null;
             try {
+                // 如果有正在动画中的容器，先清理掉
+                if (currentZoomContainer) {
+                    try {
+                        currentZoomContainer.remove();
+                    } catch (e) { /* 已移除则忽略 */ }
+                    currentZoomContainer = null;
+                }
+    
                 const rect = img.getBoundingClientRect();
                 if (rect.width === 0 || rect.height === 0) return null;
     
@@ -785,7 +872,6 @@
                 const isPortrait = rect.height / rect.width > config.portraitRatio;
     
                 let scale, zoomedImgStyle;
-    
                 if (isSmallImg) {
                     scale = isPortrait ? config.smallImgHeight / rect.height : config.smallImgWidth / rect.width;
                     zoomedImgStyle = `width: ${rect.width * scale}px; height: ${rect.height * scale}px; transform: scale(0.95); transition: ${config.transition}; box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin-top: 0;`;
@@ -814,7 +900,6 @@
                 zoomContainer.appendChild(zoomedImg);
                 document.body.appendChild(zoomContainer);
     
-                if (currentZoomContainer) currentZoomContainer.remove();
                 currentZoomContainer = zoomContainer;
     
                 setTimeout(() => {
@@ -831,7 +916,9 @@
     
         function showZoom(img) {
             if (!isEnabled) return;
-            if (config.avoidClickConflict && isImageInLightboxMode(img)) return;
+            if (config.avoidClickConflict && isImageInLightboxMode()) {  // 【修复 #7】去掉无用的 img 参数
+                return;
+            }
             const state = states.get(img);
             if (!state || state.isZoomed) return;
             const zoomContainer = createZoomedImage(img, state.hasClickFunctionality);
@@ -855,6 +942,7 @@
         }
     
         function handleStretchedLink(img) {
+            // 【修复 #14】防御性编程，closest 可能返回 null
             const card = img.closest('.card');
             if (!card) return;
             const link = card.querySelector('a.stretched-link');
@@ -927,7 +1015,9 @@
     
                 const handleMouseEnter = (e) => {
                     if (!isEnabled || isZoomed) return;
-                    if (config.avoidClickConflict && isImageInLightboxMode(img)) return;
+                    if (config.avoidClickConflict && isImageInLightboxMode()) {  // 【修复 #7】
+                        return;
+                    }
                     if (timer) clearTimeout(timer);
                     timer = setTimeout(() => {
                         if (!isZoomed) {
@@ -999,11 +1089,12 @@
             }, 80), true);
         }
     
+        // 【修复 #2】返回 observer 实例以便 cleanup 时断开
         function setupLightboxObserver() {
             const observer = new MutationObserver((mutations) => {
                 mutations.forEach((mutation) => {
                     if (mutation.type === 'attributes' && (mutation.target === document.body || mutation.target === document.documentElement)) {
-                        if (isImageInLightboxMode(null)) {
+                        if (isImageInLightboxMode()) {  // 【修复 #7】去掉无用的 null 参数
                             document.querySelectorAll('.image-zoom-container').forEach(container => {
                                 container.style.opacity = '0';
                                 setTimeout(() => {
@@ -1023,6 +1114,8 @@
             });
             observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
             observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+            lightboxObserver = observer;  // 保存引用
+            return observer;
         }
     
         function initImages() {
@@ -1049,6 +1142,7 @@
             }
         }
     
+        // 【修复 #2】返回 observer 实例以便 cleanup 时断开
         function startObserver() {
             let processingQueue = false;
             const observer = new MutationObserver(mutations => {
@@ -1094,8 +1188,12 @@
                 attributes: true,
                 attributeFilter: ['src', 'data-src', 'srcset']
             });
+            zoomObserver = observer;  // 保存引用
+            return observer;
         }
     
+        // 【修复 #1】init 中不再直接添加事件监听器，交由 setEnabled 统一管理（B站模块）
+        // 图片放大模块的 init 保持不变，但需要确保 observer 被正确创建
         function init() {
             loadConfig();
             loadExcludedHomepages();
@@ -1107,15 +1205,15 @@
             window.addEventListener('resize', debounce(handleResize, 250));
             setupLightboxObserver();
             if (isEnabled) initImages();
-            setupLazyHoverProcessor(); // 悬停自愈机制
-            startObserver();           // 注意：wheel 监听已移至 mainInit 的统一调度器
+            setupLazyHoverProcessor();
+            startObserver();
         }
     
         return { init, cleanup, onWheel };
     })();
     
     // ================================
-    // B站播放器辅助模块（v3.3.1 修正版）
+    // B站播放器辅助模块（v3.4.0 优化版）
     // 滚轮调音量：脚本接管（B站原生滚轮在网页全屏下不可靠，已实测）
     // 方向键：守卫模式，交还 B站原生（已实测可用）
     // 音量提示：滚轮直接显示 + volumechange 监听兜底（覆盖拖音量条等场景）
@@ -1123,30 +1221,26 @@
     const bilibiliVolumeModule = (function() {
         let isEnabled = GM_getValue('bilibili_volume_enabled', true);
         let toast = null;
-        let currentFullscreenElement = null;
     
         function isInFullscreenMode() {
             const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
             if (fullscreenElement) {
-                currentFullscreenElement = fullscreenElement;
                 return true;
             }
             if (document.body.classList.contains('player-mode-webfullscreen')) {
-                currentFullscreenElement = document.body;
                 return true;
             }
             const player = document.querySelector('.bpx-player-container');
             if (player && player.classList.contains('state-fullscreen')) {
-                currentFullscreenElement = player;
                 return true;
             }
-            currentFullscreenElement = null;
             return false;
         }
     
         function findVideoElement() {
-            if (currentFullscreenElement) {
-                const video = currentFullscreenElement.querySelector('video');
+            const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+            if (fullscreenElement) {
+                const video = fullscreenElement.querySelector('video');
                 if (video) return video;
             }
             return document.querySelector('.bpx-player-container video, video');
@@ -1185,6 +1279,7 @@
             return `<svg width="28" height="28" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><path d="M64 362.67v298.66h198.33L512 911V113L262.33 362.67H64zM736 512c0-43.56-11.28-83.22-33.83-119-22.56-35.78-52.5-63-89.83-81.67v399c37.33-17.11 67.28-43.55 89.83-79.33C724.72 595.22 736 555.56 736 512zM612.33 75.67v102.67c71.56 21.78 130.67 63.39 177.33 124.83 46.67 61.44 70 131.06 70 208.83 0 77.78-23.33 147.39-70 208.83C743 782.28 683.89 823.89 612.33 845.66v102.67C677.67 932.78 736.78 904 789.67 862s94.5-93.33 124.83-154S960 582 960 512s-15.17-135.33-45.5-196c-30.34-60.67-71.94-112-124.83-154s-112-70.78-177.34-86.33z" fill="currentColor"></path></svg>`;
         }
     
+        // 【修复 #9】Toast 元素在动画结束后从 DOM 移除
         function showVolumeToast(volume) {
             if (!toast) {
                 toast = document.createElement('div');
@@ -1216,7 +1311,7 @@
                     gap: 8px;
                 `;
             }
-            const parentElement = currentFullscreenElement || document.body;
+            const parentElement = document.fullscreenElement || document.webkitFullscreenElement || document.body;
             if (!toast.parentNode || toast.parentNode !== parentElement) {
                 if (toast.parentNode) toast.parentNode.removeChild(toast);
                 parentElement.appendChild(toast);
@@ -1225,11 +1320,17 @@
             toast.style.opacity = '1';
             if (toast.timeoutId) clearTimeout(toast.timeoutId);
             toast.timeoutId = setTimeout(() => {
-                if (toast) toast.style.opacity = '0';
+                toast.style.opacity = '0';
+                // 【修复】等待 transition 结束后从 DOM 移除
+                setTimeout(() => {
+                    if (toast && toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 300);
             }, 2000);
         }
     
-        // 【滚轮】脚本接管：调音量 + 防穿透（B站原生滚轮调音量在网页全屏下不可靠）
+        // 【滚轮】脚本接管：调音量 + 防穿透（B站原生滚轮在网页全屏下不可靠）
         function onWheel(e) {
             if (!isEnabled || !isInFullscreenMode()) return false;
             const video = findVideoElement();
@@ -1261,11 +1362,11 @@
             showVolumeToast(video.muted ? 0 : video.volume);
         }
     
+        // 【修复 #1】init 中不再直接添加事件监听器，交由 setEnabled 统一管理
         function init() {
             if (!window.location.hostname.includes('bilibili.com')) return;
             isInFullscreenMode();
-            window.addEventListener('keydown', handleKeydown);
-            document.addEventListener('volumechange', handleVolumeChange, { capture: true });
+            setEnabled(isEnabled);  // 统一通过 setEnabled 管理事件监听器
         }
     
         function setEnabled(enabled) {
@@ -1299,7 +1400,7 @@
         // 优先级：图片放大态 > B站全屏滚轮音量 > 浏览器默认行为
         document.addEventListener('wheel', (e) => {
             if (imageZoomModule.onWheel(e)) return;      // 放大图滚动大图（stopPropagation）
-            bilibiliVolumeModule.onWheel(e);             // B站全屏：脚本接管调音量
+            bilibiliVolumeModule.onWheel(e);              // B站全屏：脚本接管调音量
             // 都不接管时，不 preventDefault，页面正常滚动
         }, { capture: true, passive: false });
     }
@@ -1309,4 +1410,5 @@
     } else {
         mainInit();
     }
+
 })();
