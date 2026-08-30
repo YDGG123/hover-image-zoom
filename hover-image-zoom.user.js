@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         鼠标悬停图片自动放大预览
 // @namespace    https://github.com/YDGG123
-// @version      3.4.0
-// @description  一款好用的网页图片放大工具，鼠标悬停即可自动放大图片，支持自定义配置，适配所有网页～
+// @version      4.1.2
+// @description  一款好用的网页图片放大工具，鼠标悬停即可自动放大图片，支持智能自适应尺寸与固定倍数双模式，适配所有网页～
 // @author       益达哥哥
 // @match        *://*/*
 // @grant        GM_getValue
@@ -14,7 +14,6 @@
 // @supportURL   https://github.com/YDGG123/hover-image-zoom/issues
 // @downloadURL  https://raw.githubusercontent.com/YDGG123/hover-image-zoom/main/hover-image-zoom.user.js
 // ==/UserScript==
-
 
 (function() {
     'use strict';
@@ -30,47 +29,42 @@
             maxHeight: 980,
             minScale: 1.4,
             portraitRatio: 1.3,
-            wrapperZIndex: 1,
             zoomZIndex: 9999,
             transition: 'all 0.3s ease',
             scrollSpeed: 50,
             smallImgThreshold: 280,
             smallImgWidth: 500,
             smallImgHeight: 430,
-            avoidClickConflict: true
+            avoidClickConflict: true,
+            zoomMode: 'adaptive',
+            minOriginalSize: 30
         };
-    
+
         const states = new WeakMap();
         let isEnabled = true;
-        let isMinimized = false;
-        let originalPos = null;
         let config = { ...defaultConfig };
+
         const currentDomain = getDomain();
         let currentZoomContainer = null;
         let toggleButton = null;
-        let excludedHomepages = [];
-        let zoomObserver = null;       // MutationObserver 实例引用（startObserver）
-        let lightboxObserver = null;   // MutationObserver 实例引用（setupLightboxObserver）
-        let styleElement = null;       // injectStyles 创建的 style 元素引用
-    
-        const fullBtnWidth = 80;
-        const fullBtnHeight = 32;
-        const miniBtnDiameter = 32;
-        const miniBtnRadius = miniBtnDiameter / 2;
-        const exposeRatio = 0.15;
-    
-        // 【调试开关】改为 true 后，被跳过的图片会在控制台 (F12) 打印原因
+        let gearButton = null;
+        let dockZone = null;
+        let dockTip = null;
+        let settingsTip = null;
+        let zoomObserver = null;
+        let lightboxObserver = null;
+        let styleElement = null;
+        let dockStyleElement = null; // 悬浮按钮 + 配置面板样式（永不随 cleanup 移除）
+
         const DEBUG_IMAGE_CHECK = false;
-    
-        // 【修复 #6】提取为模块级常量，避免每次调用重建
+
         const COMMON_SELECTORS = [
             '[onclick*="zoom"]', '[onclick*="lightbox"]', '[onclick*="gallery"]',
             '[onclick*="preview"]', '[data-action*="zoom"]', '[data-lightbox]',
             '[data-gallery]', '[data-fancybox]', '.zoomable', '.lightbox',
             '.gallery-item', '.fancybox', '.stretched-link'
         ];
-    
-        // 【修复 #15】getDomain fallback 增强
+
         function getDomain() {
             try {
                 return new URL(window.location.href).hostname;
@@ -78,80 +72,67 @@
                 return window.location.hostname || 'unknown';
             }
         }
-    
-        function getCurrentHomepage() {
-            const url = new URL(window.location.href);
-            return `${url.protocol}//${url.hostname}/`;
+
+        // 主页禁用：域名级开关，仅影响当前网站的主页
+        function isHomepageDisabled() {
+            return GM_getValue(`image_zoom_homepage_disabled_${currentDomain}`, false);
         }
-    
-        function isHomepageExcluded() {
-            const currentHomepage = getCurrentHomepage();
-            return excludedHomepages.includes(currentHomepage);
-        }
-    
-        function loadExcludedHomepages() {
-            const saved = GM_getValue(`image_zoom_excluded_homepages_${currentDomain}`, []);
-            excludedHomepages = Array.isArray(saved) ? saved : [];
-        }
-    
-        function saveExcludedHomepages() {
-            GM_setValue(`image_zoom_excluded_homepages_${currentDomain}`, excludedHomepages);
-        }
-    
-        function toggleCurrentHomepageExclusion() {
-            const currentHomepage = getCurrentHomepage();
-            const index = excludedHomepages.indexOf(currentHomepage);
-            if (index > -1) {
-                excludedHomepages.splice(index, 1);
-                showToast('已启用当前主页的图片放大功能');
-            } else {
-                excludedHomepages.push(currentHomepage);
-                showToast('已禁用当前主页的图片放大功能');
-                if (isHomepage() && isEnabled) {
-                    cleanup();
-                }
+
+        function refreshPanelHomepageSection() {
+            const overlay = document.getElementById('izModalOverlay');
+            if (!overlay) return;
+            const disabled = isHomepageDisabled();
+            const hpDot = overlay.querySelector('#izHpDot');
+            const hpText = overlay.querySelector('#izHpText');
+            const hpBtn = overlay.querySelector('#izHpToggleBtn');
+            if (hpDot) hpDot.className = disabled ? 'iz-dot off' : 'iz-dot on';
+            if (hpText) hpText.textContent = disabled ? '当前主页已禁用图片放大' : '当前主页已启用图片放大';
+            if (hpBtn) {
+                hpBtn.textContent = disabled ? '启用主页图片放大功能' : '禁用主页图片放大功能';
+                hpBtn.className = disabled ? 'iz-btn-sm primary' : 'iz-btn-sm warning';
             }
-            saveExcludedHomepages();
-            updateExclusionButtonState();
-            updateButtonState();
         }
-    
+
+        function toggleHomepageDisabled() {
+            const disabled = !isHomepageDisabled();
+            GM_setValue(`image_zoom_homepage_disabled_${currentDomain}`, disabled);
+            if (disabled && isHomepage() && isEnabled) {
+                cleanup();
+            }
+            showToast(disabled ? '已禁用当前网站主页的图片放大功能' : '已启用当前网站主页的图片放大功能');
+            updateButtonState();
+            refreshPanelHomepageSection();
+        }
+
         function isHomepage() {
             const path = window.location.pathname;
             return path === '/' || path === '/index.html' || path === '/index.php' || path === '';
         }
-    
-        // 【修复 #16】Toast 元素在动画结束后从 DOM 移除
+
+        function isHomepageZoomDisabled() {
+            return isHomepage() && isHomepageDisabled();
+        }
+
         function showToast(message) {
             let toast = document.getElementById('image-zoom-toast');
             if (!toast) {
                 toast = document.createElement('div');
                 toast.id = 'image-zoom-toast';
                 toast.style.cssText = `
-                    position: fixed;
-                    top: 50%;
-                    left: 50%;
+                    position: fixed; top: 50%; left: 50%;
                     transform: translate(-50%, -50%);
-                    background: rgba(0, 0, 0, 0.8);
-                    color: white;
-                    padding: 12px 20px;
-                    border-radius: 6px;
-                    z-index: 100000;
-                    font-size: 14px;
-                    font-family: Arial, sans-serif;
-                    opacity: 0;
-                    transition: opacity 0.3s ease;
-                    pointer-events: none;
+                    background: rgba(0, 0, 0, 0.8); color: white;
+                    padding: 12px 20px; border-radius: 6px;
+                    z-index: 1000000; font-size: 14px; font-family: Arial, sans-serif;
+                    opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
                 `;
                 document.body.appendChild(toast);
             }
             toast.textContent = message;
             toast.style.opacity = '1';
-            // 清除之前的定时器（如果有）
             if (toast.timeoutId) clearTimeout(toast.timeoutId);
             toast.timeoutId = setTimeout(() => {
                 toast.style.opacity = '0';
-                // 【修复】等待 transition 结束后从 DOM 移除
                 setTimeout(() => {
                     if (toast && toast.parentNode) {
                         toast.parentNode.removeChild(toast);
@@ -160,8 +141,48 @@
                 }, 300);
             }, 2000);
         }
-    
-        // 【修复 #5】debounce 函数保存并恢复 this 上下文
+
+        let saveToastTimeout = null;
+        let saveToastEl = null;
+        const debouncedSaveToast = debounce(function(message) {
+            showSaveToast(message);
+        }, 600);
+
+        function showSaveToast(message) {
+            if (!saveToastEl || !saveToastEl.parentNode) {
+                saveToastEl = document.createElement('div');
+                saveToastEl.id = 'image-zoom-save-toast';
+                saveToastEl.style.cssText = `
+                    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+                    background: rgba(15, 23, 42, 0.88); color: #fff;
+                    padding: 12px 24px; border-radius: 16px;
+                    font-size: 14px; font-weight: 500; font-family: Arial, sans-serif;
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+                    border: 1px solid rgba(255,255,255,0.08);
+                    opacity: 0; transform: translateX(-50%) translateY(16px);
+                    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+                    pointer-events: none;
+                    z-index: 1000001; max-width: 300px; text-align: center;
+                `;
+                document.body.appendChild(saveToastEl);
+            }
+            saveToastEl.textContent = '✅ ' + message;
+            void saveToastEl.offsetWidth;
+            saveToastEl.style.opacity = '1';
+            saveToastEl.style.transform = 'translateX(-50%) translateY(0)';
+            clearTimeout(saveToastTimeout);
+            saveToastTimeout = setTimeout(() => {
+                if (saveToastEl) {
+                    saveToastEl.style.opacity = '0';
+                    saveToastEl.style.transform = 'translateX(-50%) translateY(16px)';
+                }
+            }, 1500);
+        }
+
+        function notifyConfigSaved(key, value, label) {
+            debouncedSaveToast(`已保存：${label || key} = ${value}`);
+        }
+
         function debounce(func, wait) {
             let timeout;
             return function(...args) {
@@ -174,23 +195,24 @@
                 timeout = setTimeout(later, wait);
             };
         }
-    
-        // 【修复 #8】validateConfig 与 UI 输入框 max/min 值统一
+
         function validateConfig(cfg) {
             const validated = { ...cfg };
             validated.delay = Math.max(0, Math.min(2000, validated.delay));
-            validated.scale = Math.max(1, Math.min(5, validated.scale));        // 与 UI max=5 一致
+            validated.scale = Math.max(1, Math.min(5, validated.scale));
             validated.maxWidth = Math.max(100, Math.min(5000, validated.maxWidth));
             validated.maxHeight = Math.max(100, Math.min(5000, validated.maxHeight));
-            validated.minScale = Math.max(1, Math.min(3, validated.minScale));   // 与 UI max=3 一致
+            validated.minScale = Math.max(1, Math.min(3, validated.minScale));
             validated.portraitRatio = Math.max(1, Math.min(5, validated.portraitRatio));
-            validated.scrollSpeed = Math.max(1, Math.min(50, validated.scrollSpeed)); // 与 UI max=50 一致
+            validated.scrollSpeed = Math.max(1, Math.min(50, validated.scrollSpeed));
             validated.smallImgThreshold = Math.max(50, Math.min(1000, validated.smallImgThreshold));
             validated.smallImgWidth = Math.max(100, Math.min(2000, validated.smallImgWidth));
             validated.smallImgHeight = Math.max(100, Math.min(2000, validated.smallImgHeight));
+            validated.minOriginalSize = Math.max(0, Math.min(500, validated.minOriginalSize || 0));
+            validated.zoomMode = validated.zoomMode === 'fixed' ? 'fixed' : 'adaptive';
             return validated;
         }
-    
+
         function loadConfig() {
             const savedConfig = GM_getValue(`image_zoom_config_${currentDomain}`);
             if (savedConfig) {
@@ -198,210 +220,690 @@
                 config = { ...defaultConfig, ...validatedConfig };
             }
         }
-    
+
         function saveConfig() {
             GM_setValue(`image_zoom_config_${currentDomain}`, config);
         }
-    
+
         function loadState() {
             const savedState = GM_getValue(`image_zoom_enabled_${currentDomain}`);
             isEnabled = savedState !== false;
-            if (isHomepage() && isHomepageExcluded()) {
+            if (isHomepageZoomDisabled()) {
                 isEnabled = false;
             }
         }
-    
-        // 【修复 #12】injectStyles 增加清理机制，避免重复注入
+
         function injectStyles() {
-            // 如果已存在 style 元素则不再重复添加
+            // 悬浮按钮 + 配置面板样式放在独立样式表中，不随 cleanup 移除
+            if (!dockStyleElement) {
+                const dockStyle = document.createElement('style');
+                dockStyle.textContent = `
+                    #zoomDockZone {
+                        position: fixed; right: 0; top: 50%;
+                        transform: translateY(-50%);
+                        width: 110px; height: 120px;
+                        z-index: 100000; pointer-events: none;
+                    }
+                    #zoomDockZone.open { pointer-events: auto; }
+
+                    #zoomDock {
+                        position: absolute; right: -20px; top: 10px;
+                        width: 44px; height: 44px;
+                        border-radius: 22px 0 0 22px;
+                        background: rgba(52, 211, 153, 0.20) !important;
+                        backdrop-filter: blur(20px);
+                        -webkit-backdrop-filter: blur(20px);
+                        border: 1px solid rgba(52, 211, 153, 0.32) !important;
+                        border-right: none;
+                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18) !important;
+                        display: flex; align-items: center; justify-content: center;
+                        padding-left: 2px;
+                        transition: right 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease, background 0.3s ease;
+                        opacity: 0.6; pointer-events: auto; cursor: pointer;
+                        z-index: 100001;
+                    }
+                    #zoomDockZone.open #zoomDock {
+                        right: 0; opacity: 1;
+                    }
+                    #zoomDock.off {
+                        background: rgba(239, 68, 68, 0.20) !important;
+                        border-color: rgba(239, 68, 68, 0.32) !important;
+                    }
+                    #zoomDock.off .icon-svg { opacity: 0.7; }
+                    #zoomDock.hp {
+                        background: rgba(255, 152, 0, 0.22) !important;
+                        border-color: rgba(255, 152, 0, 0.35) !important;
+                    }
+                    #zoomDockZone.open #zoomDock:hover {
+                        filter: brightness(1.25);
+                    }
+
+                    .icon-svg {
+                        width: 20px; height: 20px;
+                        fill: none;
+                        stroke: rgba(255, 255, 255, 0.92);
+                        stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+                        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+                        pointer-events: none;
+                        transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+                        transform: translateX(-8px);
+                    }
+                    #zoomDockZone.open .icon-svg { transform: translateX(0); }
+
+                    #statusDot {
+                        position: absolute; right: 6px; top: 50%;
+                        transform: translateY(-50%);
+                        width: 6px; height: 6px; border-radius: 50%;
+                        background: #34d399;
+                        box-shadow: 0 0 12px rgba(52, 211, 153, 0.5);
+                        transition: background 0.3s, box-shadow 0.3s;
+                        opacity: 0.7; pointer-events: none;
+                    }
+                    #zoomDock.off #statusDot { background: #f87171; box-shadow: 0 0 12px rgba(248, 113, 113, 0.5); }
+                    #zoomDock.hp #statusDot { background: #ffb74d; box-shadow: 0 0 12px rgba(255, 152, 0, 0.5); }
+                    #zoomDockZone.open #statusDot { opacity: 1; }
+
+                    #zoomSettings {
+                        position: absolute; right: 0; top: 62px;
+                        width: 32px; height: 32px;
+                        border-radius: 16px 0 0 16px;
+                        background: rgba(20, 24, 44, 0.75) !important;
+                        backdrop-filter: blur(16px);
+                        -webkit-backdrop-filter: blur(16px);
+                        border: 1px solid rgba(255, 255, 255, 0.14) !important;
+                        border-right: none;
+                        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+                        display: flex; align-items: center; justify-content: center;
+                        cursor: pointer; opacity: 0;
+                        transform: translateX(18px) scale(0.9);
+                        pointer-events: none;
+                        transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) 0.06s;
+                        z-index: 100002;
+                    }
+                    #zoomDockZone.open #zoomSettings {
+                        opacity: 1; transform: translateX(0) scale(1); pointer-events: auto;
+                    }
+                    #zoomSettings:hover {
+                        background: rgba(30, 36, 64, 0.85) !important;
+                        border-color: rgba(251, 191, 36, 0.35) !important;
+                        box-shadow: 0 4px 28px rgba(251, 191, 36, 0.18);
+                    }
+                    #zoomSettings .icon-svg--gear {
+                        width: 16px; height: 16px;
+                        stroke: rgba(255, 255, 255, 0.9); stroke-width: 2; fill: none;
+                        transition: stroke 0.3s, transform 0.6s ease;
+                        pointer-events: none;
+                    }
+                    #zoomSettings:hover .icon-svg--gear { stroke: #fbbf24; transform: rotate(60deg); }
+
+                    .zoom-bubble-tip {
+                        position: fixed;
+                        background: rgba(20, 20, 40, 0.80);
+                        backdrop-filter: blur(16px);
+                        -webkit-backdrop-filter: blur(16px);
+                        border: 1px solid rgba(255, 255, 255, 0.08);
+                        color: rgba(255, 255, 255, 0.90);
+                        padding: 6px 16px;
+                        border-radius: 10px;
+                        font-size: 12px; font-weight: 450; letter-spacing: 0.3px;
+                        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                        white-space: nowrap; opacity: 0; pointer-events: none;
+                        transition: opacity 0.25s ease 0.2s;
+                        z-index: 100003;
+                        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+                    }
+                    .zoom-bubble-tip::after {
+                        content: '';
+                        position: absolute; right: -6px; top: 50%;
+                        transform: translateY(-50%);
+                        border: 6px solid transparent;
+                        border-left-color: rgba(20, 20, 40, 0.80);
+                        border-right: 0;
+                    }
+                    .zoom-bubble-tip.visible { opacity: 1; }
+
+                    body.zoom-dock-dragging, body.zoom-dock-dragging * {
+                        transition: none !important; cursor: grabbing !important; user-select: none !important;
+                    }
+                    body.zoom-dock-dragging #zoomDock { cursor: grabbing !important; }
+
+                    #izModalOverlay {
+                        position: fixed; inset: 0; z-index: 99999;
+                        display: none; align-items: center; justify-content: center;
+                        padding: 24px;
+                        background: rgba(15, 23, 42, 0.45);
+                        backdrop-filter: blur(10px);
+                        -webkit-backdrop-filter: blur(10px);
+                    }
+                    #izModalOverlay.anim-in { animation: izOverlayFade 0.35s ease; }
+                    #izModalOverlay.anim-out { animation: izOverlayFadeOut 0.3s ease forwards; }
+                    @keyframes izOverlayFade { from { opacity: 0; } to { opacity: 1; } }
+                    @keyframes izOverlayFadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+                    #izConfigPanel {
+                        width: 100%; max-width: 560px; max-height: 90vh;
+                        background: rgba(255, 255, 255, 0.88);
+                        backdrop-filter: blur(20px);
+                        -webkit-backdrop-filter: blur(20px);
+                        border-radius: 28px;
+                        box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+                        overflow: hidden;
+                        animation: izPanelSlide 0.40s cubic-bezier(0.16, 1, 0.3, 1);
+                        display: flex; flex-direction: column;
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                        box-sizing: border-box;
+                    }
+                    @keyframes izPanelSlide {
+                        from { opacity: 0; transform: translateY(28px) scale(0.96); }
+                        to { opacity: 1; transform: translateY(0) scale(1); }
+                    }
+
+                    .iz-panel-scroll {
+                        flex: 1; overflow-y: auto;
+                        padding: 0 28px 12px 28px;
+                        scroll-behavior: smooth;
+                    }
+                    .iz-panel-scroll::-webkit-scrollbar { width: 4px; }
+                    .iz-panel-scroll::-webkit-scrollbar-track { background: transparent; }
+                    .iz-panel-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+
+                    .iz-panel-header {
+                        display: flex; align-items: center; justify-content: space-between;
+                        padding: 20px 28px 0 28px; flex-shrink: 0;
+                    }
+                    .iz-panel-header-left { display: flex; align-items: center; gap: 12px; }
+                    .iz-panel-icon {
+                        width: 38px; height: 38px;
+                        background: linear-gradient(135deg, #4F46E5, #7C3AED);
+                        border-radius: 12px;
+                        display: flex; align-items: center; justify-content: center;
+                        color: white; font-size: 20px; flex-shrink: 0;
+                        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+                    }
+                    .iz-panel-title { font-size: 20px; font-weight: 600; color: #0F172A; letter-spacing: -0.3px; }
+                    .iz-panel-title span { font-weight: 400; color: #64748B; font-size: 14px; margin-left: 6px; }
+                    .iz-close-btn {
+                        width: 36px; height: 36px; border: none;
+                        background: rgba(203, 213, 225, 0.4);
+                        border-radius: 50%; cursor: pointer; font-size: 18px; color: #64748B;
+                        display: flex; align-items: center; justify-content: center;
+                        transition: all 0.2s; flex-shrink: 0; line-height: 1;
+                    }
+                    .iz-close-btn:hover { background: rgba(239, 68, 68, 0.12); color: #EF4444; transform: rotate(90deg); }
+
+                    .iz-section {
+                        margin-top: 20px;
+                        background: rgba(255, 255, 255, 0.5);
+                        border-radius: 18px;
+                        padding: 18px 20px 20px 20px;
+                        border: 1px solid rgba(226, 232, 240, 0.7);
+                    }
+                    .iz-section-title {
+                        font-size: 13px; font-weight: 600; color: #64748B;
+                        letter-spacing: 0.6px; margin-bottom: 14px;
+                        display: flex; align-items: center; gap: 8px;
+                    }
+                    .iz-badge {
+                        background: #4F46E5; color: white;
+                        font-size: 10px; font-weight: 600;
+                        padding: 0 8px; border-radius: 20px; line-height: 18px;
+                    }
+
+                    .iz-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+                    .iz-row:last-child { margin-bottom: 0; }
+                    .iz-row-label { font-size: 14px; font-weight: 500; color: #1E293B; flex-shrink: 0; min-width: 100px; }
+                    .iz-row-label .iz-hint { font-weight: 400; font-size: 12px; color: #94A3B8; display: block; margin-top: 1px; }
+                    .iz-row-control { flex: 1; min-width: 0; }
+
+                    .iz-select {
+                        width: 100%; padding: 8px 36px 8px 14px;
+                        font-size: 14px; font-weight: 500; color: #0F172A;
+                        background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 14px center;
+                        background-size: 12px;
+                        border: 1.5px solid #E2E8F0; border-radius: 12px;
+                        appearance: none; -webkit-appearance: none;
+                        transition: all 0.2s; cursor: pointer; outline: none; height: 42px;
+                    }
+                    .iz-select:hover { border-color: #A5B4FC; }
+                    .iz-select:focus { border-color: #4F46E5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); }
+
+                    .iz-input-group {
+                        display: flex; align-items: center;
+                        background: white;
+                        border: 1.5px solid #E2E8F0; border-radius: 12px;
+                        overflow: hidden; transition: all 0.2s; height: 42px;
+                    }
+                    .iz-input-group:focus-within { border-color: #4F46E5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); }
+                    .iz-input-group input[type="number"] {
+                        flex: 1; border: none; padding: 0 12px;
+                        font-size: 14px; font-weight: 500; color: #0F172A;
+                        background: transparent; outline: none;
+                        min-width: 0; height: 100%; width: 100%;
+                        -moz-appearance: textfield;
+                    }
+                    .iz-input-group input[type="number"]::-webkit-inner-spin-button,
+                    .iz-input-group input[type="number"]::-webkit-outer-spin-button {
+                        -webkit-appearance: none; margin: 0;
+                    }
+                    .iz-input-group .iz-unit { padding: 0 14px 0 4px; font-size: 13px; color: #94A3B8; font-weight: 500; flex-shrink: 0; }
+                    .iz-input-group.disabled-group { opacity: 0.6; background-color: #f8fafc; border-color: #e2e8f0; cursor: not-allowed; }
+                    .iz-input-group.disabled-group input { cursor: not-allowed; background-color: #f8fafc; }
+
+                    .iz-checkbox-wrap { display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; }
+                    .iz-checkbox-custom {
+                        width: 20px; height: 20px; flex-shrink: 0;
+                        border: 2px solid #CBD5E1; border-radius: 6px; background: white;
+                        transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+                    }
+                    .iz-checkbox-custom.checked { background: #4F46E5; border-color: #4F46E5; }
+                    .iz-checkbox-custom.checked::after { content: "✓"; color: white; font-size: 14px; font-weight: 700; line-height: 1; }
+                    .iz-checkbox-label { font-size: 14px; font-weight: 500; color: #1E293B; }
+                    .iz-checkbox-label .iz-sub { font-weight: 400; font-size: 12px; color: #94A3B8; display: block; margin-top: 1px; }
+                    
+                    .iz-toggle-wrap { display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; }
+                    .iz-toggle {
+                        position: relative; width: 46px; height: 28px; flex-shrink: 0;
+                        background: #CBD5E1; border-radius: 20px;
+                        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+                        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+                    }
+                    .iz-toggle.active { background: linear-gradient(135deg, #4F46E5, #7C3AED); }
+                    .iz-toggle .iz-knob {
+                        position: absolute; top: 3px; left: 3px;
+                        width: 22px; height: 22px; background: white; border-radius: 50%;
+                        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+                        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+                    }
+                    .iz-toggle.active .iz-knob { left: 21px; }
+
+                    .iz-exclusion-box {
+                        background: rgba(241, 245, 249, 0.7);
+                        border-radius: 14px;
+                        padding: 14px 16px;
+                        border: 1px solid rgba(226, 232, 240, 0.5);
+                    }
+                    .iz-exclusion-box .iz-status-row {
+                        display: flex; align-items: center; justify-content: space-between;
+                        gap: 12px; flex-wrap: wrap;
+                    }
+                    .iz-exclusion-box .iz-status-text {
+                        font-size: 14px; font-weight: 500;
+                        display: flex; align-items: center; gap: 8px; color: #1E293B;
+                    }
+                    .iz-exclusion-box .iz-dot {
+                        display: inline-block; width: 8px; height: 8px;
+                        border-radius: 50%; flex-shrink: 0;
+                    }
+                    .iz-exclusion-box .iz-dot.on { background: #10B981; }
+                    .iz-exclusion-box .iz-dot.off { background: #F59E0B; }
+                    .iz-exclusion-note {
+                        margin-top: 8px; font-size: 12px; color: #64748B;
+                    }
+
+                    .iz-btn-sm {
+                        padding: 6px 16px; border: none; border-radius: 10px;
+                        font-size: 13px; font-weight: 600; cursor: pointer;
+                        transition: all 0.2s; flex-shrink: 0; height: 34px;
+                    }
+                    .iz-btn-sm.primary { background: #4F46E5; color: white; }
+                    .iz-btn-sm.primary:hover { background: #4338CA; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
+                    .iz-btn-sm.warning { background: #F59E0B; color: white; }
+                    .iz-btn-sm.warning:hover { background: #D97706; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3); }
+
+                    .iz-collapse-header {
+                        display: flex; align-items: center; justify-content: space-between;
+                        padding: 10px 0 6px 0; cursor: pointer; user-select: none;
+                        border-top: 1px solid rgba(226, 232, 240, 0.5); margin-top: 4px;
+                        transition: opacity 0.2s;
+                    }
+                    .iz-collapse-header .iz-left {
+                        display: flex; align-items: center; gap: 10px;
+                        font-size: 14px; font-weight: 600; color: #1E293B;
+                    }
+                    .iz-collapse-header .iz-arrow { transition: transform 0.3s ease; font-size: 12px; color: #94A3B8; }
+                    .iz-collapse-header .iz-arrow.open { transform: rotate(90deg); }
+                    .iz-badge-params {
+                        font-size: 11px; font-weight: 500; color: #64748B;
+                        background: #F1F5F9; padding: 2px 10px; border-radius: 20px;
+                    }
+                    .iz-collapse-body {
+                        overflow: hidden; max-height: 0; opacity: 0;
+                        transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+                    }
+                    .iz-collapse-body.open { max-height: 800px; opacity: 1; padding-top: 12px; }
+                    .iz-param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+                    .iz-param-item { display: flex; flex-direction: column; gap: 4px; }
+                    .iz-param-item label { font-size: 12px; font-weight: 500; color: #64748B; letter-spacing: 0.2px; }
+                    .iz-param-item label {
+                        display: flex; align-items: center; gap: 5px;
+                    }
+                    .iz-tip-icon {
+                        display: inline-flex; align-items: center; justify-content: center;
+                        width: 14px; height: 14px; flex-shrink: 0;
+                        border-radius: 50%;
+                        background: #E2E8F0; color: #64748B;
+                        font-size: 10px; font-weight: 700; line-height: 1;
+                        cursor: help;
+                        position: relative;
+                        transition: all 0.2s;
+                    }
+                    .iz-tip-icon:hover {
+                        background: #4F46E5; color: white;
+                    }
+                    #izTipBubble {
+                        position: fixed;
+                        width: 240px;
+                        background: rgba(15, 23, 42, 0.95);
+                        color: #F1F5F9;
+                        font-size: 12px; font-weight: 400;
+                        line-height: 1.6;
+                        padding: 10px 13px;
+                        border-radius: 10px;
+                        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+                        opacity: 0; pointer-events: none;
+                        transition: opacity 0.15s ease;
+                        z-index: 100005;
+                        white-space: normal;
+                        text-align: left;
+                    }
+                    .iz-param-item .iz-input-group { height: 36px; }
+                    .iz-param-item .iz-input-group input[type="number"] { font-size: 13px; padding: 0 10px; }
+                    .iz-param-item .iz-input-group .iz-unit { font-size: 12px; padding: 0 10px 0 2px; }
+
+                    .iz-panel-footer {
+                        padding: 14px 28px 20px 28px;
+                        border-top: 1px solid rgba(226, 232, 240, 0.5);
+                        display: flex; align-items: center; justify-content: space-between;
+                        flex-shrink: 0;
+                        background: rgba(255, 255, 255, 0.4);
+                        backdrop-filter: blur(8px);
+                        -webkit-backdrop-filter: blur(8px);
+                    }
+                    .iz-btn-ghost {
+                        background: none; border: none; padding: 8px 14px;
+                        font-size: 13px; font-weight: 500; color: #64748B;
+                        cursor: pointer; border-radius: 10px; transition: all 0.2s;
+                    }
+                    .iz-btn-ghost:hover { background: rgba(239, 68, 68, 0.08); color: #EF4444; }
+                    .iz-btn-ghost:active { transform: scale(0.96); }
+                    .iz-btn-primary-solid {
+                        padding: 10px 28px;
+                        background: linear-gradient(135deg, #4F46E5, #7C3AED);
+                        border: none; border-radius: 14px;
+                        font-size: 14px; font-weight: 600; color: white;
+                        cursor: pointer; transition: all 0.25s;
+                        box-shadow: 0 4px 16px rgba(79, 70, 229, 0.3);
+                    }
+                    .iz-btn-primary-solid:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(79, 70, 229, 0.4); }
+                    .iz-btn-primary-solid:active { transform: scale(0.96); }
+
+                    @media (max-width: 600px) {
+                        #izConfigPanel { border-radius: 20px; max-height: 95vh; }
+                        .iz-panel-scroll { padding: 0 18px 8px 18px; }
+                        .iz-panel-header { padding: 16px 18px 0 18px; }
+                        .iz-panel-footer { padding: 12px 18px 16px 18px; flex-wrap: wrap; gap: 10px; }
+                        .iz-row { flex-direction: column; align-items: stretch; gap: 6px; }
+                        .iz-param-grid { grid-template-columns: 1fr; }
+                        .iz-panel-title { font-size: 17px; }
+                        .iz-panel-icon { width: 34px; height: 34px; font-size: 17px; }
+                    }
+                `;
+                document.head.appendChild(dockStyle);
+                dockStyleElement = dockStyle;
+            }
+
+            // 图片放大相关样式：随 cleanup 一起移除
             if (styleElement) return;
             const style = document.createElement('style');
             style.textContent = `
-                .image-zoom-wrapper * {
-                    box-sizing: border-box;
-                }
-                .image-zoom-container img {
-                    object-fit: contain;
-                }
-                #image-zoom-toggle {
-                    all: initial;
-                    font-family: Arial, sans-serif;
-                }
-                .image-zoom-hover {
-                    cursor: zoom-in !important;
-                }
-                a.image-zoom-hover, .cover-container.image-zoom-hover, .card.image-zoom-hover {
-                    cursor: zoom-in !important;
-                }
-                a.stretched-link.image-zoom-hover {
-                    cursor: zoom-in !important;
-                }
+                .image-zoom-wrapper * { box-sizing: border-box; }
+                .image-zoom-container img { object-fit: contain; }
+                .image-zoom-hover { cursor: zoom-in !important; }
+                a.image-zoom-hover, .cover-container.image-zoom-hover, .card.image-zoom-hover { cursor: zoom-in !important; }
+                a.stretched-link.image-zoom-hover { cursor: zoom-in !important; }
             `;
             document.head.appendChild(style);
-            styleElement = style;  // 保存引用以便后续清理
+            styleElement = style;
         }
-    
-        function createToggleButton() {
-            const button = document.createElement('div');
-            button.id = 'image-zoom-toggle';
-            button.className = 'zoom-btn';
-            button.style.cssText = `
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                width: ${fullBtnWidth}px;
-                height: ${fullBtnHeight}px;
-                border-radius: ${fullBtnHeight/2}px;
-                background-color: #4CAF50;
-                color: white;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: 0 12px;
-                cursor: pointer;
-                z-index: 99999;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                transition: all 0.5s ease;
-                font-weight: bold;
-                font-size: 12px;
-                opacity: 0.2;
-                overflow: visible;
-                user-select: none;
+
+        function createDockButton() {
+            dockZone = document.createElement('div');
+            dockZone.id = 'zoomDockZone';
+
+            toggleButton = document.createElement('div');
+            toggleButton.id = 'zoomDock';
+            toggleButton.innerHTML = `
+                <svg class="icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="11" cy="11" r="7" />
+                    <line x1="16" y1="16" x2="21" y2="21" />
+                </svg>
+                <span id="statusDot"></span>
             `;
-    
-            const textSpan = document.createElement('span');
-            textSpan.className = 'btn-text';
-            textSpan.textContent = '图片放大：开';
-            textSpan.style.transition = 'opacity 0.3s ease';
-    
-            const arrowSpan = document.createElement('span');
-            arrowSpan.className = 'btn-arrow';
-            arrowSpan.textContent = '▶';
-            arrowSpan.style.cssText = `margin-left: 5px; font-size: 14px; transition: transform 0.3s ease;`;
-    
-            button.appendChild(textSpan);
-            button.appendChild(arrowSpan);
-            button.title = '左键：切换功能 / 右键：打开设置 / 点击箭头：吸附边缘';
-    
-            const savedPos = GM_getValue(`image_zoom_button_pos_${currentDomain}`);
-            if (savedPos) {
-                button.style.top = savedPos.top;
-                button.style.left = savedPos.left;
-                button.style.bottom = "auto";
-                button.style.right = "auto";
+            toggleButton.title = '点击：切换图片放大';
+
+            gearButton = document.createElement('div');
+            gearButton.id = 'zoomSettings';
+            gearButton.innerHTML = `
+                <svg class="icon-svg--gear" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+            `;
+            gearButton.title = '打开配置面板';
+
+            dockZone.appendChild(toggleButton);
+            dockZone.appendChild(gearButton);
+
+            dockTip = document.createElement('div');
+            dockTip.className = 'zoom-bubble-tip';
+            settingsTip = document.createElement('div');
+            settingsTip.className = 'zoom-bubble-tip';
+            settingsTip.textContent = '配置面板';
+
+            document.body.appendChild(dockZone);
+            document.body.appendChild(dockTip);
+            document.body.appendChild(settingsTip);
+
+            const savedTop = GM_getValue(`image_zoom_dock_top_${currentDomain}`);
+            if (savedTop !== undefined && savedTop !== null) {
+                dockZone.style.transform = 'none';
+                dockZone.style.top = savedTop + 'px';
             }
-    
-            button.addEventListener('mouseenter', () => button.style.opacity = '1');
-            button.addEventListener('mouseleave', () => button.style.opacity = isMinimized ? '0.5' : '0.2');
-    
-            button.addEventListener('click', (e) => {
-                if (e.target.classList.contains('btn-arrow') || e.target.parentNode.classList.contains('btn-arrow')) {
-                    e.stopPropagation();
-                    if (isMinimized) restoreButton();
-                    else minimizeButton();
+
+            let leaveTimer = null;
+
+            function positionTips() {
+                if (!dockTip || !settingsTip) return;
+                const dockRect = toggleButton.getBoundingClientRect();
+                const gearRect = gearButton.getBoundingClientRect();
+                dockTip.style.top = (dockRect.top + dockRect.height / 2) + 'px';
+                dockTip.style.right = (window.innerWidth - dockRect.left + 8) + 'px';
+                dockTip.style.transform = 'translateY(-50%)';
+                dockTip.classList.add('visible');
+                settingsTip.style.top = (gearRect.top + gearRect.height / 2) + 'px';
+                settingsTip.style.right = (window.innerWidth - gearRect.left + 8) + 'px';
+                settingsTip.style.transform = 'translateY(-50%)';
+                settingsTip.classList.add('visible');
+            }
+
+            function hideTips() {
+                dockTip.classList.remove('visible');
+                settingsTip.classList.remove('visible');
+            }
+
+            function updateDockTipText() {
+                if (isHomepageZoomDisabled()) {
+                    dockTip.innerHTML = '主页已禁用图片放大 <span style="opacity:0.5;margin-left:4px;">设置中可开启</span>';
+                } else if (!isEnabled) {
+                    dockTip.innerHTML = '图片放大已关闭 <span style="opacity:0.4;margin-left:4px;">点击开启</span>';
+                } else {
+                    dockTip.innerHTML = '图片放大已开启 <span style="opacity:0.4;margin-left:4px;">点击关闭</span>';
+                }
+            }
+
+            toggleButton.addEventListener('mouseenter', () => {
+                clearTimeout(leaveTimer);
+                dockZone.classList.add('open');
+                updateDockTipText();
+                positionTips();
+                setTimeout(positionTips, 320);
+            });
+            dockZone.addEventListener('mouseenter', () => clearTimeout(leaveTimer));
+            dockZone.addEventListener('mouseleave', () => {
+                leaveTimer = setTimeout(() => {
+                    if (dockZone.matches(':hover')) return;
+                    dockZone.classList.remove('open');
+                    hideTips();
+                }, 200);
+            });
+
+            toggleButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (isHomepageZoomDisabled()) {
+                    showToast('当前网站主页已禁用图片放大，可在设置面板中开启');
                     return;
                 }
-                if (e.button !== 0) return;
                 toggleEnabled();
+                updateDockTipText();
+                if (dockZone.classList.contains('open')) positionTips();
             });
-    
-            button.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
+
+            gearButton.addEventListener('click', (e) => {
+                e.stopPropagation();
                 toggleConfigPanel();
             });
-    
-            makeDraggable(button);
-            document.body.appendChild(button);
+
+            // 拖拽：区分点击与拖动（THRESHOLD），dragJustEnded 用于吞掉拖拽结束后紧随的 click
+            (function() {
+                let isDragging = false;
+                let hasMoved = false;
+                let startY = 0;
+                let startTop = 0;
+                let dragJustEnded = false;
+                const THRESHOLD = 3;
+
+                function getCurTop(el) { return el.getBoundingClientRect().top; }
+                function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+                function syncY(topPx) {
+                    const h = toggleButton.offsetHeight;
+                    const safeTop = clamp(topPx, 0, window.innerHeight - h);
+                    dockZone.style.top = safeTop + 'px';
+                    if (dockZone.classList.contains('open')) positionTips();
+                }
+
+                toggleButton.addEventListener('click', function(e) {
+                    if (dragJustEnded) {
+                        e.stopImmediatePropagation();
+                        e.preventDefault();
+                        dragJustEnded = false;
+                    }
+                }, true);
+
+                toggleButton.addEventListener('mousedown', function(e) {
+                    if (e.button !== 0) return;
+                    isDragging = true;
+                    hasMoved = false;
+                    startY = e.clientY;
+                    startTop = getCurTop(dockZone);
+                    e.preventDefault();
+                });
+                document.addEventListener('mousemove', function(e) {
+                    if (!isDragging) return;
+                    const delta = e.clientY - startY;
+                    if (!hasMoved && Math.abs(delta) > THRESHOLD) {
+                        hasMoved = true;
+                        document.body.classList.add('zoom-dock-dragging');
+                    }
+                    if (hasMoved) syncY(startTop + delta);
+                });
+                document.addEventListener('mouseup', function() {
+                    if (!isDragging) return;
+                    isDragging = false;
+                    document.body.classList.remove('zoom-dock-dragging');
+                    if (hasMoved) {
+                        dockZone.style.transform = 'none';
+                        GM_setValue(`image_zoom_dock_top_${currentDomain}`, parseFloat(dockZone.style.top) || 0);
+                        dragJustEnded = true;
+                        requestAnimationFrame(() => {
+                            setTimeout(() => { dragJustEnded = false; }, 50);
+                        });
+                    }
+                });
+
+                let touchStartY = 0, touchStartTop = 0, isTouching = false;
+                toggleButton.addEventListener('touchstart', function(e) {
+                    const touch = e.touches[0];
+                    if (!touch) return;
+                    isTouching = true;
+                    hasMoved = false;
+                    touchStartY = touch.clientY;
+                    touchStartTop = getCurTop(dockZone);
+                }, { passive: true });
+                document.addEventListener('touchmove', function(e) {
+                    if (!isTouching) return;
+                    const touch = e.touches[0];
+                    if (!touch) return;
+                    const delta = touch.clientY - touchStartY;
+                    if (!hasMoved && Math.abs(delta) > THRESHOLD) {
+                        hasMoved = true;
+                        document.body.classList.add('zoom-dock-dragging');
+                    }
+                    if (hasMoved) {
+                        syncY(touchStartTop + delta);
+                        e.preventDefault();
+                    }
+                }, { passive: false });
+                document.addEventListener('touchend', function() {
+                    if (!isTouching) return;
+                    isTouching = false;
+                    document.body.classList.remove('zoom-dock-dragging');
+                    if (hasMoved) {
+                        dockZone.style.transform = 'none';
+                        GM_setValue(`image_zoom_dock_top_${currentDomain}`, parseFloat(dockZone.style.top) || 0);
+                        dragJustEnded = true;
+                        setTimeout(() => { dragJustEnded = false; }, 50);
+                    }
+                }, { passive: true });
+
+                window.addEventListener('resize', function() {
+                    const curTop = getCurTop(dockZone);
+                    if (curTop + dockZone.offsetHeight > window.innerHeight) {
+                        syncY(Math.min(curTop, window.innerHeight - dockZone.offsetHeight));
+                    }
+                    if (dockZone.classList.contains('open')) positionTips();
+                });
+            })();
+
             updateButtonState();
-            return button;
         }
-    
-        function minimizeButton() {
-            if (isMinimized) return;
-            originalPos = {
-                top: toggleButton.style.top,
-                left: toggleButton.style.left,
-                bottom: toggleButton.style.bottom,
-                right: toggleButton.style.right,
-                width: toggleButton.style.width,
-                height: toggleButton.style.height
-            };
-    
-            const rect = toggleButton.getBoundingClientRect();
-            const viewportWidth = window.innerWidth;
-            const distances = {
-                right: viewportWidth - rect.right,
-                left: rect.left
-            };
-            const nearestEdge = Object.entries(distances).sort((a, b) => a[1] - b[1])[0][0];
-    
-            toggleButton.style.top = 'auto';
-            toggleButton.style.left = 'auto';
-            toggleButton.style.bottom = 'auto';
-            toggleButton.style.right = 'auto';
-            toggleButton.style.width = `${miniBtnDiameter}px`;
-            toggleButton.style.height = `${miniBtnDiameter}px`;
-            toggleButton.style.borderRadius = '50%';
-            toggleButton.querySelector('.btn-text').style.opacity = '0';
-    
-            const arrowSpan = toggleButton.querySelector('.btn-arrow');
-            const exposeWidth = miniBtnDiameter * exposeRatio;
-            arrowSpan.style.cssText = `margin: 0; font-size: 12px; position: absolute; top: 50%; transform: translateY(-50%);`;
-    
-            if (nearestEdge === 'left') {
-                arrowSpan.textContent = '▶';
-                arrowSpan.style.left = `${miniBtnDiameter * (1 - exposeRatio) + exposeWidth * 0.5}px`;
+
+        function updateButtonState() {
+            if (!toggleButton) return;
+            if (isHomepageZoomDisabled()) {
+                toggleButton.classList.remove('off');
+                toggleButton.classList.add('hp');
+            } else if (!isEnabled) {
+                toggleButton.classList.remove('hp');
+                toggleButton.classList.add('off');
             } else {
-                arrowSpan.textContent = '◀';
-                arrowSpan.style.left = `${exposeWidth * 0.5}px`;
+                toggleButton.classList.remove('off');
+                toggleButton.classList.remove('hp');
             }
-    
-            const centerY = rect.top + rect.height/2;
-            const hiddenOffset = miniBtnDiameter * (1 - exposeRatio);
-            if (nearestEdge === 'left') {
-                toggleButton.style.left = `-${hiddenOffset}px`;
-                toggleButton.style.top = `${centerY - miniBtnRadius}px`;
-            } else {
-                toggleButton.style.right = `-${hiddenOffset}px`;
-                toggleButton.style.top = `${centerY - miniBtnRadius}px`;
-            }
-            toggleButton.style.opacity = '0.5';
-            isMinimized = true;
         }
-    
-        function restoreButton() {
-            if (!isMinimized || !originalPos) return;
-            toggleButton.style.width = originalPos.width;
-            toggleButton.style.height = originalPos.height;
-            toggleButton.style.borderRadius = `${fullBtnHeight/2}px`;
-            toggleButton.querySelector('.btn-text').style.opacity = '1';
-            const arrowSpan = toggleButton.querySelector('.btn-arrow');
-            arrowSpan.style.cssText = `margin-left: 5px; font-size: 14px; transition: transform 0.3s ease; position: static; transform: none;`;
-            const originalLeft = parseFloat(originalPos.left) || 0;
-            const viewportHalf = window.innerWidth / 2;
-            arrowSpan.textContent = originalLeft < viewportHalf ? '◀' : '▶';
-            toggleButton.style.top = originalPos.top;
-            toggleButton.style.left = originalPos.left;
-            toggleButton.style.bottom = originalPos.bottom;
-            toggleButton.style.right = originalPos.right;
-            toggleButton.style.opacity = '0.2';
-            isMinimized = false;
-        }
-    
+
         function toggleEnabled() {
             isEnabled = !isEnabled;
             GM_setValue(`image_zoom_enabled_${currentDomain}`, isEnabled);
             updateButtonState();
             if (isEnabled) {
+                injectStyles();
                 initImages();
             } else {
                 cleanup();
             }
         }
-    
-        // 【修复 #2】cleanup 中增加 MutationObserver 断开和 style 移除
+
         function cleanup() {
-            // 断开所有 MutationObserver
             if (zoomObserver) {
                 zoomObserver.disconnect();
                 zoomObserver = null;
@@ -410,7 +912,6 @@
                 lightboxObserver.disconnect();
                 lightboxObserver = null;
             }
-    
             if (currentZoomContainer) {
                 currentZoomContainer.remove();
                 currentZoomContainer = null;
@@ -446,80 +947,12 @@
                 img.classList.remove('image-zoom-hover');
                 states.delete(img);
             });
-            // 【修复 #12】移除注入的 style 元素
             if (styleElement && styleElement.parentNode) {
                 styleElement.parentNode.removeChild(styleElement);
                 styleElement = null;
             }
         }
-    
-        function updateButtonState() {
-            if (!toggleButton) return;
-            const textSpan = toggleButton.querySelector('.btn-text');
-            if (isHomepage() && isHomepageExcluded()) {
-                textSpan.textContent = '主页已排除';
-                toggleButton.style.backgroundColor = '#ff9800';
-            } else {
-                textSpan.textContent = isEnabled ? '图片放大：开' : '图片放大：关';
-                toggleButton.style.backgroundColor = isEnabled ? '#4CAF50' : '#f44336';
-            }
-        }
-    
-        function makeDraggable(element) {
-            let isDragging = false;
-            element.onmousedown = (e) => {
-                if (isMinimized) {
-                    restoreButton();
-                    return;
-                }
-                if (e.button !== 0) return;
-                e.preventDefault();
-                isDragging = true;
-                document.addEventListener('mousemove', dragMove);
-                document.addEventListener('mouseup', dragEnd);
-            };
-    
-            function dragMove(e) {
-                if (!isDragging) return;
-                e.preventDefault();
-                const buttonHalfWidth = element.offsetWidth / 2;
-                const buttonHalfHeight = element.offsetHeight / 2;
-                const left = e.clientX - buttonHalfWidth;
-                const top = e.clientY - buttonHalfHeight;
-                element.style.top = `${top}px`;
-                element.style.left = `${left}px`;
-                element.style.bottom = "auto";
-                element.style.right = "auto";
-                const arrowSpan = element.querySelector('.btn-arrow');
-                const viewportHalf = window.innerWidth / 2;
-                arrowSpan.textContent = left < viewportHalf ? '◀' : '▶';
-            }
-    
-            function dragEnd() {
-                if (!isDragging) return;
-                isDragging = false;
-                GM_setValue(`image_zoom_button_pos_${currentDomain}`, {
-                    top: element.style.top,
-                    left: element.style.left
-                });
-                document.removeEventListener('mousemove', dragMove);
-                document.removeEventListener('mouseup', dragEnd);
-            }
-        }
-    
-        function updateExclusionButtonState() {
-            const exclusionBtn = document.getElementById('homepage-exclusion-btn');
-            const exclusionStatus = document.getElementById('exclusion-status');
-            if (exclusionBtn && exclusionStatus) {
-                const isExcluded = isHomepageExcluded();
-                exclusionBtn.textContent = isExcluded ? '启用主页功能' : '禁用主页功能';
-                exclusionBtn.style.backgroundColor = isExcluded ? '#4CAF50' : '#ff9800';
-                exclusionStatus.textContent = isExcluded ? '当前主页已禁用图片放大' : '当前主页已启用图片放大';
-                exclusionStatus.style.color = isExcluded ? '#ff9800' : '#4CAF50';
-            }
-        }
-    
-        // 【修复 #6】使用模块级常量 COMMON_SELECTORS
+
         function checkImageClickBehavior(img) {
             for (const selector of COMMON_SELECTORS) {
                 if (img.matches(selector)) return true;
@@ -528,30 +961,32 @@
             while (parent && parent !== document.body) {
                 const parentClass = parent.className || '';
                 const parentId = parent.id || '';
-                if (parentClass.includes('zoom') || parentClass.includes('lightbox') || parentClass.includes('gallery') || parentClass.includes('fancybox') || parentClass.includes('stretched-link') || parentId.includes('zoom') || parentId.includes('lightbox') || parentId.includes('gallery') || parentId.includes('fancybox')) {
+                if (parentClass.includes('zoom') || parentClass.includes('lightbox') ||
+                    parentClass.includes('gallery') || parentClass.includes('fancybox') ||
+                    parentClass.includes('stretched-link') ||
+                    parentId.includes('zoom') || parentId.includes('lightbox') ||
+                    parentId.includes('gallery') || parentId.includes('fancybox')) {
                     return true;
                 }
                 parent = parent.parentElement;
             }
             return false;
         }
-    
-        // 【修复 #7】去掉无用的 img 参数
+
         function isImageInLightboxMode() {
             const commonLightboxSelectors = ['.lightbox-open', '.fancybox-open', '.modal-open', '.zoom-overlay-open'];
             for (const selector of commonLightboxSelectors) {
-                if (document.body.classList.contains(selector.replace('.', '')) || document.documentElement.classList.contains(selector.replace('.', ''))) {
+                if (document.body.classList.contains(selector.replace('.', '')) ||
+                    document.documentElement.classList.contains(selector.replace('.', ''))) {
                     return true;
                 }
             }
             return false;
         }
-    
-        // 增强的图片验证：兼容 Discuz 轮播图/选项卡/懒加载
+
         function isValidImage(img) {
             if (!img || !img.parentNode) return false;
             if (img.tagName !== 'IMG') return false;
-            // 用 getClientRects 替代 offsetParent，兼容 position:fixed 及特殊布局
             if (img.getClientRects().length === 0) {
                 if (DEBUG_IMAGE_CHECK) console.log('[图片放大] 跳过(不可见):', img.src);
                 return false;
@@ -567,7 +1002,6 @@
                 return false;
             }
             if (style.backgroundImage && style.backgroundImage !== 'none') return false;
-            // 未加载完的图片，等 load 后自动重新检测（懒加载兼容）
             if (!img.complete || img.naturalWidth === 0) {
                 if (!img.dataset.zoomLoadBound) {
                     img.dataset.zoomLoadBound = 'true';
@@ -579,235 +1013,345 @@
             if (rect.width < 10 || rect.height < 10) return false;
             return true;
         }
-    
-        // 【修复 #3】createConfigPanel 改为 updateConfigPanel，只更新值不重建 DOM
-        function updateConfigPanel() {
-            const panel = document.getElementById('image-zoom-config');
-            if (!panel) return;
-    
-            // 更新所有配置输入框的值
-            const inputs = panel.querySelectorAll('input[type="number"]');
-            const configKeys = ['delay', 'scale', 'minScale', 'maxWidth', 'maxHeight', 'portraitRatio', 'scrollSpeed', 'smallImgThreshold', 'smallImgWidth', 'smallImgHeight', 'wrapperZIndex'];
-            inputs.forEach((input, index) => {
-                if (configKeys[index]) {
-                    input.value = config[configKeys[index]];
-                }
-            });
-    
-            // 更新避免冲突复选框
-            const avoidCheckbox = panel.querySelector('input[type="checkbox"]');
-            if (avoidCheckbox) {
-                avoidCheckbox.checked = config.avoidClickConflict;
-            }
-    
-            updateExclusionList();
-            updateExclusionButtonState();
-        }
-    
+
+        const COMMON_PARAM_DEFS = [
+            { key: 'delay',           label: '悬停延迟',    unit: 'ms', min: 0,   max: 2000, step: 100,
+              tip: '鼠标停在图片上多久后才放大。数值越小响应越快，越大越不容易误触发。建议 300~800ms' },
+            { key: 'minOriginalSize', label: '最小放大尺寸', unit: 'px', min: 0,   max: 500,  step: 5,
+              tip: '原图宽或高小于此值时不放大，用来过滤网站里的小图标、表情、按钮图标等。设为 0 表示全部放大' },
+            { key: 'maxWidth',        label: '大图最大宽度', unit: 'px', min: 300, max: 3000, step: 100,
+              tip: '放大后的大图宽度上限。自适应模式下它决定了放大画布的宽度上限，调小后大图整体变小；固定模式下大图最多放大到这个宽度' },
+            { key: 'maxHeight',       label: '大图最大高度', unit: 'px', min: 300, max: 3000, step: 100,
+              tip: '放大后的大图高度上限。自适应模式下它决定了放大画布的高度上限，调小后大图整体变小；固定模式下大图最多放大到这个高度' },
+            { key: 'scrollSpeed',     label: '滚轮移动速度', unit: 'px', min: 5,   max: 50,   step: 1,
+              tip: '大图超出屏幕时，滚动鼠标滚轮查看图片其余部分，每次滚动的距离。数值越大滚得越快' }
+        ];
+
+        const FIXED_PARAM_DEFS = [
+            { key: 'scale',            label: '大图放大倍数', unit: '×',  min: 1,   max: 5,    step: 0.1,
+              tip: '固定倍数模式下，大图相对原图的放大倍数' },
+            { key: 'minScale',         label: '大图最小倍数', unit: '×',  min: 1,   max: 3,    step: 0.1,
+              tip: '固定倍数模式下，大图至少要放大到的倍数下限，避免小图放大后依然看不清' },
+            { key: 'portraitRatio',    label: '竖屏判定比例', unit: '×',  min: 1,   max: 3,    step: 0.1,
+              tip: '图片高÷宽超过这个值就判定为竖长图（如手机截图、漫画长图），固定模式下会按高度优先铺满放大' },
+            { key: 'smallImgThreshold',label: '小图判定阈值', unit: 'px', min: 100, max: 500,  step: 10,
+              tip: '固定模式下，原图宽或高小于此值会被当作「小图」，改用下方两个小图专用尺寸放大，而不是套用大图规则' },
+            { key: 'smallImgWidth',    label: '小图强制宽度', unit: 'px', min: 300, max: 1000, step: 10,
+              tip: '固定模式下，判定为小图的图片放大后的宽度基准（高度按原图比例自动计算）' },
+            { key: 'smallImgHeight',   label: '小图强制高度', unit: 'px', min: 300, max: 1000, step: 10,
+              tip: '固定模式下，判定为小图的图片放大后的高度基准（宽度按原图比例自动计算）' }
+        ];
+
+
         function createConfigPanel() {
-            const panel = document.createElement('div');
-            panel.id = 'image-zoom-config';
-            panel.style.cssText = `position: fixed; bottom: 70px; right: 20px; width: 320px; background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); padding: 15px; z-index: 99998; display: none; font-family: Arial, sans-serif; max-height: 80vh; overflow-y: auto;`;
-    
-            const title = document.createElement('h3');
-            title.textContent = '图片放大设置';
-            title.style.cssText = 'margin: 0 0 15px; padding-bottom: 8px; border-bottom: 1px solid #eee;';
-            panel.appendChild(title);
-    
-            const exclusionSection = document.createElement('div');
-            exclusionSection.style.cssText = `margin: 15px 0; padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #ff9800;`;
-    
-            const exclusionTitle = document.createElement('h4');
-            exclusionTitle.textContent = '如果此主页面图片不显示可以尝试禁用';
-            exclusionTitle.style.cssText = 'margin: 0 0 8px; color: #333;';
-            exclusionSection.appendChild(exclusionTitle);
-    
-            const exclusionDesc = document.createElement('p');
-            exclusionDesc.textContent = '在当前网站主页禁用图片放大功能，不影响其他的子页面';
-            exclusionDesc.style.cssText = 'margin: 0 0 10px; font-size: 12px; color: #666;';
-            exclusionSection.appendChild(exclusionDesc);
-    
-            const exclusionStatus = document.createElement('div');
-            exclusionStatus.id = 'exclusion-status';
-            exclusionStatus.style.cssText = 'margin: 8px 0; font-size: 13px; font-weight: bold;';
-            exclusionSection.appendChild(exclusionStatus);
-    
-            const exclusionBtn = document.createElement('button');
-            exclusionBtn.id = 'homepage-exclusion-btn';
-            exclusionBtn.style.cssText = `width: 100%; padding: 8px; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;`;
-            exclusionBtn.addEventListener('click', toggleCurrentHomepageExclusion);
-            exclusionSection.appendChild(exclusionBtn);
-    
-            const exclusionListTitle = document.createElement('h5');
-            exclusionListTitle.textContent = '已排除的主页:';
-            exclusionListTitle.style.cssText = 'margin: 15px 0 8px; color: #333;';
-            exclusionSection.appendChild(exclusionListTitle);
-    
-            const exclusionList = document.createElement('div');
-            exclusionList.id = 'exclusion-list';
-            exclusionList.style.cssText = 'max-height: 120px; overflow-y: auto; font-size: 12px;';
-            exclusionSection.appendChild(exclusionList);
-    
-            panel.appendChild(exclusionSection);
-    
-            function updateExclusionList() {
-                exclusionList.innerHTML = '';
-                if (excludedHomepages.length === 0) {
-                    const emptyMsg = document.createElement('div');
-                    emptyMsg.textContent = '暂无排除的主页';
-                    emptyMsg.style.cssText = 'color: #999; font-style: italic; padding: 5px;';
-                    exclusionList.appendChild(emptyMsg);
+            const overlay = document.createElement('div');
+            overlay.id = 'izModalOverlay';
+
+            const renderParams = (defs) => defs.map(p => `
+                <div class="iz-param-item">
+                    <label>${p.label}<span class="iz-tip-icon" data-tip="${p.tip}">?</span></label>
+                    <div class="iz-input-group" data-param="${p.key}">
+                        <input type="number" class="iz-param-input" data-param="${p.key}"
+                            value="${config[p.key]}" min="${p.min}" max="${p.max}" step="${p.step}" />
+                        <span class="iz-unit">${p.unit}</span>
+                    </div>
+                </div>
+            `).join('');
+
+            overlay.innerHTML = `
+                <div id="izConfigPanel">
+                    <div class="iz-panel-header">
+                        <div class="iz-panel-header-left">
+                            <div class="iz-panel-icon">🔍</div>
+                            <div class="iz-panel-title">图片放大设置<span>· 悬停预览</span></div>
+                        </div>
+                        <button class="iz-close-btn" id="izCloseBtn" title="关闭 (ESC)">✕</button>
+                    </div>
+                    <div class="iz-panel-scroll">
+                        <div class="iz-section">
+                            <div class="iz-section-title">📌 主页排除 <span class="iz-badge">当前网站</span></div>
+                            <div class="iz-exclusion-box">
+                                <div class="iz-status-row">
+                                    <div class="iz-status-text">
+                                        <span class="iz-dot on" id="izHpDot"></span>
+                                        <span id="izHpText">当前主页已启用图片放大</span>
+                                    </div>
+                                    <button class="iz-btn-sm warning" id="izHpToggleBtn">禁用主页图片放大功能</button>
+                                </div>
+                                <div class="iz-exclusion-note">仅对当前网站（${currentDomain}）的主页生效，内容字页面不受影响，依然会放大图片</div>
+                            </div>
+                        </div>
+                        <div class="iz-section">
+                            <div class="iz-section-title">⚙️ 基本设置</div>
+                            <div class="iz-row">
+                                <div class="iz-row-label">放大模式<span class="iz-hint">智能 / 固定</span></div>
+                                <div class="iz-row-control">
+                                    <select class="iz-select" id="izModeSelect">
+                                        <option value="adaptive">✨ 智能自适应</option>
+                                        <option value="fixed">📐 固定倍数</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="iz-row" style="margin-bottom: 0;">
+                                <div class="iz-row-label" style="min-width:0; flex:1;">
+                                    <div class="iz-checkbox-wrap" id="izConflictWrap">
+                                        <div class="iz-checkbox-custom ${config.avoidClickConflict ? 'checked' : ''}" id="izConflictCheck"></div>
+                                        <span class="iz-checkbox-label">避免与点击放大功能冲突<span class="iz-sub">自动检测网站点击放大，避免冲突</span></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="iz-section">
+                            <div class="iz-collapse-header" id="izCommonHeader">
+                                <div class="iz-left">
+                                    <span class="iz-arrow" id="izCommonArrow">▶</span>
+                                    <span>通用参数</span>
+                                    <span class="iz-badge-params">自适应 / 固定 都生效</span>
+                                </div>
+                                <span style="font-size:12px; color:#94A3B8;" id="izCommonHint">点击展开 · 悬停问号查看参数说明</span>
+                            </div>
+                            <div class="iz-collapse-body" id="izCommonBody">
+                                <div class="iz-param-grid">${renderParams(COMMON_PARAM_DEFS)}</div>
+                            </div>
+                        </div>
+                        <div class="iz-section">
+                            <div class="iz-collapse-header" id="izFixedHeader">
+                                <div class="iz-left">
+                                    <span class="iz-arrow" id="izFixedArrow">▶</span>
+                                    <span>固定倍数专用参数</span>
+                                    <span class="iz-badge-params" id="izModeBadge">智能自适应模式</span>
+                                </div>
+                                <span style="font-size:12px; color:#94A3B8;" id="izFixedHint">自适应模式下不可用</span>
+                            </div>
+                            <div class="iz-collapse-body" id="izFixedBody">
+                                <div class="iz-param-grid">${renderParams(FIXED_PARAM_DEFS)}</div>
+                            </div>
+                        </div>
+                        <div class="iz-section">
+                            <div class="iz-section-title">🎬 B站播放器辅助</div>
+                            <div class="iz-row" style="margin-bottom:0;">
+                                <div class="iz-row-label" style="min-width:0; flex:1;">
+                                    <div class="iz-toggle-wrap" id="izBiliWrap">
+                                        <div class="iz-toggle ${bilibiliVolumeModule.isEnabled ? 'active' : ''}" id="izBiliToggle">
+                                            <div class="iz-knob"></div>
+                                        </div>
+                                        <span class="iz-toggle-label">启用B站播放器辅助<span class="iz-sub">全屏时滚轮调节音量 · 方向键防穿透</span></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="margin-top:10px; padding-left:2px; font-size:12px; line-height:1.7; color:#94A3B8;">
+                                <div>· 放大模块会导致B站原生滚轮调整音量失效</div>
+                                <div>· 需开启此辅助解决滚轮调整音量的问题</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="iz-panel-footer">
+                        <button class="iz-btn-ghost" id="izResetBtn">↺ 恢复默认设置</button>
+                        <button class="iz-btn-primary-solid" id="izSaveBtn">✓ 保存并关闭</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+
+            const $ = (id) => overlay.querySelector('#' + id);
+            const modeSelect = $('izModeSelect');
+            const conflictCheck = $('izConflictCheck');
+            const commonHeader = $('izCommonHeader');
+            const commonBody = $('izCommonBody');
+            const commonArrow = $('izCommonArrow');
+            const commonHint = $('izCommonHint');
+            const fixedHeader = $('izFixedHeader');
+            const fixedBody = $('izFixedBody');
+            const fixedArrow = $('izFixedArrow');
+            const fixedHint = $('izFixedHint');
+            const modeBadge = $('izModeBadge');
+            const biliToggle = $('izBiliToggle');
+            
+            // ===== 参数说明气泡：全局唯一，挂在 body 上，fixed 定位不受折叠区裁剪 =====
+            const oldTip = document.getElementById('izTipBubble');
+            if (oldTip) oldTip.remove();
+            const tipBubble = document.createElement('div');
+            tipBubble.id = 'izTipBubble';
+            document.body.appendChild(tipBubble);
+
+            const showTip = (icon) => {
+                tipBubble.textContent = icon.dataset.tip;
+                const r = icon.getBoundingClientRect();
+                tipBubble.style.opacity = '0';
+                tipBubble.style.display = 'block';
+                const bw = tipBubble.offsetWidth;
+                const bh = tipBubble.offsetHeight;
+                // 优先显示在问号上方；上方放不下则放下方；水平方向夹在视口内
+                let top = r.top - bh - 10;
+                if (top < 8) top = r.bottom + 10;
+                let left = r.left + r.width / 2 - bw / 2;
+                left = Math.max(8, Math.min(left, window.innerWidth - bw - 8));
+                tipBubble.style.top = top + 'px';
+                tipBubble.style.left = left + 'px';
+                tipBubble.style.opacity = '1';
+            };
+            const hideTip = () => { tipBubble.style.opacity = '0'; };
+
+            overlay.addEventListener('mouseover', (e) => {
+                const icon = e.target.closest('.iz-tip-icon');
+                if (icon) showTip(icon);
+            });
+            overlay.addEventListener('mouseout', (e) => {
+                if (e.target.closest('.iz-tip-icon')) hideTip();
+            });
+
+            function updateDetailState() {
+                const isFixed = config.zoomMode === 'fixed';
+                modeBadge.textContent = isFixed ? '固定倍数模式' : '智能自适应模式';
+                if (isFixed) {
+                    fixedHeader.style.cursor = 'pointer';
+                    fixedHeader.style.opacity = '1';
+                    fixedHint.textContent = '点击展开 · 悬停问号查看参数说明';
                 } else {
-                    excludedHomepages.forEach(homepage => {
-                        const item = document.createElement('div');
-                        item.style.cssText = `display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; margin: 2px 0; background: white; border-radius: 3px; border: 1px solid #eee;`;
-                        const urlSpan = document.createElement('span');
-                        urlSpan.textContent = homepage;
-                        urlSpan.style.cssText = 'flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
-                        const removeBtn = document.createElement('button');
-                        removeBtn.textContent = '移除';
-                        removeBtn.style.cssText = `background: #f44336; color: white; border: none; border-radius: 3px; padding: 2px 6px; font-size: 11px; cursor: pointer; margin-left: 8px;`;
-                        removeBtn.addEventListener('click', () => {
-                            const index = excludedHomepages.indexOf(homepage);
-                            if (index > -1) {
-                                excludedHomepages.splice(index, 1);
-                                saveExcludedHomepages();
-                                updateExclusionList();
-                                updateExclusionButtonState();
-                                updateButtonState();
-                                showToast('已移除主页排除');
-                            }
-                        });
-                        item.appendChild(urlSpan);
-                        item.appendChild(removeBtn);
-                        exclusionList.appendChild(item);
-                    });
+                    fixedBody.classList.remove('open');
+                    fixedArrow.classList.remove('open');
+                    fixedHeader.style.cursor = 'not-allowed';
+                    fixedHeader.style.opacity = '0.55';
+                    fixedHint.textContent = '自适应模式下不可用';
                 }
-            }
-    
-            const avoidConflictItem = document.createElement('div');
-            avoidConflictItem.style.marginBottom = '12px';
-            const avoidConflictLabel = document.createElement('label');
-            avoidConflictLabel.style.cssText = 'display: flex; align-items: center; margin-bottom: 5px; font-size: 14px; cursor: pointer;';
-            const avoidConflictCheckbox = document.createElement('input');
-            avoidConflictCheckbox.type = 'checkbox';
-            avoidConflictCheckbox.checked = config.avoidClickConflict;
-            avoidConflictCheckbox.style.cssText = 'margin-right: 8px;';
-            avoidConflictCheckbox.addEventListener('change', () => {
-                config.avoidClickConflict = avoidConflictCheckbox.checked;
-                saveConfig();
-                if (isEnabled) {
-                    cleanup();
-                    initImages();
-                }
-            });
-            const avoidConflictText = document.createElement('span');
-            avoidConflictText.textContent = '避免与点击放大功能冲突';
-            avoidConflictLabel.appendChild(avoidConflictCheckbox);
-            avoidConflictLabel.appendChild(avoidConflictText);
-            avoidConflictItem.appendChild(avoidConflictLabel);
-            const avoidConflictDesc = document.createElement('div');
-            avoidConflictDesc.textContent = '开启后会自动检测网站的点击放大功能，避免冲突';
-            avoidConflictDesc.style.cssText = 'font-size: 12px; color: #666; margin-top: 4px;';
-            avoidConflictItem.appendChild(avoidConflictDesc);
-            panel.appendChild(avoidConflictItem);
-    
-            function addConfigInput(label, key, type = 'number', min, max, step) {
-                const item = document.createElement('div');
-                item.style.marginBottom = '12px';
-                const itemLabel = document.createElement('label');
-                itemLabel.style.cssText = 'display: block; margin-bottom: 5px; font-size: 14px;';
-                itemLabel.textContent = label;
-                item.appendChild(itemLabel);
-                const input = document.createElement('input');
-                input.type = type;
-                input.value = config[key];
-                input.min = min;
-                input.max = max;
-                input.step = step;
-                input.style.cssText = 'width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;';
-                input.addEventListener('input', () => {
-                    let value = type === 'number' ? parseFloat(input.value) : input.value;
-                    if (isNaN(value)) value = defaultConfig[key];
-                    config[key] = value;
-                    saveConfig();
+                overlay.querySelectorAll('.iz-param-input').forEach(input => {
+                    const isFixedParam = FIXED_PARAM_DEFS.some(p => p.key === input.dataset.param);
+                    input.disabled = isFixedParam && !isFixed;
+                    const group = input.closest('.iz-input-group');
+                    if (group) group.classList.toggle('disabled-group', isFixedParam && !isFixed);
                 });
-                item.appendChild(input);
-                panel.appendChild(item);
             }
-    
-            addConfigInput('悬停延迟(毫秒)', 'delay', 'number', 0, 2000, 100);
-            addConfigInput('大图放大倍数', 'scale', 'number', 1, 5, 0.1);
-            addConfigInput('大图最小倍数', 'minScale', 'number', 1, 3, 0.1);
-            addConfigInput('大图最大宽度(像素)', 'maxWidth', 'number', 300, 3000, 100);
-            addConfigInput('大图最大高度(像素)', 'maxHeight', 'number', 300, 3000, 100);
-            addConfigInput('竖屏判定比例', 'portraitRatio', 'number', 1, 3, 0.1);
-            addConfigInput('滚轮移动速度(像素)', 'scrollSpeed', 'number', 5, 50, 1);
-            addConfigInput('小图判定阈值(像素)', 'smallImgThreshold', 'number', 100, 500, 10);
-            addConfigInput('小图强制宽度(像素)', 'smallImgWidth', 'number', 300, 1000, 10);
-            addConfigInput('小图强制高度(像素)', 'smallImgHeight', 'number', 300, 1000, 10);
-            addConfigInput('包装层层级', 'wrapperZIndex', 'number', 0, 100, 1);
-    
-            const bilibiliVolumeSection = document.createElement('div');
-            bilibiliVolumeSection.style.cssText = `margin: 20px 0 15px 0; padding: 12px; background: #f0f8ff; border-radius: 6px; border-left: 4px solid #2196F3;`;
-    
-            const bilibiliTitle = document.createElement('h4');
-            bilibiliTitle.textContent = 'B站播放器辅助';
-            bilibiliTitle.style.cssText = 'margin: 0 0 8px; color: #333;';
-            bilibiliVolumeSection.appendChild(bilibiliTitle);
-    
-            const bilibiliDesc = document.createElement('p');
-            bilibiliDesc.textContent = 'B站全屏时滚轮调节音量（脚本接管）；方向键只防页面穿透滚动，音量/快进调节由B站原生逻辑处理';
-            bilibiliDesc.style.cssText = 'margin: 0 0 10px; font-size: 12px; color: #666;';
-            bilibiliVolumeSection.appendChild(bilibiliDesc);
-    
-            const bilibiliLabel = document.createElement('label');
-            bilibiliLabel.style.cssText = 'display: flex; align-items: center; margin-bottom: 5px; font-size: 14px; cursor: pointer;';
-            const bilibiliCheckbox = document.createElement('input');
-            bilibiliCheckbox.type = 'checkbox';
-            bilibiliCheckbox.checked = bilibiliVolumeModule.isEnabled;
-            bilibiliCheckbox.style.cssText = 'margin-right: 8px;';
-            bilibiliCheckbox.addEventListener('change', () => {
-                bilibiliVolumeModule.setEnabled(bilibiliCheckbox.checked);
+
+            $('izHpToggleBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleHomepageDisabled();
             });
-            const bilibiliText = document.createElement('span');
-            bilibiliText.textContent = '启用B站播放器辅助';
-            bilibiliLabel.appendChild(bilibiliCheckbox);
-            bilibiliLabel.appendChild(bilibiliText);
-            bilibiliVolumeSection.appendChild(bilibiliLabel);
-            panel.appendChild(bilibiliVolumeSection);
-    
-            // 【修复 #3】恢复默认设置改为只更新值，不重建 DOM
-            const resetBtn = document.createElement('button');
-            resetBtn.textContent = '恢复默认设置';
-            resetBtn.style.cssText = `width: 100%; padding: 8px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; margin-top: 10px;`;
-            resetBtn.addEventListener('click', () => {
-                if (confirm('确定要恢复默认设置吗？')) {
-                    config = { ...defaultConfig };
+
+            modeSelect.addEventListener('change', () => {
+                config.zoomMode = modeSelect.value;
+                saveConfig();
+                updateDetailState();
+                showSaveToast(`已切换至 ${config.zoomMode === 'fixed' ? '固定倍数' : '智能自适应'} 模式`);
+            });
+
+            $('izConflictWrap').addEventListener('click', (e) => {
+                if (e.target.closest('.iz-checkbox-custom') || e.target.closest('.iz-checkbox-label')) {
+                    config.avoidClickConflict = !config.avoidClickConflict;
+                    conflictCheck.classList.toggle('checked', config.avoidClickConflict);
                     saveConfig();
-                    updateConfigPanel();  // 只更新现有面板的值，不重建 DOM
+                    showSaveToast(`避免与点击放大功能冲突 ${config.avoidClickConflict ? '已开启' : '已关闭'}`);
+                    if (isEnabled) {
+                        cleanup();
+                        initImages();
+                    }
                 }
             });
-            panel.appendChild(resetBtn);
-    
-            document.body.appendChild(panel);
-            updateExclusionList();
-            updateExclusionButtonState();
-            return panel;
-        }
-    
-        function toggleConfigPanel() {
-            const panel = document.getElementById('image-zoom-config');
-            if (panel) {
-                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-                if (panel.style.display === 'block') {
-                    updateExclusionList();
-                    updateExclusionButtonState();
+
+            commonHeader.addEventListener('click', () => {
+                const isOpen = commonBody.classList.contains('open');
+                commonBody.classList.toggle('open');
+                commonArrow.classList.toggle('open');
+                commonHint.textContent = isOpen ? '点击展开 · 悬停问号查看参数说明' : '点击收起';
+            });
+
+            fixedHeader.addEventListener('click', () => {
+                if (config.zoomMode !== 'fixed') {
+                    showSaveToast('切换到固定倍数模式后才能调整这些参数');
+                    return;
                 }
+                const isOpen = fixedBody.classList.contains('open');
+                fixedBody.classList.toggle('open');
+                fixedArrow.classList.toggle('open');
+                fixedHint.textContent = isOpen ? '点击展开 · 悬停问号查看参数说明' : '点击收起';
+            });
+
+            overlay.querySelectorAll('.iz-param-input').forEach(input => {
+                const key = input.dataset.param;
+                const def = COMMON_PARAM_DEFS.concat(FIXED_PARAM_DEFS).find(p => p.key === key);
+                input.addEventListener('input', () => {
+                    let val = parseFloat(input.value);
+                    if (isNaN(val)) val = defaultConfig[key];
+                    config[key] = val;
+                    saveConfig();
+                    notifyConfigSaved(key, val, def ? def.label : key);
+                });
+            });
+
+                        $('izBiliWrap').addEventListener('click', (e) => {
+                // 只有点击开关本体才切换，点文字不响应
+                if (e.target.closest('.iz-toggle')) {
+                    e.stopPropagation();
+                    const newState = !bilibiliVolumeModule.isEnabled;
+                    bilibiliVolumeModule.setEnabled(newState);
+                    biliToggle.classList.toggle('active', newState);
+                    showSaveToast(`B站播放器辅助 ${newState ? '已启用' : '已禁用'}`);
+                }
+            });
+
+
+            $('izResetBtn').addEventListener('click', () => {
+                if (!confirm('确定要恢复所有设置为默认值吗？')) return;
+                config = { ...defaultConfig };
+                saveConfig();
+                modeSelect.value = config.zoomMode;
+                conflictCheck.classList.toggle('checked', config.avoidClickConflict);
+                overlay.querySelectorAll('.iz-param-input').forEach(input => {
+                    input.value = config[input.dataset.param];
+                });
+                updateDetailState();
+                showToast('已恢复默认设置 🎉');
+            });
+
+            function closePanel() {
+                overlay.classList.add('anim-out');
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                    overlay.classList.remove('anim-out');
+                }, 300);
+            }
+
+            $('izCloseBtn').addEventListener('click', closePanel);
+            $('izSaveBtn').addEventListener('click', () => {
+                showSaveToast('设置已保存');
+                setTimeout(closePanel, 350);
+            });
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) closePanel();
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && overlay.style.display !== 'none' && overlay.style.display !== '') {
+                    closePanel();
+                }
+            });
+
+            updateDetailState();
+
+            return overlay;
+        }
+
+        function toggleConfigPanel() {
+            let overlay = document.getElementById('izModalOverlay');
+            if (!overlay) {
+                overlay = createConfigPanel();
+            }
+            if (overlay.style.display === 'flex') {
+                overlay.style.display = 'none';
+            } else {
+                overlay.querySelector('#izModeSelect').value = config.zoomMode;
+                overlay.querySelector('#izConflictCheck').classList.toggle('checked', config.avoidClickConflict);
+                overlay.querySelectorAll('.iz-param-input').forEach(input => {
+                    input.value = config[input.dataset.param];
+                });
+                overlay.querySelector('#izBiliToggle').classList.toggle('active', bilibiliVolumeModule.isEnabled);
+                refreshPanelHomepageSection();
+
+                overlay.classList.add('anim-in');
+                overlay.style.display = 'flex';
+                setTimeout(() => overlay.classList.remove('anim-in'), 400);
             }
         }
-    
-        // 【改造】放大态滚轮处理，返回 true 表示事件已被放大功能接管
+
         function onWheel(e) {
             if (currentZoomContainer && isEnabled) {
                 e.preventDefault();
@@ -817,7 +1361,7 @@
             }
             return false;
         }
-    
+
         const debounceMove = debounce(function(e) {
             if (!currentZoomContainer || !isEnabled) return;
             const zoomedImg = currentZoomContainer.querySelector('img');
@@ -826,97 +1370,130 @@
             const currentMarginTop = parseFloat(zoomedImg.style.marginTop) || 0;
             zoomedImg.style.marginTop = (currentMarginTop + moveDistance) + 'px';
         }, 16);
-    
-        // 【修复 #10】handleResize 增加放大图位置调整
+
         function handleResize() {
-            if (isMinimized) {
-                minimizeButton();
-            }
-            // 窗口大小变化时，如果当前有放大图，隐藏它避免超出可视区域
             if (currentZoomContainer && isEnabled) {
                 currentZoomContainer.style.opacity = '0';
             }
         }
-    
+
         function addKeyboardSupport() {
             document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') {
-                    const panel = document.getElementById('image-zoom-config');
-                    if (panel && panel.style.display !== 'none') {
-                        panel.style.display = 'none';
-                    }
-                }
                 if (e.altKey && e.key === 'z') {
                     e.preventDefault();
-                    toggleEnabled();
+                    if (!isHomepageZoomDisabled()) {
+                        toggleEnabled();
+                    }
                 }
             });
         }
-    
-        // 【修复 #13】createZoomedImage 增加竞态处理
+
+        // 智能自适应：按小图面积放大到视口可用尺寸，超出可用宽高时等比收缩
+        function computeAdaptiveSize(img, rect) {
+            const availW = Math.min(window.innerWidth - 60, config.maxWidth);
+            const availH = Math.min(window.innerHeight - 60, config.maxHeight);
+            const size = Math.sqrt(rect.width * rect.height);
+            const availSize = Math.sqrt(availW * availH);
+            const TARGET_MIN = Math.min(1200, availSize);
+            let target = Math.min(Math.max(size * 5, TARGET_MIN), availSize);
+            let scale = target / size;
+            scale = Math.min(scale, 10);
+            scale = Math.max(scale, 1);
+            let w = Math.round(rect.width * scale);
+            let h = Math.round(rect.height * scale);
+            if (w > availW || h > availH) {
+                const fit = Math.min(availW / w, availH / h);
+                w = Math.round(w * fit);
+                h = Math.round(h * fit);
+            }
+            return { w, h };
+        }
+
         function createZoomedImage(img, hasClickFunctionality = false) {
             if (!isEnabled) return null;
             try {
-                // 如果有正在动画中的容器，先清理掉
                 if (currentZoomContainer) {
-                    try {
-                        currentZoomContainer.remove();
-                    } catch (e) { /* 已移除则忽略 */ }
+                    try { currentZoomContainer.remove(); } catch (e) { }
                     currentZoomContainer = null;
                 }
-    
                 const rect = img.getBoundingClientRect();
                 if (rect.width === 0 || rect.height === 0) return null;
-    
+
                 const isSmallImg = rect.width < config.smallImgThreshold || rect.height < config.smallImgThreshold;
                 const isPortrait = rect.height / rect.width > config.portraitRatio;
-    
-                let scale, zoomedImgStyle;
-                if (isSmallImg) {
-                    scale = isPortrait ? config.smallImgHeight / rect.height : config.smallImgWidth / rect.width;
-                    zoomedImgStyle = `width: ${rect.width * scale}px; height: ${rect.height * scale}px; transform: scale(0.95); transition: ${config.transition}; box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin-top: 0;`;
+
+                let targetWidth, targetHeight;
+
+                if (config.zoomMode === 'adaptive') {
+                    const size = computeAdaptiveSize(img, rect);
+                    targetWidth = size.w;
+                    targetHeight = size.h;
+                } else if (isSmallImg) {
+                    targetWidth = config.smallImgWidth;
+                    targetHeight = config.smallImgHeight;
+                    const imgRatio = rect.width / rect.height;
+                    if (isPortrait) {
+                        targetWidth = Math.round(targetHeight * imgRatio);
+                    } else {
+                        targetHeight = Math.round(targetWidth / imgRatio);
+                    }
+                    targetWidth = Math.min(targetWidth, config.maxWidth);
+                    targetHeight = Math.min(targetHeight, config.maxHeight);
                 } else {
                     if (isPortrait) {
                         const heightScale = config.maxHeight / rect.height;
-                        scale = Math.min(config.scale, heightScale, Math.max(config.minScale, 1.2));
+                        targetWidth = Math.round(rect.width * heightScale);
+                        targetHeight = Math.round(rect.height * heightScale);
                     } else {
                         const widthScale = config.maxWidth / rect.width;
-                        const heightScale = config.maxHeight / rect.height;
-                        scale = Math.min(config.scale, widthScale, heightScale, Math.max(config.minScale, 1));
+                        targetWidth = Math.round(rect.width * widthScale);
+                        targetHeight = Math.round(rect.height * widthScale);
                     }
-                    const maxHeight = isPortrait ? config.maxHeight + 200 : config.maxHeight;
-                    zoomedImgStyle = `max-width: ${config.maxWidth}px; max-height: ${maxHeight}px; width: auto; height: auto; transform: scale(0.95); transition: ${config.transition}; box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin-top: 0;`;
+                    targetWidth = Math.min(targetWidth, config.maxWidth);
+                    targetHeight = Math.min(targetHeight, config.maxHeight);
                 }
-    
+
+                const zoomedImgStyle = `width: ${targetWidth}px; height:${targetHeight}px; max-width: ${config.maxWidth}px; max-height:${config.maxHeight}px; object-fit: contain; transition: ${config.transition}, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin-top: 0; transform: scale(0.6); opacity: 0;`;
+
                 const zoomContainer = document.createElement('div');
                 zoomContainer.className = 'image-zoom-container';
+
                 const zoomZIndex = hasClickFunctionality ? config.zoomZIndex - 1 : config.zoomZIndex;
-                zoomContainer.style.cssText = `position: fixed; z-index: ${zoomZIndex}; opacity: 0; transition: ${config.transition}; pointer-events: none; left: 0; top: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; background-color: rgba(0,0,0,0.1);`;
-    
+                zoomContainer.style.cssText = `
+                    position: fixed; z-index: ${zoomZIndex};
+                    opacity: 0; transition: ${config.transition};
+                    pointer-events: none; left: 0; top: 0;
+                    width: 100%; height: 100%;
+                    display: flex; justify-content: center; align-items: center;
+                    padding: 20px; box-sizing: border-box;
+                    background-color: rgba(0,0,0,0.1);
+                `;
+
                 const zoomedImg = document.createElement('img');
                 zoomedImg.src = img.src || img.currentSrc;
                 zoomedImg.alt = img.alt;
                 zoomedImg.style.cssText = zoomedImgStyle;
+
                 zoomContainer.appendChild(zoomedImg);
                 document.body.appendChild(zoomContainer);
-    
                 currentZoomContainer = zoomContainer;
-    
+
                 setTimeout(() => {
                     zoomContainer.style.opacity = '1';
-                    zoomedImg.style.transform = `scale(${scale})`;
+                    zoomedImg.style.transform = 'scale(1)';
+                    zoomedImg.style.opacity = '1';
                 }, 10);
-    
+
                 return zoomContainer;
             } catch (error) {
                 console.warn('创建放大图失败:', error);
                 return null;
             }
         }
-    
+
         function showZoom(img) {
             if (!isEnabled) return;
-            if (config.avoidClickConflict && isImageInLightboxMode()) {  // 【修复 #7】去掉无用的 img 参数
+            if (config.avoidClickConflict && isImageInLightboxMode()) {
                 return;
             }
             const state = states.get(img);
@@ -925,13 +1502,16 @@
             if (!zoomContainer) return;
             states.set(img, { ...state, isZoomed: true, zoomContainer });
         }
-    
+
         function hideZoom(img) {
             const state = states.get(img);
             if (!state || !state.isZoomed || !state.zoomContainer) return;
-            const zoomedImg = state.zoomContainer.querySelector('img');
-            if (zoomedImg) zoomedImg.style.transform = 'scale(0.95)';
             state.zoomContainer.style.opacity = '0';
+            const hideImg = state.zoomContainer.querySelector('img');
+            if (hideImg) {
+                hideImg.style.transform = 'scale(0.6)';
+                hideImg.style.opacity = '0';
+            }
             setTimeout(() => {
                 if (state.zoomContainer && state.zoomContainer.parentNode) {
                     state.zoomContainer.parentNode.removeChild(state.zoomContainer);
@@ -940,9 +1520,8 @@
                 states.set(img, { ...state, isZoomed: false, zoomContainer: null, timer: null });
             }, 300);
         }
-    
+
         function handleStretchedLink(img) {
-            // 【修复 #14】防御性编程，closest 可能返回 null
             const card = img.closest('.card');
             if (!card) return;
             const link = card.querySelector('a.stretched-link');
@@ -959,48 +1538,57 @@
                 }
             });
         }
-    
+
         function processImage(img) {
             if (!isEnabled) return;
             try {
                 if (!img || !img.parentNode) return;
                 if (!isValidImage(img)) return;
-    
+
                 let containers = [];
                 let current = img.parentNode;
                 while (current && current !== document.body) {
                     containers.push(current);
-                    if (current.tagName === 'A' || current.classList.contains('card') || current.classList.contains('col') || current.classList.contains('card-img-container')) break;
+                    if (current.tagName === 'A' || current.classList.contains('card') ||
+                        current.classList.contains('col') || current.classList.contains('card-img-container')) {
+                        break;
+                    }
                     current = current.parentNode;
                 }
                 const container = containers.length > 0 ? containers[containers.length - 1] : img.parentNode;
-    
-                const hasClickFunctionality = config.avoidClickConflict ? (checkImageClickBehavior(img) || container.tagName === 'A' || container.classList.contains('stretched-link')) : false;
-    
+
+                const hasClickFunctionality = config.avoidClickConflict ?
+                    (checkImageClickBehavior(img) || container.tagName === 'A' || container.classList.contains('stretched-link')) : false;
+
                 if (img.classList.contains('image-zoom-processed')) return;
+
                 img.classList.add('image-zoom-processed');
-    
+
                 if (!hasClickFunctionality) {
                     img.classList.add('image-zoom-hover');
                     if (img.parentNode && img.parentNode !== document.body) {
                         img.parentNode.classList.add('image-zoom-hover');
                     }
                 }
-    
+
                 handleStretchedLink(img);
-    
+
                 const directParent = img.parentNode;
+
                 const handleParentMouseEnter = (e) => {
                     const rect = img.getBoundingClientRect();
-                    if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                    if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                        e.clientY >= rect.top && e.clientY <= rect.bottom) {
                         img.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
                     }
                 };
+
                 const handleParentMouseLeave = (e) => {
                     if (!directParent.contains(e.relatedTarget)) {
                         img.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, cancelable: true }));
                     }
                 };
+
                 if (directParent && directParent !== document.body) {
                     if (!directParent.dataset.zoomProxy) {
                         directParent.dataset.zoomProxy = "true";
@@ -1008,34 +1596,39 @@
                         directParent.addEventListener('mouseleave', handleParentMouseLeave);
                     }
                 }
-    
+
                 let timer = null;
                 let isZoomed = false;
                 let zoomContainer = null;
-    
+
                 const handleMouseEnter = (e) => {
                     if (!isEnabled || isZoomed) return;
-                    if (config.avoidClickConflict && isImageInLightboxMode()) {  // 【修复 #7】
+                    if (config.avoidClickConflict && isImageInLightboxMode()) {
                         return;
                     }
                     if (timer) clearTimeout(timer);
                     timer = setTimeout(() => {
+                        const rect = img.getBoundingClientRect();
+                        if (rect.width < config.minOriginalSize || rect.height < config.minOriginalSize) return;
                         if (!isZoomed) {
                             zoomContainer = createZoomedImage(img, hasClickFunctionality);
                             if (zoomContainer) isZoomed = true;
                         }
                     }, config.delay);
                 };
-    
+
                 const handleMouseLeave = (e) => {
                     if (timer) {
                         clearTimeout(timer);
                         timer = null;
                     }
                     if (isZoomed && zoomContainer) {
-                        const zoomedImg = zoomContainer.querySelector('img');
-                        if (zoomedImg) zoomedImg.style.transform = 'scale(0.95)';
                         zoomContainer.style.opacity = '0';
+                        const zImg = zoomContainer.querySelector('img');
+                        if (zImg) {
+                            zImg.style.transform = 'scale(0.6)';
+                            zImg.style.opacity = '0';
+                        }
                         setTimeout(() => {
                             if (zoomContainer && zoomContainer.parentNode) {
                                 zoomContainer.parentNode.removeChild(zoomContainer);
@@ -1046,16 +1639,15 @@
                         }, 300);
                     }
                 };
-    
+
                 const handleClick = (e) => {
                     if (isZoomed && zoomContainer) hideZoom(img);
                 };
-    
+
                 img.addEventListener('mouseenter', handleMouseEnter);
                 img.addEventListener('mouseleave', handleMouseLeave);
                 img.addEventListener('click', handleClick, true);
-    
-                // 保存事件处理函数引用，便于清理
+
                 states.set(img, {
                     isZoomed, timer, zoomContainer, hasClickFunctionality,
                     containers: [directParent],
@@ -1072,29 +1664,31 @@
                 console.warn('图片处理失败:', error);
             }
         }
-    
-        // 悬停自愈机制：第一次悬停未处理的图片时，重新检测并直接触发放大
+
         function setupLazyHoverProcessor() {
             document.addEventListener('mouseover', debounce((e) => {
-                if (!isEnabled || (isHomepage() && isHomepageExcluded())) return;
+                if (!isEnabled || isHomepageZoomDisabled()) return;
                 let img = null;
                 if (e.target.tagName === 'IMG') img = e.target;
                 else if (e.target.closest) img = e.target.closest('img');
                 if (img && !img.classList.contains('image-zoom-processed')) {
                     processImage(img);
                     if (img.classList.contains('image-zoom-processed')) {
-                        img.dispatchEvent(new MouseEvent('mouseenter'));
+                        const rect = img.getBoundingClientRect();
+                        if (rect.width >= config.minOriginalSize && rect.height >= config.minOriginalSize) {
+                            img.dispatchEvent(new MouseEvent('mouseenter'));
+                        }
                     }
                 }
             }, 80), true);
         }
-    
-        // 【修复 #2】返回 observer 实例以便 cleanup 时断开
+
         function setupLightboxObserver() {
             const observer = new MutationObserver((mutations) => {
                 mutations.forEach((mutation) => {
-                    if (mutation.type === 'attributes' && (mutation.target === document.body || mutation.target === document.documentElement)) {
-                        if (isImageInLightboxMode()) {  // 【修复 #7】去掉无用的 null 参数
+                    if (mutation.type === 'attributes' &&
+                        (mutation.target === document.body || mutation.target === document.documentElement)) {
+                        if (isImageInLightboxMode()) {
                             document.querySelectorAll('.image-zoom-container').forEach(container => {
                                 container.style.opacity = '0';
                                 setTimeout(() => {
@@ -1114,14 +1708,13 @@
             });
             observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
             observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-            lightboxObserver = observer;  // 保存引用
+            lightboxObserver = observer;
             return observer;
         }
-    
+
         function initImages() {
-            if (isHomepage() && isHomepageExcluded()) return;
+            if (isHomepageZoomDisabled()) return;
             const imgs = Array.from(document.querySelectorAll('img:not(.image-zoom-processed)'));
-            // 分批处理防卡顿，使用 requestIdleCallback
             const processBatch = (deadline) => {
                 while (imgs.length > 0 && (deadline.timeRemaining ? deadline.timeRemaining() > 0 : true)) {
                     const img = imgs.shift();
@@ -1141,19 +1734,16 @@
                 processBatch({ timeRemaining: () => 5 });
             }
         }
-    
-        // 【修复 #2】返回 observer 实例以便 cleanup 时断开
+
         function startObserver() {
             let processingQueue = false;
             const observer = new MutationObserver(mutations => {
-                if (!isEnabled || (isHomepage() && isHomepageExcluded())) return;
+                if (!isEnabled || isHomepageZoomDisabled()) return;
                 if (processingQueue) return;
                 processingQueue = true;
-                // requestAnimationFrame 节流，合并多次 Mutation 回调
                 requestAnimationFrame(() => {
                     const nodesToProcess = new Set();
                     mutations.forEach(mutation => {
-                        // 处理属性变化（懒加载图片 src 更新）
                         if (mutation.type === 'attributes' && mutation.target.tagName === 'IMG' && !mutation.target.classList.contains('image-zoom-processed')) {
                             nodesToProcess.add(mutation.target);
                         } else if (mutation.type === 'childList') {
@@ -1181,26 +1771,16 @@
                     processingQueue = false;
                 });
             });
-            // 监听 attributes 变化，适配懒加载
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['src', 'data-src', 'srcset']
-            });
-            zoomObserver = observer;  // 保存引用
+            observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src', 'data-src', 'srcset'] });
+            zoomObserver = observer;
             return observer;
         }
-    
-        // 【修复 #1】init 中不再直接添加事件监听器，交由 setEnabled 统一管理（B站模块）
-        // 图片放大模块的 init 保持不变，但需要确保 observer 被正确创建
+
         function init() {
             loadConfig();
-            loadExcludedHomepages();
             loadState();
             injectStyles();
-            toggleButton = createToggleButton();
-            createConfigPanel();
+            createDockButton();
             addKeyboardSupport();
             window.addEventListener('resize', debounce(handleResize, 250));
             setupLightboxObserver();
@@ -1208,20 +1788,17 @@
             setupLazyHoverProcessor();
             startObserver();
         }
-    
+
         return { init, cleanup, onWheel };
     })();
-    
+
     // ================================
-    // B站播放器辅助模块（v3.4.0 优化版）
-    // 滚轮调音量：脚本接管（B站原生滚轮在网页全屏下不可靠，已实测）
-    // 方向键：守卫模式，交还 B站原生（已实测可用）
-    // 音量提示：滚轮直接显示 + volumechange 监听兜底（覆盖拖音量条等场景）
+    // B站播放器辅助模块
     // ================================
     const bilibiliVolumeModule = (function() {
         let isEnabled = GM_getValue('bilibili_volume_enabled', true);
         let toast = null;
-    
+
         function isInFullscreenMode() {
             const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
             if (fullscreenElement) {
@@ -1236,7 +1813,7 @@
             }
             return false;
         }
-    
+
         function findVideoElement() {
             const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
             if (fullscreenElement) {
@@ -1245,8 +1822,7 @@
             }
             return document.querySelector('.bpx-player-container video, video');
         }
-    
-        // 优先走 B站官方 player API（0~100），播放器自己的音量条状态会同步更新
+
         function applyVolume(video, newVolume) {
             const clamped = Math.max(0, Math.min(1, newVolume));
             try {
@@ -1259,11 +1835,11 @@
                     }
                     return;
                 }
-            } catch (err) { /* API 不可用时降级 */ }
+            } catch (err) { }
             video.volume = clamped;
             video.muted = false;
         }
-    
+
         function getVolume(video) {
             try {
                 const player = window.player;
@@ -1271,44 +1847,31 @@
             } catch (err) {}
             return video.volume;
         }
-    
+
         function getVolumeIcon(volume) {
             if (volume === 0) {
                 return `<svg width="28" height="28" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><path d="M64 362.67v298.66h198.33L512 911V113L262.33 362.67H64zM736 512c0-43.56-11.28-83.22-33.83-119-22.56-35.78-52.5-63-89.83-81.67v399c37.33-17.11 67.28-43.55 89.83-79.33C724.72 595.22 736 555.56 736 512z" fill="currentColor"></path><path d="M704.5 320.5l-384 384M320.5 320.5l384 384" stroke="currentColor" stroke-width="56" stroke-linecap="round" fill="none"></path></svg>`;
             }
             return `<svg width="28" height="28" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><path d="M64 362.67v298.66h198.33L512 911V113L262.33 362.67H64zM736 512c0-43.56-11.28-83.22-33.83-119-22.56-35.78-52.5-63-89.83-81.67v399c37.33-17.11 67.28-43.55 89.83-79.33C724.72 595.22 736 555.56 736 512zM612.33 75.67v102.67c71.56 21.78 130.67 63.39 177.33 124.83 46.67 61.44 70 131.06 70 208.83 0 77.78-23.33 147.39-70 208.83C743 782.28 683.89 823.89 612.33 845.66v102.67C677.67 932.78 736.78 904 789.67 862s94.5-93.33 124.83-154S960 582 960 512s-15.17-135.33-45.5-196c-30.34-60.67-71.94-112-124.83-154s-112-70.78-177.34-86.33z" fill="currentColor"></path></svg>`;
         }
-    
-        // 【修复 #9】Toast 元素在动画结束后从 DOM 移除
+
         function showVolumeToast(volume) {
             if (!toast) {
                 toast = document.createElement('div');
                 toast.id = 'bilibili-volume-toast';
                 toast.style.cssText = `
-                    position: fixed;
-                    top: 50%;
-                    left: 50%;
+                    position: fixed; top: 50%; left: 50%;
                     transform: translate(-50%, -50%);
-                    background: rgba(255, 255, 255, 0.9);
-                    color: #333;
-                    padding: 8px 16px;
-                    border-radius: 8px;
-                    z-index: 2147483647;
-                    font-size: 26px;
-                    font-weight: 300;
+                    background: rgba(255, 255, 255, 0.9); color: #333;
+                    padding: 8px 16px; border-radius: 8px;
+                    z-index: 2147483647; font-size: 26px; font-weight: 300;
                     font-family: 'Segoe UI', Arial, sans-serif;
-                    opacity: 0;
-                    transition: opacity 0.3s ease;
-                    pointer-events: none;
+                    opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
                     box-shadow: 0 4px 20px rgba(0,0,0,0.2);
                     border: 1px solid rgba(0,0,0,0.1);
-                    min-width: 90px;
-                    text-align: center;
+                    min-width: 90px; text-align: center;
                     backdrop-filter: blur(10px);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 8px;
+                    display: flex; align-items: center; justify-content: center; gap: 8px;
                 `;
             }
             const parentElement = document.fullscreenElement || document.webkitFullscreenElement || document.body;
@@ -1321,7 +1884,6 @@
             if (toast.timeoutId) clearTimeout(toast.timeoutId);
             toast.timeoutId = setTimeout(() => {
                 toast.style.opacity = '0';
-                // 【修复】等待 transition 结束后从 DOM 移除
                 setTimeout(() => {
                     if (toast && toast.parentNode) {
                         toast.parentNode.removeChild(toast);
@@ -1329,8 +1891,7 @@
                 }, 300);
             }, 2000);
         }
-    
-        // 【滚轮】脚本接管：调音量 + 防穿透（B站原生滚轮在网页全屏下不可靠）
+
         function onWheel(e) {
             if (!isEnabled || !isInFullscreenMode()) return false;
             const video = findVideoElement();
@@ -1342,8 +1903,7 @@
             showVolumeToast(target);
             return true;
         }
-    
-        // 【方向键守卫】保留：只挡页面穿透滚动，调节交给 B站原生（已实测可用）
+
         function handleKeydown(e) {
             if (!isEnabled) return;
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
@@ -1351,9 +1911,7 @@
                 e.preventDefault();
             }
         }
-    
-        // 【音量提示】监听 volumechange（capture 阶段，不依赖冒泡）
-        // 覆盖非脚本来源的音量变化（如拖动B站音量条），统一弹出提示
+
         function handleVolumeChange(e) {
             if (!isEnabled) return;
             if (e.target.tagName !== 'VIDEO') return;
@@ -1361,14 +1919,13 @@
             const video = e.target;
             showVolumeToast(video.muted ? 0 : video.volume);
         }
-    
-        // 【修复 #1】init 中不再直接添加事件监听器，交由 setEnabled 统一管理
+
         function init() {
             if (!window.location.hostname.includes('bilibili.com')) return;
             isInFullscreenMode();
-            setEnabled(isEnabled);  // 统一通过 setEnabled 管理事件监听器
+            setEnabled(isEnabled);
         }
-    
+
         function setEnabled(enabled) {
             isEnabled = enabled;
             GM_setValue('bilibili_volume_enabled', enabled);
@@ -1380,7 +1937,7 @@
                 document.removeEventListener('volumechange', handleVolumeChange, { capture: true });
             }
         }
-    
+
         return {
             init,
             setEnabled,
@@ -1388,27 +1945,22 @@
             get isEnabled() { return isEnabled; }
         };
     })();
-    
+
     // ================================
     // 主初始化函数
     // ================================
     function mainInit() {
         imageZoomModule.init();
         bilibiliVolumeModule.init();
-    
-        // 【统一滚轮调度】全脚本唯一 wheel 监听器
-        // 优先级：图片放大态 > B站全屏滚轮音量 > 浏览器默认行为
         document.addEventListener('wheel', (e) => {
-            if (imageZoomModule.onWheel(e)) return;      // 放大图滚动大图（stopPropagation）
-            bilibiliVolumeModule.onWheel(e);              // B站全屏：脚本接管调音量
-            // 都不接管时，不 preventDefault，页面正常滚动
+            if (imageZoomModule.onWheel(e)) return;
+            bilibiliVolumeModule.onWheel(e);
         }, { capture: true, passive: false });
     }
-    
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', mainInit);
     } else {
         mainInit();
     }
-
 })();
