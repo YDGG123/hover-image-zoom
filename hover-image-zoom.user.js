@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         鼠标悬停图片自动放大预览
 // @namespace    https://github.com/YDGG123
-// @version      4.1.2
-// @description  一款好用的网页图片放大工具，鼠标悬停即可自动放大图片，支持智能自适应尺寸与固定倍数双模式，适配所有网页～
+// @version      4.2.2
+// @description  一款好用的网页图片放大工具，鼠标悬停即可自动放大图片，支持智能自适应尺寸与固定倍数双模式，内置问题反馈，适配所有网页～
 // @author       益达哥哥
 // @match        *://*/*
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        GM_xmlhttpRequest
+// @connect      damp-woodpecker-4867.ydgg123.deno.net
 // @run-at       document-end
 // @noframes
 // @license      MIT
@@ -15,6 +17,14 @@
 // @downloadURL  https://raw.githubusercontent.com/YDGG123/hover-image-zoom/main/hover-image-zoom.user.js
 // ==/UserScript==
 
+/*
+ * v4.2.2 更新日志：
+ * - 修复：网站首页 feed 流图片因站点悬停遮罩层导致无法放大 / 放大后不消失的问题
+ *   （新增站点悬停代理机制 SITE_HOVER_PROXY_RULES，可按站点扩展规则）
+ * - 修复：容器内移动鼠标时误触发 mouseleave 导致放大层闪烁
+ * - 修复：mouseleave 派发的无限递归风险（递归闸门）
+ */
+
 (function() {
     'use strict';
 
@@ -22,6 +32,7 @@
     // 图片放大功能模块
     // ================================
     const imageZoomModule = (function() {
+
         const defaultConfig = {
             delay: 500,
             scale: 3,
@@ -43,8 +54,8 @@
         const states = new WeakMap();
         let isEnabled = true;
         let config = { ...defaultConfig };
-
         const currentDomain = getDomain();
+
         let currentZoomContainer = null;
         let toggleButton = null;
         let gearButton = null;
@@ -63,6 +74,19 @@
             '[onclick*="preview"]', '[data-action*="zoom"]', '[data-lightbox]',
             '[data-gallery]', '[data-fancybox]', '.zoomable', '.lightbox',
             '.gallery-item', '.fancybox', '.stretched-link'
+        ];
+
+        // ===== 站点悬停代理规则（v4.2.1 新增）=====
+        // 适用场景：站点在图片上方覆盖了悬停遮罩层（如京东首页 feed 流的 more2_item_hover），
+        // 导致 img 收不到原生 mouseenter/mouseleave 事件。
+        // 机制：轮询 elementFromPoint 穿透遮罩找到真实图片，代理派发 enter/leave 事件。
+        const SITE_HOVER_PROXY_RULES = [
+            {
+                domains: ['jd.com'],
+                itemSelector: '.more2_img',   // 图片所在容器
+                cardSelector: 'li',           // 卡片边界：鼠标移出卡片即视为离开
+                pollInterval: 300
+            }
         ];
 
         function getDomain() {
@@ -119,12 +143,11 @@
                 toast = document.createElement('div');
                 toast.id = 'image-zoom-toast';
                 toast.style.cssText = `
-                    position: fixed; top: 50%; left: 50%;
-                    transform: translate(-50%, -50%);
-                    background: rgba(0, 0, 0, 0.8); color: white;
-                    padding: 12px 20px; border-radius: 6px;
-                    z-index: 1000000; font-size: 14px; font-family: Arial, sans-serif;
-                    opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+                    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                    background: rgba(0, 0, 0, 0.8); color: white; padding: 12px 20px;
+                    border-radius: 6px; z-index: 1000000; font-size: 14px;
+                    font-family: Arial, sans-serif; opacity: 0; transition: opacity 0.3s ease;
+                    pointer-events: none;
                 `;
                 document.body.appendChild(toast);
             }
@@ -144,6 +167,7 @@
 
         let saveToastTimeout = null;
         let saveToastEl = null;
+
         const debouncedSaveToast = debounce(function(message) {
             showSaveToast(message);
         }, 600);
@@ -154,15 +178,12 @@
                 saveToastEl.id = 'image-zoom-save-toast';
                 saveToastEl.style.cssText = `
                     position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-                    background: rgba(15, 23, 42, 0.88); color: #fff;
-                    padding: 12px 24px; border-radius: 16px;
-                    font-size: 14px; font-weight: 500; font-family: Arial, sans-serif;
-                    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-                    border: 1px solid rgba(255,255,255,0.08);
+                    background: rgba(15, 23, 42, 0.88); color: #fff; padding: 12px 24px;
+                    border-radius: 16px; font-size: 14px; font-weight: 500; font-family: Arial, sans-serif;
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08);
                     opacity: 0; transform: translateX(-50%) translateY(16px);
                     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-                    pointer-events: none;
-                    z-index: 1000001; max-width: 300px; text-align: center;
+                    pointer-events: none; z-index: 1000001; max-width: 300px; text-align: center;
                 `;
                 document.body.appendChild(saveToastEl);
             }
@@ -238,405 +259,112 @@
             if (!dockStyleElement) {
                 const dockStyle = document.createElement('style');
                 dockStyle.textContent = `
-                    #zoomDockZone {
-                        position: fixed; right: 0; top: 50%;
-                        transform: translateY(-50%);
-                        width: 110px; height: 120px;
-                        z-index: 100000; pointer-events: none;
-                    }
+                    #zoomDockZone { position: fixed; right: 0; top: 50%; transform: translateY(-50%); width: 110px; height: 120px; z-index: 100000; pointer-events: none; }
                     #zoomDockZone.open { pointer-events: auto; }
-
-                    #zoomDock {
-                        position: absolute; right: -20px; top: 10px;
-                        width: 44px; height: 44px;
-                        border-radius: 22px 0 0 22px;
-                        background: rgba(52, 211, 153, 0.20) !important;
-                        backdrop-filter: blur(20px);
-                        -webkit-backdrop-filter: blur(20px);
-                        border: 1px solid rgba(52, 211, 153, 0.32) !important;
-                        border-right: none;
-                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18) !important;
-                        display: flex; align-items: center; justify-content: center;
-                        padding-left: 2px;
-                        transition: right 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease, background 0.3s ease;
-                        opacity: 0.6; pointer-events: auto; cursor: pointer;
-                        z-index: 100001;
-                    }
-                    #zoomDockZone.open #zoomDock {
-                        right: 0; opacity: 1;
-                    }
-                    #zoomDock.off {
-                        background: rgba(239, 68, 68, 0.20) !important;
-                        border-color: rgba(239, 68, 68, 0.32) !important;
-                    }
+                    #zoomDock { position: absolute; right: -20px; top: 10px; width: 44px; height: 44px; border-radius: 22px 0 0 22px; background: rgba(52, 211, 153, 0.20) !important; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(52, 211, 153, 0.32) !important; border-right: none; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18) !important; display: flex; align-items: center; justify-content: center; padding-left: 2px; transition: right 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease, background 0.3s ease; opacity: 0.6; pointer-events: auto; cursor: pointer; z-index: 100001; }
+                    #zoomDockZone.open #zoomDock { right: 0; opacity: 1; }
+                    #zoomDock.off { background: rgba(239, 68, 68, 0.20) !important; border-color: rgba(239, 68, 68, 0.32) !important; }
                     #zoomDock.off .icon-svg { opacity: 0.7; }
-                    #zoomDock.hp {
-                        background: rgba(255, 152, 0, 0.22) !important;
-                        border-color: rgba(255, 152, 0, 0.35) !important;
-                    }
-                    #zoomDockZone.open #zoomDock:hover {
-                        filter: brightness(1.25);
-                    }
-
-                    .icon-svg {
-                        width: 20px; height: 20px;
-                        fill: none;
-                        stroke: rgba(255, 255, 255, 0.92);
-                        stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
-                        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
-                        pointer-events: none;
-                        transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-                        transform: translateX(-8px);
-                    }
+                    #zoomDock.hp { background: rgba(255, 152, 0, 0.22) !important; border-color: rgba(255, 152, 0, 0.35) !important; }
+                    #zoomDockZone.open #zoomDock:hover { filter: brightness(1.25); }
+                    .icon-svg { width: 20px; height: 20px; fill: none; stroke: rgba(255, 255, 255, 0.92); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2)); pointer-events: none; transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); transform: translateX(-8px); }
                     #zoomDockZone.open .icon-svg { transform: translateX(0); }
-
-                    #statusDot {
-                        position: absolute; right: 6px; top: 50%;
-                        transform: translateY(-50%);
-                        width: 6px; height: 6px; border-radius: 50%;
-                        background: #34d399;
-                        box-shadow: 0 0 12px rgba(52, 211, 153, 0.5);
-                        transition: background 0.3s, box-shadow 0.3s;
-                        opacity: 0.7; pointer-events: none;
-                    }
+                    #statusDot { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; border-radius: 50%; background: #34d399; box-shadow: 0 0 12px rgba(52, 211, 153, 0.5); transition: background 0.3s, box-shadow 0.3s; opacity: 0.7; pointer-events: none; }
                     #zoomDock.off #statusDot { background: #f87171; box-shadow: 0 0 12px rgba(248, 113, 113, 0.5); }
                     #zoomDock.hp #statusDot { background: #ffb74d; box-shadow: 0 0 12px rgba(255, 152, 0, 0.5); }
                     #zoomDockZone.open #statusDot { opacity: 1; }
-
-                    #zoomSettings {
-                        position: absolute; right: 0; top: 62px;
-                        width: 32px; height: 32px;
-                        border-radius: 16px 0 0 16px;
-                        background: rgba(20, 24, 44, 0.75) !important;
-                        backdrop-filter: blur(16px);
-                        -webkit-backdrop-filter: blur(16px);
-                        border: 1px solid rgba(255, 255, 255, 0.14) !important;
-                        border-right: none;
-                        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
-                        display: flex; align-items: center; justify-content: center;
-                        cursor: pointer; opacity: 0;
-                        transform: translateX(18px) scale(0.9);
-                        pointer-events: none;
-                        transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) 0.06s;
-                        z-index: 100002;
-                    }
-                    #zoomDockZone.open #zoomSettings {
-                        opacity: 1; transform: translateX(0) scale(1); pointer-events: auto;
-                    }
-                    #zoomSettings:hover {
-                        background: rgba(30, 36, 64, 0.85) !important;
-                        border-color: rgba(251, 191, 36, 0.35) !important;
-                        box-shadow: 0 4px 28px rgba(251, 191, 36, 0.18);
-                    }
-                    #zoomSettings .icon-svg--gear {
-                        width: 16px; height: 16px;
-                        stroke: rgba(255, 255, 255, 0.9); stroke-width: 2; fill: none;
-                        transition: stroke 0.3s, transform 0.6s ease;
-                        pointer-events: none;
-                    }
+                    #zoomSettings { position: absolute; right: 0; top: 62px; width: 32px; height: 32px; border-radius: 16px 0 0 16px; background: rgba(20, 24, 44, 0.75) !important; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.14) !important; border-right: none; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35); display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transform: translateX(18px) scale(0.9); pointer-events: none; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) 0.06s; z-index: 100002; }
+                    #zoomDockZone.open #zoomSettings { opacity: 1; transform: translateX(0) scale(1); pointer-events: auto; }
+                    #zoomSettings:hover { background: rgba(30, 36, 64, 0.85) !important; border-color: rgba(251, 191, 36, 0.35) !important; box-shadow: 0 4px 28px rgba(251, 191, 36, 0.18); }
+                    #zoomSettings .icon-svg--gear { width: 16px; height: 16px; stroke: rgba(255, 255, 255, 0.9); stroke-width: 2; fill: none; transition: stroke 0.3s, transform 0.6s ease; pointer-events: none; }
                     #zoomSettings:hover .icon-svg--gear { stroke: #fbbf24; transform: rotate(60deg); }
-
-                    .zoom-bubble-tip {
-                        position: fixed;
-                        background: rgba(20, 20, 40, 0.80);
-                        backdrop-filter: blur(16px);
-                        -webkit-backdrop-filter: blur(16px);
-                        border: 1px solid rgba(255, 255, 255, 0.08);
-                        color: rgba(255, 255, 255, 0.90);
-                        padding: 6px 16px;
-                        border-radius: 10px;
-                        font-size: 12px; font-weight: 450; letter-spacing: 0.3px;
-                        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                        white-space: nowrap; opacity: 0; pointer-events: none;
-                        transition: opacity 0.25s ease 0.2s;
-                        z-index: 100003;
-                        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-                    }
-                    .zoom-bubble-tip::after {
-                        content: '';
-                        position: absolute; right: -6px; top: 50%;
-                        transform: translateY(-50%);
-                        border: 6px solid transparent;
-                        border-left-color: rgba(20, 20, 40, 0.80);
-                        border-right: 0;
-                    }
+                    .zoom-bubble-tip { position: fixed; background: rgba(20, 20, 40, 0.80); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.90); padding: 6px 16px; border-radius: 10px; font-size: 12px; font-weight: 450; letter-spacing: 0.3px; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.25s ease 0.2s; z-index: 100003; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4); }
+                    .zoom-bubble-tip::after { content: ''; position: absolute; right: -6px; top: 50%; transform: translateY(-50%); border: 6px solid transparent; border-left-color: rgba(20, 20, 40, 0.80); border-right: 0; }
                     .zoom-bubble-tip.visible { opacity: 1; }
-
-                    body.zoom-dock-dragging, body.zoom-dock-dragging * {
-                        transition: none !important; cursor: grabbing !important; user-select: none !important;
-                    }
+                    body.zoom-dock-dragging, body.zoom-dock-dragging * { transition: none !important; cursor: grabbing !important; user-select: none !important; }
                     body.zoom-dock-dragging #zoomDock { cursor: grabbing !important; }
-
-                    #izModalOverlay {
-                        position: fixed; inset: 0; z-index: 99999;
-                        display: none; align-items: center; justify-content: center;
-                        padding: 24px;
-                        background: rgba(15, 23, 42, 0.45);
-                        backdrop-filter: blur(10px);
-                        -webkit-backdrop-filter: blur(10px);
-                    }
+                    #izModalOverlay { position: fixed; inset: 0; z-index: 99999; display: none; align-items: center; justify-content: center; padding: 24px; background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
                     #izModalOverlay.anim-in { animation: izOverlayFade 0.35s ease; }
                     #izModalOverlay.anim-out { animation: izOverlayFadeOut 0.3s ease forwards; }
                     @keyframes izOverlayFade { from { opacity: 0; } to { opacity: 1; } }
                     @keyframes izOverlayFadeOut { from { opacity: 1; } to { opacity: 0; } }
-
-                    #izConfigPanel {
-                        width: 100%; max-width: 560px; max-height: 90vh;
-                        background: rgba(255, 255, 255, 0.88);
-                        backdrop-filter: blur(20px);
-                        -webkit-backdrop-filter: blur(20px);
-                        border-radius: 28px;
-                        box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.6) inset;
-                        overflow: hidden;
-                        animation: izPanelSlide 0.40s cubic-bezier(0.16, 1, 0.3, 1);
-                        display: flex; flex-direction: column;
-                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-                        box-sizing: border-box;
-                    }
-                    @keyframes izPanelSlide {
-                        from { opacity: 0; transform: translateY(28px) scale(0.96); }
-                        to { opacity: 1; transform: translateY(0) scale(1); }
-                    }
-
-                    .iz-panel-scroll {
-                        flex: 1; overflow-y: auto;
-                        padding: 0 28px 12px 28px;
-                        scroll-behavior: smooth;
-                    }
+                    #izConfigPanel { width: 100%; max-width: 560px; max-height: 90vh; background: rgba(255, 255, 255, 0.88); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 28px; box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.6) inset; overflow: hidden; animation: izPanelSlide 0.40s cubic-bezier(0.16, 1, 0.3, 1); display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; box-sizing: border-box; }
+                    @keyframes izPanelSlide { from { opacity: 0; transform: translateY(28px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+                    .iz-panel-scroll { flex: 1; overflow-y: auto; padding: 0 28px 12px 28px; scroll-behavior: smooth; }
                     .iz-panel-scroll::-webkit-scrollbar { width: 4px; }
                     .iz-panel-scroll::-webkit-scrollbar-track { background: transparent; }
                     .iz-panel-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
-
-                    .iz-panel-header {
-                        display: flex; align-items: center; justify-content: space-between;
-                        padding: 20px 28px 0 28px; flex-shrink: 0;
-                    }
+                    .iz-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 28px 0 28px; flex-shrink: 0; }
                     .iz-panel-header-left { display: flex; align-items: center; gap: 12px; }
-                    .iz-panel-icon {
-                        width: 38px; height: 38px;
-                        background: linear-gradient(135deg, #4F46E5, #7C3AED);
-                        border-radius: 12px;
-                        display: flex; align-items: center; justify-content: center;
-                        color: white; font-size: 20px; flex-shrink: 0;
-                        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
-                    }
+                    .iz-panel-icon { width: 38px; height: 38px; background: linear-gradient(135deg, #4F46E5, #7C3AED); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; flex-shrink: 0; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
                     .iz-panel-title { font-size: 20px; font-weight: 600; color: #0F172A; letter-spacing: -0.3px; }
                     .iz-panel-title span { font-weight: 400; color: #64748B; font-size: 14px; margin-left: 6px; }
-                    .iz-close-btn {
-                        width: 36px; height: 36px; border: none;
-                        background: rgba(203, 213, 225, 0.4);
-                        border-radius: 50%; cursor: pointer; font-size: 18px; color: #64748B;
-                        display: flex; align-items: center; justify-content: center;
-                        transition: all 0.2s; flex-shrink: 0; line-height: 1;
-                    }
+                    .iz-close-btn { width: 36px; height: 36px; border: none; background: rgba(203, 213, 225, 0.4); border-radius: 50%; cursor: pointer; font-size: 18px; color: #64748B; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; line-height: 1; }
                     .iz-close-btn:hover { background: rgba(239, 68, 68, 0.12); color: #EF4444; transform: rotate(90deg); }
-
-                    .iz-section {
-                        margin-top: 20px;
-                        background: rgba(255, 255, 255, 0.5);
-                        border-radius: 18px;
-                        padding: 18px 20px 20px 20px;
-                        border: 1px solid rgba(226, 232, 240, 0.7);
-                    }
-                    .iz-section-title {
-                        font-size: 13px; font-weight: 600; color: #64748B;
-                        letter-spacing: 0.6px; margin-bottom: 14px;
-                        display: flex; align-items: center; gap: 8px;
-                    }
-                    .iz-badge {
-                        background: #4F46E5; color: white;
-                        font-size: 10px; font-weight: 600;
-                        padding: 0 8px; border-radius: 20px; line-height: 18px;
-                    }
-
+                    .iz-section { margin-top: 20px; background: rgba(255, 255, 255, 0.5); border-radius: 18px; padding: 18px 20px 20px 20px; border: 1px solid rgba(226, 232, 240, 0.7); }
+                    .iz-section-title { font-size: 13px; font-weight: 600; color: #64748B; letter-spacing: 0.6px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+                    .iz-badge { background: #4F46E5; color: white; font-size: 10px; font-weight: 600; padding: 0 8px; border-radius: 20px; line-height: 18px; }
                     .iz-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
                     .iz-row:last-child { margin-bottom: 0; }
                     .iz-row-label { font-size: 14px; font-weight: 500; color: #1E293B; flex-shrink: 0; min-width: 100px; }
                     .iz-row-label .iz-hint { font-weight: 400; font-size: 12px; color: #94A3B8; display: block; margin-top: 1px; }
                     .iz-row-control { flex: 1; min-width: 0; }
-
-                    .iz-select {
-                        width: 100%; padding: 8px 36px 8px 14px;
-                        font-size: 14px; font-weight: 500; color: #0F172A;
-                        background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 14px center;
-                        background-size: 12px;
-                        border: 1.5px solid #E2E8F0; border-radius: 12px;
-                        appearance: none; -webkit-appearance: none;
-                        transition: all 0.2s; cursor: pointer; outline: none; height: 42px;
-                    }
+                    .iz-select { width: 100%; padding: 8px 36px 8px 14px; font-size: 14px; font-weight: 500; color: #0F172A; background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 14px center; background-size: 12px; border: 1.5px solid #E2E8F0; border-radius: 12px; appearance: none; -webkit-appearance: none; transition: all 0.2s; cursor: pointer; outline: none; height: 42px; }
                     .iz-select:hover { border-color: #A5B4FC; }
                     .iz-select:focus { border-color: #4F46E5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); }
-
-                    .iz-input-group {
-                        display: flex; align-items: center;
-                        background: white;
-                        border: 1.5px solid #E2E8F0; border-radius: 12px;
-                        overflow: hidden; transition: all 0.2s; height: 42px;
-                    }
+                    .iz-input-group { display: flex; align-items: center; background: white; border: 1.5px solid #E2E8F0; border-radius: 12px; overflow: hidden; transition: all 0.2s; height: 42px; }
                     .iz-input-group:focus-within { border-color: #4F46E5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); }
-                    .iz-input-group input[type="number"] {
-                        flex: 1; border: none; padding: 0 12px;
-                        font-size: 14px; font-weight: 500; color: #0F172A;
-                        background: transparent; outline: none;
-                        min-width: 0; height: 100%; width: 100%;
-                        -moz-appearance: textfield;
-                    }
-                    .iz-input-group input[type="number"]::-webkit-inner-spin-button,
-                    .iz-input-group input[type="number"]::-webkit-outer-spin-button {
-                        -webkit-appearance: none; margin: 0;
-                    }
+                    .iz-input-group input[type="number"] { flex: 1; border: none; padding: 0 12px; font-size: 14px; font-weight: 500; color: #0F172A; background: transparent; outline: none; min-width: 0; height: 100%; width: 100%; -moz-appearance: textfield; }
+                    .iz-input-group input[type="number"]::-webkit-inner-spin-button, .iz-input-group input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
                     .iz-input-group .iz-unit { padding: 0 14px 0 4px; font-size: 13px; color: #94A3B8; font-weight: 500; flex-shrink: 0; }
                     .iz-input-group.disabled-group { opacity: 0.6; background-color: #f8fafc; border-color: #e2e8f0; cursor: not-allowed; }
                     .iz-input-group.disabled-group input { cursor: not-allowed; background-color: #f8fafc; }
-
                     .iz-checkbox-wrap { display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; }
-                    .iz-checkbox-custom {
-                        width: 20px; height: 20px; flex-shrink: 0;
-                        border: 2px solid #CBD5E1; border-radius: 6px; background: white;
-                        transition: all 0.2s; display: flex; align-items: center; justify-content: center;
-                    }
+                    .iz-checkbox-custom { width: 20px; height: 20px; flex-shrink: 0; border: 2px solid #CBD5E1; border-radius: 6px; background: white; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
                     .iz-checkbox-custom.checked { background: #4F46E5; border-color: #4F46E5; }
                     .iz-checkbox-custom.checked::after { content: "✓"; color: white; font-size: 14px; font-weight: 700; line-height: 1; }
                     .iz-checkbox-label { font-size: 14px; font-weight: 500; color: #1E293B; }
                     .iz-checkbox-label .iz-sub { font-weight: 400; font-size: 12px; color: #94A3B8; display: block; margin-top: 1px; }
-                    
                     .iz-toggle-wrap { display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; }
-                    .iz-toggle {
-                        position: relative; width: 46px; height: 28px; flex-shrink: 0;
-                        background: #CBD5E1; border-radius: 20px;
-                        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-                        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
-                    }
+                    .iz-toggle { position: relative; width: 46px; height: 28px; flex-shrink: 0; background: #CBD5E1; border-radius: 20px; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1); }
                     .iz-toggle.active { background: linear-gradient(135deg, #4F46E5, #7C3AED); }
-                    .iz-toggle .iz-knob {
-                        position: absolute; top: 3px; left: 3px;
-                        width: 22px; height: 22px; background: white; border-radius: 50%;
-                        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-                        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-                    }
+                    .iz-toggle .iz-knob { position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; background: white; border-radius: 50%; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18); }
                     .iz-toggle.active .iz-knob { left: 21px; }
-
-                    .iz-exclusion-box {
-                        background: rgba(241, 245, 249, 0.7);
-                        border-radius: 14px;
-                        padding: 14px 16px;
-                        border: 1px solid rgba(226, 232, 240, 0.5);
-                    }
-                    .iz-exclusion-box .iz-status-row {
-                        display: flex; align-items: center; justify-content: space-between;
-                        gap: 12px; flex-wrap: wrap;
-                    }
-                    .iz-exclusion-box .iz-status-text {
-                        font-size: 14px; font-weight: 500;
-                        display: flex; align-items: center; gap: 8px; color: #1E293B;
-                    }
-                    .iz-exclusion-box .iz-dot {
-                        display: inline-block; width: 8px; height: 8px;
-                        border-radius: 50%; flex-shrink: 0;
-                    }
+                    .iz-exclusion-box { background: rgba(241, 245, 249, 0.7); border-radius: 14px; padding: 14px 16px; border: 1px solid rgba(226, 232, 240, 0.5); }
+                    .iz-exclusion-box .iz-status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+                    .iz-exclusion-box .iz-status-text { font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; color: #1E293B; }
+                    .iz-exclusion-box .iz-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
                     .iz-exclusion-box .iz-dot.on { background: #10B981; }
                     .iz-exclusion-box .iz-dot.off { background: #F59E0B; }
-                    .iz-exclusion-note {
-                        margin-top: 8px; font-size: 12px; color: #64748B;
-                    }
-
-                    .iz-btn-sm {
-                        padding: 6px 16px; border: none; border-radius: 10px;
-                        font-size: 13px; font-weight: 600; cursor: pointer;
-                        transition: all 0.2s; flex-shrink: 0; height: 34px;
-                    }
+                    .iz-exclusion-note { margin-top: 8px; font-size: 12px; color: #64748B; }
+                    .iz-btn-sm { padding: 6px 16px; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; flex-shrink: 0; height: 34px; }
                     .iz-btn-sm.primary { background: #4F46E5; color: white; }
                     .iz-btn-sm.primary:hover { background: #4338CA; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
                     .iz-btn-sm.warning { background: #F59E0B; color: white; }
                     .iz-btn-sm.warning:hover { background: #D97706; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3); }
-
-                    .iz-collapse-header {
-                        display: flex; align-items: center; justify-content: space-between;
-                        padding: 10px 0 6px 0; cursor: pointer; user-select: none;
-                        border-top: 1px solid rgba(226, 232, 240, 0.5); margin-top: 4px;
-                        transition: opacity 0.2s;
-                    }
-                    .iz-collapse-header .iz-left {
-                        display: flex; align-items: center; gap: 10px;
-                        font-size: 14px; font-weight: 600; color: #1E293B;
-                    }
+                    .iz-collapse-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 0 6px 0; cursor: pointer; user-select: none; border-top: 1px solid rgba(226, 232, 240, 0.5); margin-top: 4px; transition: opacity 0.2s; }
+                    .iz-collapse-header .iz-left { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: #1E293B; }
                     .iz-collapse-header .iz-arrow { transition: transform 0.3s ease; font-size: 12px; color: #94A3B8; }
                     .iz-collapse-header .iz-arrow.open { transform: rotate(90deg); }
-                    .iz-badge-params {
-                        font-size: 11px; font-weight: 500; color: #64748B;
-                        background: #F1F5F9; padding: 2px 10px; border-radius: 20px;
-                    }
-                    .iz-collapse-body {
-                        overflow: hidden; max-height: 0; opacity: 0;
-                        transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-                    }
+                    .iz-badge-params { font-size: 11px; font-weight: 500; color: #64748B; background: #F1F5F9; padding: 2px 10px; border-radius: 20px; }
+                    .iz-collapse-body { overflow: hidden; max-height: 0; opacity: 0; transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
                     .iz-collapse-body.open { max-height: 800px; opacity: 1; padding-top: 12px; }
                     .iz-param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
                     .iz-param-item { display: flex; flex-direction: column; gap: 4px; }
-                    .iz-param-item label { font-size: 12px; font-weight: 500; color: #64748B; letter-spacing: 0.2px; }
-                    .iz-param-item label {
-                        display: flex; align-items: center; gap: 5px;
-                    }
-                    .iz-tip-icon {
-                        display: inline-flex; align-items: center; justify-content: center;
-                        width: 14px; height: 14px; flex-shrink: 0;
-                        border-radius: 50%;
-                        background: #E2E8F0; color: #64748B;
-                        font-size: 10px; font-weight: 700; line-height: 1;
-                        cursor: help;
-                        position: relative;
-                        transition: all 0.2s;
-                    }
-                    .iz-tip-icon:hover {
-                        background: #4F46E5; color: white;
-                    }
-                    #izTipBubble {
-                        position: fixed;
-                        width: 240px;
-                        background: rgba(15, 23, 42, 0.95);
-                        color: #F1F5F9;
-                        font-size: 12px; font-weight: 400;
-                        line-height: 1.6;
-                        padding: 10px 13px;
-                        border-radius: 10px;
-                        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-                        opacity: 0; pointer-events: none;
-                        transition: opacity 0.15s ease;
-                        z-index: 100005;
-                        white-space: normal;
-                        text-align: left;
-                    }
+                    .iz-param-item label { font-size: 12px; font-weight: 500; color: #64748B; letter-spacing: 0.2px; display: flex; align-items: center; gap: 5px; }
+                    .iz-tip-icon { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%; background: #E2E8F0; color: #64748B; font-size: 10px; font-weight: 700; line-height: 1; cursor: help; position: relative; transition: all 0.2s; }
+                    .iz-tip-icon:hover { background: #4F46E5; color: white; }
+                    #izTipBubble { position: fixed; width: 240px; background: rgba(15, 23, 42, 0.95); color: #F1F5F9; font-size: 12px; font-weight: 400; line-height: 1.6; padding: 10px 13px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); opacity: 0; pointer-events: none; transition: opacity 0.15s ease; z-index: 100005; white-space: normal; text-align: left; }
                     .iz-param-item .iz-input-group { height: 36px; }
                     .iz-param-item .iz-input-group input[type="number"] { font-size: 13px; padding: 0 10px; }
                     .iz-param-item .iz-input-group .iz-unit { font-size: 12px; padding: 0 10px 0 2px; }
-
-                    .iz-panel-footer {
-                        padding: 14px 28px 20px 28px;
-                        border-top: 1px solid rgba(226, 232, 240, 0.5);
-                        display: flex; align-items: center; justify-content: space-between;
-                        flex-shrink: 0;
-                        background: rgba(255, 255, 255, 0.4);
-                        backdrop-filter: blur(8px);
-                        -webkit-backdrop-filter: blur(8px);
-                    }
-                    .iz-btn-ghost {
-                        background: none; border: none; padding: 8px 14px;
-                        font-size: 13px; font-weight: 500; color: #64748B;
-                        cursor: pointer; border-radius: 10px; transition: all 0.2s;
-                    }
+                    .iz-panel-footer { padding: 14px 28px 20px 28px; border-top: 1px solid rgba(226, 232, 240, 0.5); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+                    .iz-btn-ghost { background: none; border: none; padding: 8px 14px; font-size: 13px; font-weight: 500; color: #64748B; cursor: pointer; border-radius: 10px; transition: all 0.2s; }
                     .iz-btn-ghost:hover { background: rgba(239, 68, 68, 0.08); color: #EF4444; }
                     .iz-btn-ghost:active { transform: scale(0.96); }
-                    .iz-btn-primary-solid {
-                        padding: 10px 28px;
-                        background: linear-gradient(135deg, #4F46E5, #7C3AED);
-                        border: none; border-radius: 14px;
-                        font-size: 14px; font-weight: 600; color: white;
-                        cursor: pointer; transition: all 0.25s;
-                        box-shadow: 0 4px 16px rgba(79, 70, 229, 0.3);
-                    }
+                    .iz-btn-primary-solid { padding: 10px 28px; background: linear-gradient(135deg, #4F46E5, #7C3AED); border: none; border-radius: 14px; font-size: 14px; font-weight: 600; color: white; cursor: pointer; transition: all 0.25s; box-shadow: 0 4px 16px rgba(79, 70, 229, 0.3); }
                     .iz-btn-primary-solid:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(79, 70, 229, 0.4); }
                     .iz-btn-primary-solid:active { transform: scale(0.96); }
-
                     @media (max-width: 600px) {
                         #izConfigPanel { border-radius: 20px; max-height: 95vh; }
                         .iz-panel-scroll { padding: 0 18px 8px 18px; }
@@ -748,7 +476,9 @@
                 positionTips();
                 setTimeout(positionTips, 320);
             });
+
             dockZone.addEventListener('mouseenter', () => clearTimeout(leaveTimer));
+
             dockZone.addEventListener('mouseleave', () => {
                 leaveTimer = setTimeout(() => {
                     if (dockZone.matches(':hover')) return;
@@ -782,8 +512,14 @@
                 let dragJustEnded = false;
                 const THRESHOLD = 3;
 
-                function getCurTop(el) { return el.getBoundingClientRect().top; }
-                function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+                function getCurTop(el) {
+                    return el.getBoundingClientRect().top;
+                }
+
+                function clamp(val, min, max) {
+                    return Math.max(min, Math.min(max, val));
+                }
+
                 function syncY(topPx) {
                     const h = toggleButton.offsetHeight;
                     const safeTop = clamp(topPx, 0, window.innerHeight - h);
@@ -807,7 +543,12 @@
                     startTop = getCurTop(dockZone);
                     e.preventDefault();
                 });
+
                 document.addEventListener('mousemove', function(e) {
+                    // v4.2.1：全局记录鼠标坐标（供站点悬停代理轮询使用）
+                    window.__lastMouseX = e.clientX;
+                    window.__lastMouseY = e.clientY;
+
                     if (!isDragging) return;
                     const delta = e.clientY - startY;
                     if (!hasMoved && Math.abs(delta) > THRESHOLD) {
@@ -816,6 +557,7 @@
                     }
                     if (hasMoved) syncY(startTop + delta);
                 });
+
                 document.addEventListener('mouseup', function() {
                     if (!isDragging) return;
                     isDragging = false;
@@ -831,6 +573,7 @@
                 });
 
                 let touchStartY = 0, touchStartTop = 0, isTouching = false;
+
                 toggleButton.addEventListener('touchstart', function(e) {
                     const touch = e.touches[0];
                     if (!touch) return;
@@ -839,6 +582,7 @@
                     touchStartY = touch.clientY;
                     touchStartTop = getCurTop(dockZone);
                 }, { passive: true });
+
                 document.addEventListener('touchmove', function(e) {
                     if (!isTouching) return;
                     const touch = e.touches[0];
@@ -853,6 +597,7 @@
                         e.preventDefault();
                     }
                 }, { passive: false });
+
                 document.addEventListener('touchend', function() {
                     if (!isTouching) return;
                     isTouching = false;
@@ -904,18 +649,9 @@
         }
 
         function cleanup() {
-            if (zoomObserver) {
-                zoomObserver.disconnect();
-                zoomObserver = null;
-            }
-            if (lightboxObserver) {
-                lightboxObserver.disconnect();
-                lightboxObserver = null;
-            }
-            if (currentZoomContainer) {
-                currentZoomContainer.remove();
-                currentZoomContainer = null;
-            }
+            if (zoomObserver) { zoomObserver.disconnect(); zoomObserver = null; }
+            if (lightboxObserver) { lightboxObserver.disconnect(); lightboxObserver = null; }
+            if (currentZoomContainer) { currentZoomContainer.remove(); currentZoomContainer = null; }
             document.querySelectorAll('.image-zoom-container').forEach(el => el.remove());
             document.querySelectorAll('.image-zoom-wrapper').forEach(wrapper => {
                 const parent = wrapper.parentNode;
@@ -963,9 +699,9 @@
                 const parentId = parent.id || '';
                 if (parentClass.includes('zoom') || parentClass.includes('lightbox') ||
                     parentClass.includes('gallery') || parentClass.includes('fancybox') ||
-                    parentClass.includes('stretched-link') ||
-                    parentId.includes('zoom') || parentId.includes('lightbox') ||
-                    parentId.includes('gallery') || parentId.includes('fancybox')) {
+                    parentClass.includes('stretched-link') || parentId.includes('zoom') ||
+                    parentId.includes('lightbox') || parentId.includes('gallery') ||
+                    parentId.includes('fancybox')) {
                     return true;
                 }
                 parent = parent.parentElement;
@@ -1014,34 +750,116 @@
             return true;
         }
 
+        // ================================
+        // 📮 问题反馈模块
+        // ================================
+        const FEEDBACK_API = 'https://damp-woodpecker-4867.ydgg123.deno.net';
+
+        function submitFeedback(text) {
+            const payload = JSON.stringify({
+                text: text,
+                page: location.hostname + location.pathname + ' | 脚本 v4.2.1'
+            });
+            return new Promise((resolve, reject) => {
+                GM_xmlhttpRequest({
+                    method: 'POST',
+                    url: FEEDBACK_API,
+                    headers: { 'Content-Type': 'application/json' },
+                    data: payload,
+                    timeout: 15000,
+                    onload: (r) => {
+                        if (r.status >= 200 && r.status < 400) {
+                            resolve();
+                        } else {
+                            reject(new Error('提交失败（' + r.status + '）'));
+                        }
+                    },
+                    onerror: () => reject(new Error('网络错误，请稍后重试')),
+                    ontimeout: () => reject(new Error('提交超时，请检查网络'))
+                });
+            });
+        }
+
+        function injectFeedbackSection(overlay) {
+            const scroll = overlay.querySelector('.iz-panel-scroll');
+            if (!scroll || scroll.querySelector('#izFeedbackSection')) return;
+
+            const section = document.createElement('div');
+            section.className = 'iz-section';
+            section.id = 'izFeedbackSection';
+            section.innerHTML = `
+                <div class="iz-section-title">📮 问题反馈</div>
+                <textarea id="izFeedbackText" placeholder="遇到问题或有建议？写在这里直接反馈～&#10;（提交时会自动附带当前页面与版本信息）" style="width: 100%; box-sizing: border-box; resize: vertical; min-height: 72px; background: white; color: #1E293B; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 10px 12px; font-size: 13px; font-family: inherit; line-height: 1.6; outline: none; transition: border-color 0.2s, box-shadow 0.2s;"></textarea>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px;">
+                    <span id="izFeedbackStatus" style="font-size: 12px; color: #64748B;"></span>
+                    <button id="izFeedbackBtn" style="padding: 8px 20px; background: linear-gradient(135deg, #4F46E5, #7C3AED); color: white; border: none; border-radius: 12px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.25s; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">📮 提交反馈</button>
+                </div>
+            `;
+            scroll.appendChild(section);
+
+            const textarea = section.querySelector('#izFeedbackText');
+            const status = section.querySelector('#izFeedbackStatus');
+            const btn = section.querySelector('#izFeedbackBtn');
+
+            textarea.addEventListener('focus', () => {
+                textarea.style.borderColor = '#4F46E5';
+                textarea.style.boxShadow = '0 0 0 3px rgba(79, 70, 229, 0.15)';
+            });
+            textarea.addEventListener('blur', () => {
+                textarea.style.borderColor = '#E2E8F0';
+                textarea.style.boxShadow = 'none';
+            });
+            btn.addEventListener('mouseenter', () => {
+                btn.style.transform = 'translateY(-2px)';
+                btn.style.boxShadow = '0 8px 24px rgba(79, 70, 229, 0.4)';
+            });
+            btn.addEventListener('mouseleave', () => {
+                btn.style.transform = '';
+                btn.style.boxShadow = '0 4px 12px rgba(79, 70, 229, 0.3)';
+            });
+            btn.addEventListener('click', () => {
+                const text = textarea.value.trim();
+                if (!text) {
+                    status.textContent = '⚠️ 请先填写反馈内容';
+                    status.style.color = '#F59E0B';
+                    return;
+                }
+                btn.disabled = true;
+                btn.textContent = '提交中…';
+                btn.style.opacity = '0.7';
+                status.textContent = '';
+                submitFeedback(text).then(() => {
+                    status.textContent = '✅ 反馈已提交，感谢你的支持！';
+                    status.style.color = '#10B981';
+                    textarea.value = '';
+                }).catch((err) => {
+                    status.textContent = '❌ ' + (err.message || '提交失败');
+                    status.style.color = '#EF4444';
+                }).finally(() => {
+                    btn.disabled = false;
+                    btn.textContent = '📮 提交反馈';
+                    btn.style.opacity = '';
+                    setTimeout(() => { status.textContent = ''; }, 4000);
+                });
+            });
+        }
+
         const COMMON_PARAM_DEFS = [
-            { key: 'delay',           label: '悬停延迟',    unit: 'ms', min: 0,   max: 2000, step: 100,
-              tip: '鼠标停在图片上多久后才放大。数值越小响应越快，越大越不容易误触发。建议 300~800ms' },
-            { key: 'minOriginalSize', label: '最小放大尺寸', unit: 'px', min: 0,   max: 500,  step: 5,
-              tip: '原图宽或高小于此值时不放大，用来过滤网站里的小图标、表情、按钮图标等。设为 0 表示全部放大' },
-            { key: 'maxWidth',        label: '大图最大宽度', unit: 'px', min: 300, max: 3000, step: 100,
-              tip: '放大后的大图宽度上限。自适应模式下它决定了放大画布的宽度上限，调小后大图整体变小；固定模式下大图最多放大到这个宽度' },
-            { key: 'maxHeight',       label: '大图最大高度', unit: 'px', min: 300, max: 3000, step: 100,
-              tip: '放大后的大图高度上限。自适应模式下它决定了放大画布的高度上限，调小后大图整体变小；固定模式下大图最多放大到这个高度' },
-            { key: 'scrollSpeed',     label: '滚轮移动速度', unit: 'px', min: 5,   max: 50,   step: 1,
-              tip: '大图超出屏幕时，滚动鼠标滚轮查看图片其余部分，每次滚动的距离。数值越大滚得越快' }
+            { key: 'delay', label: '悬停延迟', unit: 'ms', min: 0, max: 2000, step: 100, tip: '鼠标停在图片上多久后才放大。数值越小响应越快，越大越不容易误触发。建议 300~800ms' },
+            { key: 'minOriginalSize', label: '最小放大尺寸', unit: 'px', min: 0, max: 500, step: 5, tip: '原图宽或高小于此值时不放大，用来过滤网站里的小图标、表情、按钮图标等。设为 0 表示全部放大' },
+            { key: 'maxWidth', label: '大图最大宽度', unit: 'px', min: 300, max: 3000, step: 100, tip: '放大后的大图宽度上限。自适应模式下它决定了放大画布的宽度上限，调小后大图整体变小；固定模式下大图最多放大到这个宽度' },
+            { key: 'maxHeight', label: '大图最大高度', unit: 'px', min: 300, max: 3000, step: 100, tip: '放大后的大图高度上限。自适应模式下它决定了放大画布的高度上限，调小后大图整体变小；固定模式下大图最多放大到这个高度' },
+            { key: 'scrollSpeed', label: '滚轮移动速度', unit: 'px', min: 5, max: 50, step: 1, tip: '大图超出屏幕时，滚动鼠标滚轮查看图片其余部分，每次滚动的距离。数值越大滚得越快' }
         ];
 
         const FIXED_PARAM_DEFS = [
-            { key: 'scale',            label: '大图放大倍数', unit: '×',  min: 1,   max: 5,    step: 0.1,
-              tip: '固定倍数模式下，大图相对原图的放大倍数' },
-            { key: 'minScale',         label: '大图最小倍数', unit: '×',  min: 1,   max: 3,    step: 0.1,
-              tip: '固定倍数模式下，大图至少要放大到的倍数下限，避免小图放大后依然看不清' },
-            { key: 'portraitRatio',    label: '竖屏判定比例', unit: '×',  min: 1,   max: 3,    step: 0.1,
-              tip: '图片高÷宽超过这个值就判定为竖长图（如手机截图、漫画长图），固定模式下会按高度优先铺满放大' },
-            { key: 'smallImgThreshold',label: '小图判定阈值', unit: 'px', min: 100, max: 500,  step: 10,
-              tip: '固定模式下，原图宽或高小于此值会被当作「小图」，改用下方两个小图专用尺寸放大，而不是套用大图规则' },
-            { key: 'smallImgWidth',    label: '小图强制宽度', unit: 'px', min: 300, max: 1000, step: 10,
-              tip: '固定模式下，判定为小图的图片放大后的宽度基准（高度按原图比例自动计算）' },
-            { key: 'smallImgHeight',   label: '小图强制高度', unit: 'px', min: 300, max: 1000, step: 10,
-              tip: '固定模式下，判定为小图的图片放大后的高度基准（宽度按原图比例自动计算）' }
+            { key: 'scale', label: '大图放大倍数', unit: '×', min: 1, max: 5, step: 0.1, tip: '固定倍数模式下，大图相对原图的放大倍数' },
+            { key: 'minScale', label: '大图最小倍数', unit: '×', min: 1, max: 3, step: 0.1, tip: '固定倍数模式下，大图至少要放大到的倍数下限，避免小图放大后依然看不清' },
+            { key: 'portraitRatio', label: '竖屏判定比例', unit: '×', min: 1, max: 3, step: 0.1, tip: '图片高÷宽超过这个值就判定为竖长图（如手机截图、漫画长图），固定模式下会按高度优先铺满放大' },
+            { key: 'smallImgThreshold', label: '小图判定阈值', unit: 'px', min: 100, max: 500, step: 10, tip: '固定模式下，原图宽或高小于此值会被当作「小图」，改用下方两个小图专用尺寸放大，而不是套用大图规则' },
+            { key: 'smallImgWidth', label: '小图强制宽度', unit: 'px', min: 300, max: 1000, step: 10, tip: '固定模式下，判定为小图的图片放大后的宽度基准（高度按原图比例自动计算）' },
+            { key: 'smallImgHeight', label: '小图强制高度', unit: 'px', min: 300, max: 1000, step: 10, tip: '固定模式下，判定为小图的图片放大后的高度基准（宽度按原图比例自动计算）' }
         ];
-
 
         function createConfigPanel() {
             const overlay = document.createElement('div');
@@ -1051,8 +869,7 @@
                 <div class="iz-param-item">
                     <label>${p.label}<span class="iz-tip-icon" data-tip="${p.tip}">?</span></label>
                     <div class="iz-input-group" data-param="${p.key}">
-                        <input type="number" class="iz-param-input" data-param="${p.key}"
-                            value="${config[p.key]}" min="${p.min}" max="${p.max}" step="${p.step}" />
+                        <input type="number" class="iz-param-input" data-param="${p.key}" value="${config[p.key]}" min="${p.min}" max="${p.max}" step="${p.step}" />
                         <span class="iz-unit">${p.unit}</span>
                     </div>
                 </div>
@@ -1151,8 +968,8 @@
                     </div>
                 </div>
             `;
-
             document.body.appendChild(overlay);
+            injectFeedbackSection(overlay);
 
             const $ = (id) => overlay.querySelector('#' + id);
             const modeSelect = $('izModeSelect');
@@ -1167,7 +984,7 @@
             const fixedHint = $('izFixedHint');
             const modeBadge = $('izModeBadge');
             const biliToggle = $('izBiliToggle');
-            
+
             // ===== 参数说明气泡：全局唯一，挂在 body 上，fixed 定位不受折叠区裁剪 =====
             const oldTip = document.getElementById('izTipBubble');
             if (oldTip) oldTip.remove();
@@ -1182,7 +999,6 @@
                 tipBubble.style.display = 'block';
                 const bw = tipBubble.offsetWidth;
                 const bh = tipBubble.offsetHeight;
-                // 优先显示在问号上方；上方放不下则放下方；水平方向夹在视口内
                 let top = r.top - bh - 10;
                 if (top < 8) top = r.bottom + 10;
                 let left = r.left + r.width / 2 - bw / 2;
@@ -1278,8 +1094,7 @@
                 });
             });
 
-                        $('izBiliWrap').addEventListener('click', (e) => {
-                // 只有点击开关本体才切换，点文字不响应
+            $('izBiliWrap').addEventListener('click', (e) => {
                 if (e.target.closest('.iz-toggle')) {
                     e.stopPropagation();
                     const newState = !bilibiliVolumeModule.isEnabled;
@@ -1288,7 +1103,6 @@
                     showSaveToast(`B站播放器辅助 ${newState ? '已启用' : '已禁用'}`);
                 }
             });
-
 
             $('izResetBtn').addEventListener('click', () => {
                 if (!confirm('确定要恢复所有设置为默认值吗？')) return;
@@ -1326,7 +1140,6 @@
             });
 
             updateDetailState();
-
             return overlay;
         }
 
@@ -1345,7 +1158,6 @@
                 });
                 overlay.querySelector('#izBiliToggle').classList.toggle('active', bilibiliVolumeModule.isEnabled);
                 refreshPanelHomepageSection();
-
                 overlay.classList.add('anim-in');
                 overlay.style.display = 'flex';
                 setTimeout(() => overlay.classList.remove('anim-in'), 400);
@@ -1423,7 +1235,6 @@
                 const isPortrait = rect.height / rect.width > config.portraitRatio;
 
                 let targetWidth, targetHeight;
-
                 if (config.zoomMode === 'adaptive') {
                     const size = computeAdaptiveSize(img, rect);
                     targetWidth = size.w;
@@ -1457,23 +1268,23 @@
 
                 const zoomContainer = document.createElement('div');
                 zoomContainer.className = 'image-zoom-container';
-
                 const zoomZIndex = hasClickFunctionality ? config.zoomZIndex - 1 : config.zoomZIndex;
                 zoomContainer.style.cssText = `
-                    position: fixed; z-index: ${zoomZIndex};
-                    opacity: 0; transition: ${config.transition};
-                    pointer-events: none; left: 0; top: 0;
-                    width: 100%; height: 100%;
+                    position: fixed; z-index: ${zoomZIndex}; opacity: 0;
+                    transition: ${config.transition}; pointer-events: none;
+                    left: 0; top: 0; width: 100%; height: 100%;
                     display: flex; justify-content: center; align-items: center;
                     padding: 20px; box-sizing: border-box;
                     background-color: rgba(0,0,0,0.1);
                 `;
 
                 const zoomedImg = document.createElement('img');
-                zoomedImg.src = img.src || img.currentSrc;
+                // v4.2.1：放大图源高清化（去除京东等站点的尺寸前缀 / avif 后缀）
+                zoomedImg.src = (img.src || img.currentSrc || '')
+                    .replace(/\/s\d+x\d+_/g, '/')
+                    .replace(/\.avif$/i, '') || img.src || img.currentSrc;
                 zoomedImg.alt = img.alt;
                 zoomedImg.style.cssText = zoomedImgStyle;
-
                 zoomContainer.appendChild(zoomedImg);
                 document.body.appendChild(zoomContainer);
                 currentZoomContainer = zoomContainer;
@@ -1539,6 +1350,63 @@
             });
         }
 
+        // ===== 站点悬停代理（v4.2.1 正式化）=====
+        // 场景：站点在图片上方覆盖悬停遮罩层（如京东首页 feed 流），img 收不到原生
+        // mouseenter/mouseleave。此代理轮询 elementFromPoint 穿透遮罩，找到真实图片，
+        // 代理派发 enter / leave / 换图事件。规则配置见 SITE_HOVER_PROXY_RULES。
+        function setupHoverProxy() {
+            const rule = SITE_HOVER_PROXY_RULES.find(r =>
+                r.domains.some(d => currentDomain === d || currentDomain.endsWith('.' + d))
+            );
+            if (!rule) return;
+
+            const itemSelector = rule.itemSelector;
+            const cardSelector = rule.cardSelector;
+
+            setInterval(() => {
+                if (!isEnabled || isHomepageZoomDisabled()) return;
+                const x = (window.__lastMouseX ?? -1);
+                const y = (window.__lastMouseY ?? -1);
+                if (x < 0) return;
+
+                const el = document.elementFromPoint(x, y);
+                // 多级查找：元素本身 → 元素内部 → 父级内部 → 容器内 → 卡片内（穿透兄弟遮罩）
+                const img = el ? (
+                    (el.tagName === 'IMG' ? el : null) ||
+                    el.querySelector?.('img') ||
+                    el.parentElement?.querySelector?.('img') ||
+                    el.closest(itemSelector)?.querySelector('img') ||
+                    el.closest(cardSelector)?.querySelector(`${itemSelector} img`)
+                ) : null;
+
+                const hoveredImg = (img && img.closest(itemSelector)) ? img : null;
+                // 找出上一轮标记为悬停中的图（data-__zoom-hovering 为本模块专用标记）
+                const prevImg = document.querySelector(`img[data-__zoom-hovering="1"]`);
+
+                if (hoveredImg && hoveredImg !== prevImg) {
+                    // 换图了：先让上一张退场
+                    if (prevImg) {
+                        prevImg.removeAttribute('data-__zoom-hovering');
+                        prevImg.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+                    }
+                    // 新图进场（未处理的图先交给主流程处理，处理成功后再派发）
+                    if (!hoveredImg.classList.contains('image-zoom-processed')) {
+                        processImage(hoveredImg);
+                    }
+                    if (hoveredImg.classList.contains('image-zoom-processed')) {
+                        hoveredImg.dataset.__zoomHovering = '1';
+                        hoveredImg.dispatchEvent(new MouseEvent('mouseenter', {
+                            bubbles: false, clientX: x, clientY: y
+                        }));
+                    }
+                } else if (!hoveredImg && prevImg) {
+                    // 鼠标已离开图片区域：退场
+                    prevImg.removeAttribute('data-__zoom-hovering');
+                    prevImg.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+                }
+            }, rule.pollInterval);
+        }
+
         function processImage(img) {
             if (!isEnabled) return;
             try {
@@ -1561,7 +1429,6 @@
                     (checkImageClickBehavior(img) || container.tagName === 'A' || container.classList.contains('stretched-link')) : false;
 
                 if (img.classList.contains('image-zoom-processed')) return;
-
                 img.classList.add('image-zoom-processed');
 
                 if (!hasClickFunctionality) {
@@ -1583,9 +1450,17 @@
                     }
                 };
 
+                // v4.2.1：递归闸门 + relatedTarget 判定，防止 mouseleave 派发无限递归
+                let isDispatchingLeave = false;
                 const handleParentMouseLeave = (e) => {
+                    if (isDispatchingLeave) return;
                     if (!directParent.contains(e.relatedTarget)) {
-                        img.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, cancelable: true }));
+                        isDispatchingLeave = true;
+                        try {
+                            img.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, cancelable: true }));
+                        } finally {
+                            isDispatchingLeave = false;
+                        }
                     }
                 };
 
@@ -1618,6 +1493,12 @@
                 };
 
                 const handleMouseLeave = (e) => {
+                    // v4.2.1：relatedTarget 仍在容器（含站点卡片容器，如京东 .more2_img）内时不视为离开，
+                    // 防止卡片内移动鼠标导致放大层闪烁
+                    const owner = img.closest('a, li, .more2_img') || img.parentNode;
+                    if (e.relatedTarget && owner && owner.contains(e.relatedTarget)) {
+                        return;
+                    }
                     if (timer) {
                         clearTimeout(timer);
                         timer = null;
@@ -1667,6 +1548,8 @@
 
         function setupLazyHoverProcessor() {
             document.addEventListener('mouseover', debounce((e) => {
+                window.__lastMouseX = e.clientX;
+                window.__lastMouseY = e.clientY;
                 if (!isEnabled || isHomepageZoomDisabled()) return;
                 let img = null;
                 if (e.target.tagName === 'IMG') img = e.target;
@@ -1744,7 +1627,8 @@
                 requestAnimationFrame(() => {
                     const nodesToProcess = new Set();
                     mutations.forEach(mutation => {
-                        if (mutation.type === 'attributes' && mutation.target.tagName === 'IMG' && !mutation.target.classList.contains('image-zoom-processed')) {
+                        if (mutation.type === 'attributes' && mutation.target.tagName === 'IMG' &&
+                            !mutation.target.classList.contains('image-zoom-processed')) {
                             nodesToProcess.add(mutation.target);
                         } else if (mutation.type === 'childList') {
                             mutation.addedNodes.forEach(node => {
@@ -1771,7 +1655,10 @@
                     processingQueue = false;
                 });
             });
-            observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src', 'data-src', 'srcset'] });
+            observer.observe(document.body, {
+                childList: true, subtree: true, attributes: true,
+                attributeFilter: ['src', 'data-src', 'srcset']
+            });
             zoomObserver = observer;
             return observer;
         }
@@ -1786,6 +1673,7 @@
             setupLightboxObserver();
             if (isEnabled) initImages();
             setupLazyHoverProcessor();
+            setupHoverProxy(); // v4.2.1：站点悬停代理（京东等遮罩站点）
             startObserver();
         }
 
@@ -1843,7 +1731,9 @@
         function getVolume(video) {
             try {
                 const player = window.player;
-                if (player && typeof player.getVolume === 'function') return player.getVolume() / 100;
+                if (player && typeof player.getVolume === 'function') {
+                    return player.getVolume() / 100;
+                }
             } catch (err) {}
             return video.volume;
         }
@@ -1860,18 +1750,13 @@
                 toast = document.createElement('div');
                 toast.id = 'bilibili-volume-toast';
                 toast.style.cssText = `
-                    position: fixed; top: 50%; left: 50%;
-                    transform: translate(-50%, -50%);
-                    background: rgba(255, 255, 255, 0.9); color: #333;
-                    padding: 8px 16px; border-radius: 8px;
-                    z-index: 2147483647; font-size: 26px; font-weight: 300;
-                    font-family: 'Segoe UI', Arial, sans-serif;
-                    opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
-                    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-                    border: 1px solid rgba(0,0,0,0.1);
-                    min-width: 90px; text-align: center;
-                    backdrop-filter: blur(10px);
-                    display: flex; align-items: center; justify-content: center; gap: 8px;
+                    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                    background: rgba(255, 255, 255, 0.9); color: #333; padding: 8px 16px;
+                    border-radius: 8px; z-index: 2147483647; font-size: 26px; font-weight: 300;
+                    font-family: 'Segoe UI', Arial, sans-serif; opacity: 0; transition: opacity 0.3s ease;
+                    pointer-events: none; box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+                    border: 1px solid rgba(0,0,0,0.1); min-width: 90px; text-align: center;
+                    backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; gap: 8px;
                 `;
             }
             const parentElement = document.fullscreenElement || document.webkitFullscreenElement || document.body;
@@ -1938,12 +1823,7 @@
             }
         }
 
-        return {
-            init,
-            setEnabled,
-            onWheel,
-            get isEnabled() { return isEnabled; }
-        };
+        return { init, setEnabled, onWheel, get isEnabled() { return isEnabled; } };
     })();
 
     // ================================
