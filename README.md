@@ -52,7 +52,7 @@
 鼠标移到任何网页图片上，稍作停留即自动弹出放大视图，无需点击、无需跳转。悬停延迟（0–2000ms）自由调节，快慢随心。
 
 <div align="center">
-  <img src="https://origin.picgo.net/2026/09/01/2026-09-01-23_21_210906467bd203545f.gif" width="400" alt="悬停放大效果演示">
+  <img src="https://cdn.jsdelivr.net/gh/YDGG123/hover-image-zoom@main/ocs/images/hover-zoom.gif" width="400" alt="悬停放大效果演示">
 </div>
 
 ### 🖼️ 双放大模式，随心切换
@@ -68,8 +68,8 @@
 - 所有配置 🔴**按域名独立保存**🔴，不同网站可有不同偏好
 
 <div align="center">
-  <img src="https://origin.picgo.net/2026/09/01/2026-09-01-23_25_36fda651f106a1439a.gif" width="300" alt="悬浮控制台演示"><br><br>
-  <img src="https://origin.picgo.net/2026/09/01/2026-09-01-23_17_14fb137a11110a7f70.gif" width="300" alt="配置面板演示">
+  <img src="https://cdn.jsdelivr.net/gh/YDGG123/hover-image-zoom@main/ocs/images/config-panel.gif" width="300" alt="配置面板演示"><br><br>
+  <img src="https://cdn.jsdelivr.net/gh/YDGG123/hover-image-zoom@main/ocs/images/float-console.gif" width="300" alt="悬浮控制台演示">
 </div>
 
 ### 🏠 站点级管理
