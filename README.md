@@ -4,7 +4,7 @@
 
 **一款好用的网页图片放大工具 · 双放大模式 · 站点级配置 · 适配所有网页**
 
-[![Version](https://img.shields.io/badge/version-4.1.2-blue)](https://github.com/YDGG123/hover-image-zoom/releases)
+[![Version](https://img.shields.io/badge/version-4.3.0-blue)](https://github.com/YDGG123/hover-image-zoom/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 [![Greasy Fork](https://img.shields.io/badge/Greasy%20Fork-安装-red)](https://greasyfork.org/zh-CN/scripts/553648)
 [![ScriptCat](https://img.shields.io/badge/ScriptCat-安装-orange)](https://scriptcat.org/zh-CN/script-show-page/7717)
