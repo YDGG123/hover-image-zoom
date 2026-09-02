@@ -60,7 +60,7 @@
 - 屏幕右侧半透明**悬浮控制台**，一键启停、支持拖拽，位置自动记忆
 - 点击齿轮打开**玻璃拟态配置面板**，十余项参数可视化调整、即时保存
 - 每个参数附说明提示，支持一键恢复默认
-- 所有配置 🔴**按域名独立保存**🔴，不同网站可有不同偏好
+### 所有配置 🔴**按域名独立保存**🔴每个网站都可以不同的偏好设置
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/YDGG123/hover-image-zoom/main/ocs/images/config-panel.gif" width="300" alt="配置面板演示">
