@@ -68,7 +68,8 @@
 - 所有配置 🔴**按域名独立保存**🔴，不同网站可有不同偏好
 
 <div align="center">
-  <img src="https://cdn.jsdelivr.net/gh/YDGG123/hover-image-zoom@main/ocs/images/config-panel.gif" width="300" alt="配置面板演示"><br><br>
+  <img src="https://raw.githubusercontent.com/YDGG123/hover-image-zoom/main/ocs/images/config-panel.gif" width="300" alt="配置面板演示">
+<br><br>
   <img src="https://cdn.jsdelivr.net/gh/YDGG123/hover-image-zoom@main/ocs/images/float-console.gif" width="300" alt="悬浮控制台演示">
 </div>
 
