@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         鼠标悬停图片自动放大预览
 // @namespace    https://github.com/YDGG123
-// @version      4.2.2
-// @description  一款好用的网页图片放大工具，鼠标悬停即可自动放大图片，支持智能自适应尺寸与固定倍数双模式，内置问题反馈，适配所有网页～
+// @version      4.3.0
+// @description  一款好用的网页图片放大工具，鼠标悬停即可自动放大图片，适配所有网页～
 // @author       益达哥哥
 // @match        *://*/*
 // @grant        GM_getValue
@@ -18,12 +18,13 @@
 // ==/UserScript==
 
 /*
- * v4.2.2 更新日志：
- * - 修复：网站首页 feed 流图片因站点悬停遮罩层导致无法放大 / 放大后不消失的问题
- *   （新增站点悬停代理机制 SITE_HOVER_PROXY_RULES，可按站点扩展规则）
- * - 修复：容器内移动鼠标时误触发 mouseleave 导致放大层闪烁
- * - 修复：mouseleave 派发的无限递归风险（递归闸门）
+ * v4.3.0 更新日志：
+ * - 新增：放大图黑边自动裁剪（图片上下/左右的黑边自动去除，只显示有效内容）
+ * - 新增：论坛缩略图高清化（Discuz 站点 /remote/thumb/宽x高/ 形式的缩略图自动替换为原图地址）
+ * - 优化：放大图加载更稳（跨域受限的图片自动降级重试，避免个别站点放大图加载失败）
+ * - 优化：背景图卡片站点的悬停放大支持（覆盖层遮挡也能正常触发放大，防闪烁）
  */
+
 
 (function() {
     'use strict';
@@ -76,18 +77,25 @@
             '.gallery-item', '.fancybox', '.stretched-link'
         ];
 
-        // ===== 站点悬停代理规则（v4.2.1 新增）=====
-        // 适用场景：站点在图片上方覆盖了悬停遮罩层（如京东首页 feed 流的 more2_item_hover），
-        // 导致 img 收不到原生 mouseenter/mouseleave 事件。
-        // 机制：轮询 elementFromPoint 穿透遮罩找到真实图片，代理派发 enter/leave 事件。
+
         const SITE_HOVER_PROXY_RULES = [
             {
                 domains: ['jd.com'],
-                itemSelector: '.more2_img',   // 图片所在容器
-                cardSelector: 'li',           // 卡片边界：鼠标移出卡片即视为离开
+                imgMode: 'img',
+                itemSelector: '.more2_img, .img-wrapper',
+                cardSelector: 'li, .jd-pick-content-item',
+                pollInterval: 300
+            },
+            {
+                domains: ['taobao.com', 'tmall.com'],
+                imgMode: 'background',
+                itemSelector: '.img-wrapper',
+                cardSelector: '.tb-pick-content-item, li',
                 pollInterval: 300
             }
         ];
+
+
 
         function getDomain() {
             try {
@@ -789,7 +797,7 @@
             section.id = 'izFeedbackSection';
             section.innerHTML = `
                 <div class="iz-section-title">📮 问题反馈</div>
-                <textarea id="izFeedbackText" placeholder="遇到问题或有建议？写在这里直接反馈～&#10;（提交时会自动附带当前页面与版本信息）" style="width: 100%; box-sizing: border-box; resize: vertical; min-height: 72px; background: white; color: #1E293B; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 10px 12px; font-size: 13px; font-family: inherit; line-height: 1.6; outline: none; transition: border-color 0.2s, box-shadow 0.2s;"></textarea>
+                <textarea id="izFeedbackText" placeholder="遇到问题或有建议？写在这里直接反馈～&#10;" style="width: 100%; box-sizing: border-box; resize: vertical; min-height: 72px; background: white; color: #1E293B; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 10px 12px; font-size: 13px; font-family: inherit; line-height: 1.6; outline: none; transition: border-color 0.2s, box-shadow 0.2s;"></textarea>
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px;">
                     <span id="izFeedbackStatus" style="font-size: 12px; color: #64748B;"></span>
                     <button id="izFeedbackBtn" style="padding: 8px 20px; background: linear-gradient(135deg, #4F46E5, #7C3AED); color: white; border: none; border-radius: 12px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.25s; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">📮 提交反馈</button>
@@ -1279,15 +1287,30 @@
                 `;
 
                 const zoomedImg = document.createElement('img');
-                // v4.2.1：放大图源高清化（去除京东等站点的尺寸前缀 / avif 后缀）
-                zoomedImg.src = (img.src || img.currentSrc || '')
+                const fallbackSrc = img.src || img.currentSrc;
+                const hiResSrc = upgradeImgUrl((img.src || img.currentSrc || '')
                     .replace(/\/s\d+x\d+_/g, '/')
-                    .replace(/\.avif$/i, '') || img.src || img.currentSrc;
+                    .replace(/\.avif$/i, '')) || fallbackSrc;
+                zoomedImg.crossOrigin = 'anonymous'; 
+                zoomedImg.src = hiResSrc;
+                let noCorsTried = false;
+                zoomedImg.onerror = () => {
+                    if (zoomedImg.crossOrigin && !noCorsTried) {
+                        noCorsTried = true;
+                        zoomedImg.removeAttribute('crossOrigin');
+                        zoomedImg.src = hiResSrc;
+                        return;
+                    }
+                    // 原图彻底失败 → 回退缩略图
+                    if (zoomedImg.src !== fallbackSrc) zoomedImg.src = fallbackSrc;
+                };
+                zoomedImg.onload = () => cropBlackBars(zoomedImg);
                 zoomedImg.alt = img.alt;
                 zoomedImg.style.cssText = zoomedImgStyle;
                 zoomContainer.appendChild(zoomedImg);
                 document.body.appendChild(zoomContainer);
                 currentZoomContainer = zoomContainer;
+
 
                 setTimeout(() => {
                     zoomContainer.style.opacity = '1';
@@ -1349,63 +1372,271 @@
                 }
             });
         }
-
-        // ===== 站点悬停代理（v4.2.1 正式化）=====
-        // 场景：站点在图片上方覆盖悬停遮罩层（如京东首页 feed 流），img 收不到原生
-        // mouseenter/mouseleave。此代理轮询 elementFromPoint 穿透遮罩，找到真实图片，
-        // 代理派发 enter / leave / 换图事件。规则配置见 SITE_HOVER_PROXY_RULES。
-        function setupHoverProxy() {
-            const rule = SITE_HOVER_PROXY_RULES.find(r =>
-                r.domains.some(d => currentDomain === d || currentDomain.endsWith('.' + d))
-            );
-            if (!rule) return;
-
-            const itemSelector = rule.itemSelector;
-            const cardSelector = rule.cardSelector;
-
-            setInterval(() => {
-                if (!isEnabled || isHomepageZoomDisabled()) return;
-                const x = (window.__lastMouseX ?? -1);
-                const y = (window.__lastMouseY ?? -1);
-                if (x < 0) return;
-
-                const el = document.elementFromPoint(x, y);
-                // 多级查找：元素本身 → 元素内部 → 父级内部 → 容器内 → 卡片内（穿透兄弟遮罩）
-                const img = el ? (
-                    (el.tagName === 'IMG' ? el : null) ||
-                    el.querySelector?.('img') ||
-                    el.parentElement?.querySelector?.('img') ||
-                    el.closest(itemSelector)?.querySelector('img') ||
-                    el.closest(cardSelector)?.querySelector(`${itemSelector} img`)
-                ) : null;
-
-                const hoveredImg = (img && img.closest(itemSelector)) ? img : null;
-                // 找出上一轮标记为悬停中的图（data-__zoom-hovering 为本模块专用标记）
-                const prevImg = document.querySelector(`img[data-__zoom-hovering="1"]`);
-
-                if (hoveredImg && hoveredImg !== prevImg) {
-                    // 换图了：先让上一张退场
-                    if (prevImg) {
-                        prevImg.removeAttribute('data-__zoom-hovering');
-                        prevImg.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
-                    }
-                    // 新图进场（未处理的图先交给主流程处理，处理成功后再派发）
-                    if (!hoveredImg.classList.contains('image-zoom-processed')) {
-                        processImage(hoveredImg);
-                    }
-                    if (hoveredImg.classList.contains('image-zoom-processed')) {
-                        hoveredImg.dataset.__zoomHovering = '1';
-                        hoveredImg.dispatchEvent(new MouseEvent('mouseenter', {
-                            bubbles: false, clientX: x, clientY: y
-                        }));
-                    }
-                } else if (!hoveredImg && prevImg) {
-                    // 鼠标已离开图片区域：退场
-                    prevImg.removeAttribute('data-__zoom-hovering');
-                    prevImg.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+        
+        // ===== 自动裁剪放大图的黑边（只保留有内容的区域）=====
+function cropBlackBars(imgEl) {
+    try {
+        const w = imgEl.naturalWidth, h = imgEl.naturalHeight;
+        if (!w || !h) return;
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(imgEl, 0, 0);
+        let data;
+        try {
+            data = ctx.getImageData(0, 0, w, h).data;
+        } catch (e) { return; } // 图片跨域受保护，读不了像素 → 放弃裁剪，按原图显示
+        const threshold = 24; // 亮度低于此值视为黑边
+        let top = h, bottom = 0, left = w, right = 0, found = false;
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const i = (y * w + x) * 4;
+                if (data[i + 3] > 10 && (data[i] > threshold || data[i + 1] > threshold || data[i + 2] > threshold)) {
+                    if (y < top) top = y;
+                    if (y > bottom) bottom = y;
+                    if (x < left) left = x;
+                    if (x > right) right = x;
+                    found = true;
                 }
-            }, rule.pollInterval);
+            }
         }
+        if (!found) return; // 整张全黑，不裁
+        const cw = right - left + 1, ch = bottom - top + 1;
+        if (cw >= w * 0.9 && ch >= h * 0.9) return; // 几乎没有黑边，不裁
+        if (cw < 20 || ch < 20) return;             // 裁出来太小，疑似误判，不裁
+        // 把有内容的区域画到新画布，替换显示
+        const out = document.createElement('canvas');
+        out.width = cw; out.height = ch;
+        out.getContext('2d').drawImage(imgEl, left, top, cw, ch, 0, 0, cw, ch);
+        imgEl.src = out.toDataURL('image/png');
+    } catch (e) { }
+}
+
+// ===== 图片 URL 升级：缩略图 → 原图 =====
+function upgradeImgUrl(url) {
+    if (!url) return url;
+    // Discuz 论坛远程缩略图：/remote/thumb/宽x高/原路径 → 原图
+    url = url.replace(/\/remote\/thumb\/\d+x\d+\//, '/');
+    return url;
+}
+
+// ===== 背景图 URL 提取与清洗=====
+function extractBgUrl(el) {
+    if (!el || el.nodeType !== 1) return null;
+    let url = null;
+    let m = null;
+    // 先看内联 style
+    const inline = el.getAttribute('style') || '';
+    m = inline.match(/url\(\s*['"]?([^'")]+)['"]?\s*\)/i);
+    if (m) url = m[1];
+    // 再看计算样式（有些站点背景图是 class 控制的）
+    if (!url) {
+        try {
+            const bg = getComputedStyle(el).backgroundImage;
+            if (bg && bg !== 'none') {
+                m = bg.match(/url\(\s*['"]?([^'")]+)['"]?\s*\)/i);
+                if (m) url = m[1];
+            }
+        } catch (e) { }
+    }
+    return url ? cleanBgUrl(url) : null;
+}
+
+function cleanBgUrl(url) {
+    let u = url.trim().replace(/^['"]|['"]$/g, '');
+    if (/alicdn\.com/i.test(u)) {
+        let prev;
+        do {
+            prev = u;
+            u = u.replace(/(_!![\w\-.,]+?\.(?:jpg|jpeg|png|webp))_[\w.\-]+$/i, '$1') // xxx_!!123.jpg_400x400q90.jpg → xxx_!!123.jpg
+                 .replace(/\.(jpg|jpeg|png|webp)_[\w.]+$/i, '.$1')                   // xxx.jpg_.webp → xxx.jpg
+                 .replace(/_\.(webp|jpg|jpeg|png)$/i, '');                           // xxx_.webp → xxx
+        } while (u !== prev);
+        return u;
+    }
+    // 其他站点：保留原有通用清洗规则
+    let prev;
+    do {
+        prev = u;
+        u = u.replace(/![\w\-]+\.(jpg|jpeg|png|webp)$/i, function (s) {
+            return s;
+        }).replace(/![\w\-]+$/i, '')
+          .replace(/_\d+x\d+(q\d+)?\.(jpg|jpeg|png|webp)(\.\w+)?$/i, '')
+          .replace(/\.(jpg|jpeg|png|webp)_[\w.]+$/i, '.$1')
+          .replace(/_\.(webp|jpg|jpeg|png)$/i, '')
+          .replace(/\.webp$/i, '.jpg');
+    } while (u !== prev);
+    return u;
+}
+
+// ===== 站点悬停代理=====
+function setupHoverProxy() {
+    const rule = SITE_HOVER_PROXY_RULES.find(r =>
+        r.domains.some(d => currentDomain === d || currentDomain.endsWith('.' + d))
+    );
+    if (!rule) return;
+
+    const itemSelector = rule.itemSelector;
+    const cardSelector = rule.cardSelector;
+
+    // —— 背景图模式专用：创建/移除放大层 ——
+    let bgZoomContainer = null;
+    let bgZoomUrl = null; // 记录当前显示的图，避免每个轮询周期都重建
+
+    const removeBgZoom = () => {
+        bgZoomUrl = null;
+        if (!bgZoomContainer) return;
+        const c = bgZoomContainer;
+        bgZoomContainer = null;
+        // 退出动画：图片缩小 + 整体渐隐，和进入动画对称
+        const img = c.querySelector('img');
+        if (img) img.style.transform = 'scale(0.6)';
+        c.style.opacity = '0';
+        setTimeout(() => c.remove(), 300);
+    };
+
+
+    const showBgZoom = (wrapperEl) => {
+        const rawUrl = extractBgUrl(wrapperEl);
+        if (!rawUrl) return;
+        // 同一张图已经在显示中 → 直接返回，不重建（防闪烁）
+        if (bgZoomContainer && bgZoomUrl === rawUrl) return;
+        removeBgZoom();
+        
+        // 清掉可能还在退出动画中的旧容器，避免重叠
+        document.querySelectorAll('.image-zoom-container').forEach(el => el.remove());
+
+        // 提取"未经清洗"的原始 URL，作为加载失败的兜底
+        let originalUrl = null;
+        const inline = wrapperEl.getAttribute('style') || '';
+        const m = inline.match(/url\(\s*['"]?([^'")]+)['"]?\s*\)/i);
+        if (m) originalUrl = m[1].trim().replace(/^['"]|['"]$/g, '');
+        if (!originalUrl) {
+            try {
+                const bg = getComputedStyle(wrapperEl).backgroundImage;
+                if (bg && bg !== 'none') {
+                    const m2 = bg.match(/url\(\s*['"]?([^'")]+)['"]?\s*\)/i);
+                    if (m2) originalUrl = m2[1].trim().replace(/^['"]|['"]$/g, '');
+                }
+            } catch (e) { }
+        }
+
+        // 调试：按 F12 打开控制台查看实际请求的地址
+        console.log('[图片放大] 清洗后URL:', rawUrl, '| 原始URL:', originalUrl);
+
+        const container = document.createElement('div');
+        container.className = 'image-zoom-container';
+        container.style.cssText = `
+            position: fixed; inset: 0;
+            z-index: ${config.zoomZIndex - 1};
+            opacity: 0; transition: all 0.3s ease;
+            pointer-events: none;
+            display: flex; justify-content: center; align-items: center;
+            padding: 20px; box-sizing: border-box;
+            background-color: rgba(0,0,0,0.1);
+        `;
+        const bigImg = document.createElement('img');
+        bigImg.style.cssText = `
+            max-width: ${Math.min(window.innerWidth - 60, config.maxWidth)}px;
+            max-height: ${Math.min(window.innerHeight - 60, config.maxHeight)}px;
+            object-fit: contain; border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            transform: scale(0.6);
+            transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+        `;
+
+        // 三重保险：清洗URL → 失败回退原始URL → 再失败销毁放大层
+        let triedFallback = false;
+        bigImg.onerror = () => {
+            if (!triedFallback && originalUrl && originalUrl !== bigImg.src) {
+                triedFallback = true;
+                console.warn('[图片放大] 清洗URL加载失败，回退原始URL:', originalUrl);
+                bigImg.src = originalUrl;
+                return;
+            }
+            console.error('[图片放大] 图片加载彻底失败:', bigImg.src);
+            bgZoomUrl = null;
+            removeBgZoom();
+        };
+        bigImg.onload = () => {
+            requestAnimationFrame(() => {
+                container.style.opacity = '1';
+                bigImg.style.transform = 'scale(1)';
+            });
+        };
+
+        bigImg.src = rawUrl;
+        container.appendChild(bigImg);
+        document.body.appendChild(container);
+        bgZoomContainer = container;
+        bgZoomUrl = rawUrl;
+    };
+
+
+    setInterval(() => {
+        if (!isEnabled || isHomepageZoomDisabled()) return;
+        const x = (window.__lastMouseX ?? -1);
+        const y = (window.__lastMouseY ?? -1);
+        if (x < 0) return;
+        const el = document.elementFromPoint(x, y);
+        if (!el) { if (rule.imgMode === 'background') removeBgZoom(); return; }
+
+        // ===== 背景图模式=====
+        if (rule.imgMode === 'background') {
+            let wrapper = el.closest ? el.closest(itemSelector) : null;
+            // 2) 兜底：命中了 .hover-border / .item-appear 等覆盖在图片上的遮罩层，
+            //    closest 找不到容器 → 改用“坐标是否落在图片矩形内”判断
+            if (!wrapper) {
+                const card = el.closest ? el.closest(cardSelector) : null;
+                if (card) {
+                    const w = card.querySelector(itemSelector);
+                    if (w) {
+                        const r = w.getBoundingClientRect();
+                        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+                            wrapper = w;
+                        }
+                    }
+                }
+            }
+            if (wrapper) {
+                showBgZoom(wrapper);
+            } else {
+                // 鼠标在卡片内但不在图上（如文字区）时保留放大层，完全离开卡片才收起（防闪烁）
+                const card = el.closest ? el.closest(cardSelector) : null;
+                if (!card || !card.querySelector(itemSelector)) removeBgZoom();
+            }
+            return;
+        }
+
+        // ===== img 模式=====
+        const img = (
+            (el.tagName === 'IMG' ? el : null)
+            || el.querySelector?.('img')
+            || el.parentElement?.querySelector?.('img')
+            || el.closest(itemSelector)?.querySelector('img')
+            || el.closest(cardSelector)?.querySelector(`${itemSelector} img`)
+        );
+        const hoveredImg = (img && img.closest(itemSelector)) ? img : null;
+        const prevImg = document.querySelector(`img[data-__zoom-hovering="1"]`);
+        if (hoveredImg && hoveredImg !== prevImg) {
+            if (prevImg) {
+                prevImg.removeAttribute('data-__zoom-hovering');
+                prevImg.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+            }
+            if (!hoveredImg.classList.contains('image-zoom-processed')) {
+                processImage(hoveredImg);
+            }
+            if (hoveredImg.classList.contains('image-zoom-processed')) {
+                hoveredImg.dataset.__zoomHovering = '1';
+                hoveredImg.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false, clientX: x, clientY: y }));
+            }
+        } else if (!hoveredImg && prevImg) {
+            prevImg.removeAttribute('data-__zoom-hovering');
+            prevImg.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+        }
+    }, rule.pollInterval);
+}
+
 
         function processImage(img) {
             if (!isEnabled) return;
@@ -1450,7 +1681,6 @@
                     }
                 };
 
-                // v4.2.1：递归闸门 + relatedTarget 判定，防止 mouseleave 派发无限递归
                 let isDispatchingLeave = false;
                 const handleParentMouseLeave = (e) => {
                     if (isDispatchingLeave) return;
@@ -1493,8 +1723,6 @@
                 };
 
                 const handleMouseLeave = (e) => {
-                    // v4.2.1：relatedTarget 仍在容器（含站点卡片容器，如京东 .more2_img）内时不视为离开，
-                    // 防止卡片内移动鼠标导致放大层闪烁
                     const owner = img.closest('a, li, .more2_img') || img.parentNode;
                     if (e.relatedTarget && owner && owner.contains(e.relatedTarget)) {
                         return;
@@ -1673,7 +1901,7 @@
             setupLightboxObserver();
             if (isEnabled) initImages();
             setupLazyHoverProcessor();
-            setupHoverProxy(); // v4.2.1：站点悬停代理（京东等遮罩站点）
+            setupHoverProxy();
             startObserver();
         }
 
