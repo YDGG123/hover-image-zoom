@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name         鼠标悬停图片自动放大预览
 // @namespace    https://github.com/YDGG123
-// @version      4.3.0
+// @version      4.3.5
 // @description  一款好用的网页图片放大工具，鼠标悬停即可自动放大图片，适配所有网页～
 // @author       益达哥哥
 // @match        *://*/*
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_xmlhttpRequest
+// @grant        GM_info
 // @connect      damp-woodpecker-4867.ydgg123.deno.net
 // @run-at       document-end
 // @noframes
@@ -32,6 +33,7 @@
     // ================================
     // 图片放大功能模块
     // ================================
+    let wheelManager = null;
     const imageZoomModule = (function() {
 
         const defaultConfig = {
@@ -51,12 +53,29 @@
             zoomMode: 'adaptive',
             minOriginalSize: 30
         };
+        
+        // 参数合法范围（唯一来源，validateConfig 与配置面板 defs 都与此对齐）
+        const CONFIG_LIMITS = {
+            delay: [0, 2000],
+            scale: [1, 5],
+            maxWidth: [300, 3000],
+            maxHeight: [300, 3000],
+            minScale: [1, 3],
+            portraitRatio: [1, 3],
+            scrollSpeed: [5, 50],
+            smallImgThreshold: [100, 500],
+            smallImgWidth: [300, 1000],
+            smallImgHeight: [300, 1000],
+            minOriginalSize: [0, 500]
+        };
+
 
         const states = new WeakMap();
         let isEnabled = true;
         let config = { ...defaultConfig };
         const currentDomain = getDomain();
-
+        const lastMouse = { x: -1, y: -1 };
+        
         let currentZoomContainer = null;
         let toggleButton = null;
         let gearButton = null;
@@ -67,6 +86,7 @@
         let lightboxObserver = null;
         let styleElement = null;
         let dockStyleElement = null; // 悬浮按钮 + 配置面板样式（永不随 cleanup 移除）
+    
 
         const DEBUG_IMAGE_CHECK = false;
 
@@ -92,9 +112,19 @@
                 itemSelector: '.img-wrapper',
                 cardSelector: '.tb-pick-content-item, li',
                 pollInterval: 300
-            }
+            },
+            { domains: ['58pic.com', 'qiantu.com'], imgMode: 'img', itemSelector: '.image-container', cardSelector: '.qtd-theme', pollInterval: 300 }
         ];
-
+            // ===== 用户自定义站点规则 =====
+    function getCustomRules() {
+        try { return GM_getValue('image_zoom_custom_rules', []); } catch (e) { return []; }
+    }
+    function saveCustomRules(rules) {
+        GM_setValue('image_zoom_custom_rules', rules);
+    }
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
 
 
         function getDomain() {
@@ -225,22 +255,16 @@
             };
         }
 
-        function validateConfig(cfg) {
-            const validated = { ...cfg };
-            validated.delay = Math.max(0, Math.min(2000, validated.delay));
-            validated.scale = Math.max(1, Math.min(5, validated.scale));
-            validated.maxWidth = Math.max(100, Math.min(5000, validated.maxWidth));
-            validated.maxHeight = Math.max(100, Math.min(5000, validated.maxHeight));
-            validated.minScale = Math.max(1, Math.min(3, validated.minScale));
-            validated.portraitRatio = Math.max(1, Math.min(5, validated.portraitRatio));
-            validated.scrollSpeed = Math.max(1, Math.min(50, validated.scrollSpeed));
-            validated.smallImgThreshold = Math.max(50, Math.min(1000, validated.smallImgThreshold));
-            validated.smallImgWidth = Math.max(100, Math.min(2000, validated.smallImgWidth));
-            validated.smallImgHeight = Math.max(100, Math.min(2000, validated.smallImgHeight));
-            validated.minOriginalSize = Math.max(0, Math.min(500, validated.minOriginalSize || 0));
-            validated.zoomMode = validated.zoomMode === 'fixed' ? 'fixed' : 'adaptive';
-            return validated;
-        }
+function validateConfig(cfg) {
+  const validated = { ...cfg };
+  for (const [key, [min, max]] of Object.entries(CONFIG_LIMITS)) {
+    const val = parseFloat(validated[key]);
+    validated[key] = isNaN(val) ? defaultConfig[key] : Math.max(min, Math.min(max, val));
+  }
+  validated.zoomMode = validated.zoomMode === 'fixed' ? 'fixed' : 'adaptive';
+  return validated;
+}
+
 
         function loadConfig() {
             const savedConfig = GM_getValue(`image_zoom_config_${currentDomain}`);
@@ -554,8 +578,8 @@
 
                 document.addEventListener('mousemove', function(e) {
                     // v4.2.1：全局记录鼠标坐标（供站点悬停代理轮询使用）
-                    window.__lastMouseX = e.clientX;
-                    window.__lastMouseY = e.clientY;
+                    lastMouse.x = e.clientX;
+                    lastMouse.y = e.clientY;
 
                     if (!isDragging) return;
                     const delta = e.clientY - startY;
@@ -657,8 +681,15 @@
         }
 
         function cleanup() {
+            // 先回收 blob URL（必须在容器移除前查，移除后就查不到了）
+            document.querySelectorAll('.image-zoom-container img').forEach(im => {
+                if (im.__zoomBlobUrl) { URL.revokeObjectURL(im.__zoomBlobUrl); im.__zoomBlobUrl = null; }
+                });
             if (zoomObserver) { zoomObserver.disconnect(); zoomObserver = null; }
-            if (lightboxObserver) { lightboxObserver.disconnect(); lightboxObserver = null; }
+            if (lazyImageObserver) {
+                lazyImageObserver.disconnect();
+                lazyImageObserver = null;
+                }
             if (currentZoomContainer) { currentZoomContainer.remove(); currentZoomContainer = null; }
             document.querySelectorAll('.image-zoom-container').forEach(el => el.remove());
             document.querySelectorAll('.image-zoom-wrapper').forEach(wrapper => {
@@ -703,7 +734,7 @@
             }
             let parent = img.parentElement;
             while (parent && parent !== document.body) {
-                const parentClass = parent.className || '';
+                const parentClass = (typeof parent.className === 'string' ? parent.className : parent.getAttribute('class')) || '';
                 const parentId = parent.id || '';
                 if (parentClass.includes('zoom') || parentClass.includes('lightbox') ||
                     parentClass.includes('gallery') || parentClass.includes('fancybox') ||
@@ -766,7 +797,8 @@
         function submitFeedback(text) {
             const payload = JSON.stringify({
                 text: text,
-                page: location.hostname + location.pathname + ' | 脚本 v4.2.1'
+                page: location.hostname + location.pathname
+    + ' | 脚本 v' + (typeof GM_info !== 'undefined' && GM_info.script ? GM_info.script.version : 'unknown')
             });
             return new Promise((resolve, reject) => {
                 GM_xmlhttpRequest({
@@ -851,6 +883,288 @@
                 });
             });
         }
+        
+    // ================================
+    // 🎯 自定义站点规则模块
+    // ================================
+    const RULE_SHARE_API = FEEDBACK_API;
+
+    function submitSiteRule(rule, note) {
+        const payload = JSON.stringify({
+            type: 'site_rule',
+            rule: {
+                name: rule.name,
+                domains: rule.domains,
+                imgMode: rule.imgMode,
+                itemSelector: rule.itemSelector,
+                cardSelector: rule.cardSelector,
+                pollInterval: rule.pollInterval
+            },
+            note: note || '',
+            context: {
+                page: location.hostname + location.pathname,
+                scriptVersion: (typeof GM_info !== 'undefined' && GM_info.script) ? GM_info.script.version : 'unknown',
+                userAgent: navigator.userAgent,
+                timestamp: Date.now()
+            }
+        });
+        return new Promise((resolve, reject) => {
+            GM_xmlhttpRequest({
+                method: 'POST',
+                url: RULE_SHARE_API,
+                headers: { 'Content-Type': 'application/json' },
+                data: payload,
+                timeout: 15000,
+                onload: (r) => (r.status >= 200 && r.status < 400) ? resolve() : reject(new Error('状态码 ' + r.status)),
+                onerror: () => reject(new Error('网络错误')),
+                ontimeout: () => reject(new Error('超时'))
+            });
+        });
+    }
+
+    function injectCustomRulesSection(overlay) {
+        const scroll = overlay.querySelector('.iz-panel-scroll');
+        if (!scroll || scroll.querySelector('#izCustomRulesSection')) return;
+
+        const section = document.createElement('div');
+        section.className = 'iz-section';
+        section.id = 'izCustomRulesSection';
+
+        const renderList = () => {
+            const rules = getCustomRules();
+            if (!rules.length) {
+                return '<div style="font-size:12px;color:#94A3B8;padding:6px 0;line-height:1.6;">暂无自定义规则。小技巧：在目标页面按 F12 检查图片及其容器，把 class 选择器填进来即可。</div>';
+            }
+            return rules.map(r => `
+                <div class="iz-rule-item" data-id="${r.id}" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(226,232,240,0.5);">
+                    <input type="checkbox" class="iz-rule-enabled" ${r.enabled ? 'checked' : ''} style="flex-shrink:0;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-size:13px;font-weight:600;color:#1E293B;">${escapeHtml(r.name)}
+                            <span style="font-size:11px;color:#94A3B8;font-weight:400;">· ${escapeHtml(r.domains)}</span>
+                        </div>
+                        <div style="font-size:11px;color:#64748B;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            ${r.imgMode === 'img' ? 'IMG' : '背景图'} | ${escapeHtml(r.itemSelector)} | ${escapeHtml(r.cardSelector || '无卡片选择器')}
+                        </div>
+                    </div>
+                    <button class="iz-rule-del" style="border:none;background:none;color:#EF4444;cursor:pointer;font-size:16px;flex-shrink:0;" title="删除">✕</button>
+                </div>
+            `).join('');
+        };
+
+        section.innerHTML = `
+            <div class="iz-section-title">🎯 自定义站点规则 <span class="iz-badge">进阶-不会添加用⬆️反馈</span></div>
+            <div class="iz-exclusion-note" style="margin-bottom:10px;">为当前网站添加悬停放大规则，解决遮罩层挡住鼠标、背景图无法放大等问题。保存后刷新页面生效。</div>
+            <div id="izRuleList">${renderList()}</div>
+            <button id="izRuleAddBtn" class="iz-btn-sm primary" style="margin-top:10px;">＋ 为当前网站添加规则</button>
+            <div id="izRuleForm" style="display:none; margin-top:12px; padding:14px; background:white; border-radius:12px; border:1.5px solid #E2E8F0;">
+                <div class="iz-param-item" style="margin-bottom:10px;">
+                    <label>规则名称</label>
+                    <input id="izRuleName" type="text" placeholder="选填" style="width:100%;box-sizing:border-box;height:36px;padding:0 10px;border:1.5px solid #E2E8F0;border-radius:10px;outline:none;font-size:13px;">
+                </div>
+                <div class="iz-param-item" style="margin-bottom:10px;">
+                    <label>域名（逗号分隔，留空为当前网站）</label>
+                    <input id="izRuleDomains" type="text" placeholder="${currentDomain}" style="width:100%;box-sizing:border-box;height:36px;padding:0 10px;border:1.5px solid #E2E8F0;border-radius:10px;outline:none;font-size:13px;">
+                </div>
+                <div class="iz-param-item" style="margin-bottom:10px;">
+                    <label>图片模式</label>
+                    <select id="izRuleMode" style="width:100%;height:36px;border:1.5px solid #E2E8F0;border-radius:10px;outline:none;font-size:13px;background:white;">
+                        <option value="img">IMG 标签（图片被文字或者灰色遮罩盖住时选这个）</option>
+                        <option value="background">背景图（CSS background-image 卡片）</option>
+                    </select>
+                </div>
+                <div class="iz-param-item" style="margin-bottom:10px;">
+                    <label>图片容器选择器（img 或背景图元素的 CSS 选择器）</label>
+                    <input id="izRuleItem" type="text" placeholder="如：.image-container-top 或 .img-wrapper" style="width:100%;box-sizing:border-box;height:36px;padding:0 10px;border:1.5px solid #E2E8F0;border-radius:10px;outline:none;font-size:13px;">
+                </div>
+                <div class="iz-param-item" style="margin-bottom:10px;">
+                    <label>卡片选择器（可选）</label>
+                    <input id="izRuleCard" type="text" placeholder="如：.qtd-theme-card" style="width:100%;box-sizing:border-box;height:36px;padding:0 10px;border:1.5px solid #E2E8F0;border-radius:10px;outline:none;font-size:13px;">
+                </div>
+                <div style="font-size:12px;color:#94A3B8;margin-bottom:10px;">💡 不会写选择器？点「🖱️ 拾取选择器」后直接在页面上点一下图片即可自动填写。</div>
+                <div style="display:flex;gap:10px;justify-content:flex-end;">
+                    <button id="izRulePickBtn" class="iz-btn-sm" style="background:#EEF2FF;color:#4F46E5;border:none;">🖱️ 拾取选择器</button>
+                    <button id="izRuleCancel" class="iz-btn-sm" style="background:#F1F5F9;color:#64748B;border:none;">取消</button>
+                    <button id="izRuleSave" class="iz-btn-sm primary">保存规则</button>
+                </div>
+            </div>
+        `;
+        scroll.appendChild(section);
+
+        const listEl = section.querySelector('#izRuleList');
+        const form = section.querySelector('#izRuleForm');
+        let lastSavedRule = null;
+
+                section.querySelector('#izRuleAddBtn').addEventListener('click', () => {
+            form.style.display = 'block';
+            section.querySelector('#izRuleDomains').value = currentDomain;
+        });
+
+        // ===== 拾取模式 v2：以 img 为锚点，自动推导图片容器和卡片 =====
+        section.querySelector('#izRulePickBtn').addEventListener('click', () => {
+            form.style.display = 'block';
+            const overlay = document.getElementById('izModalOverlay');
+            if (overlay) overlay.style.display = 'none';
+
+            const tips = document.createElement('div');
+            tips.style.cssText = 'position:fixed;z-index:2147483647;background:rgba(15,23,42,.92);color:#fff;padding:8px 12px;border-radius:8px;font:12px monospace;pointer-events:none;max-width:420px;display:none;white-space:nowrap;';
+            document.body.appendChild(tips);
+            const bar = document.createElement('div');
+            bar.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:2147483647;background:#4F46E5;color:#fff;padding:8px 20px;border-radius:20px;font-size:13px;font-weight:600;';
+            bar.textContent = '🎯 点击图片附近任意位置（遮罩/标题也行），自动定位图片容器，按 ESC 取消';
+            document.body.appendChild(bar);
+
+            // 生成"短选择器"：优先 class，不带层级
+            const shortSel = (el) => {
+                if (!el || el === document.body || el === document.documentElement) return null;
+                if (el.tagName === 'IMG') return 'img';
+                if (el.id) { const s = '#' + CSS.escape(el.id); if (document.querySelectorAll(s).length <= 60) return s; }
+                for (const c of (el.classList || [])) {
+                    const s = '.' + CSS.escape(c);
+                    const n = document.querySelectorAll(s).length;
+                    if (n > 0) return s; 
+                }
+                return el.tagName.toLowerCase();
+            };
+
+            const deriveSelectors = (hitEl) => {
+                let card = null, node = hitEl;
+                while (node && node !== document.body) {
+                    if (node.querySelector && node.querySelector('img')) {
+                        const r = node.getBoundingClientRect();
+                        if (r.width < window.innerWidth * 0.9 && r.height < window.innerHeight * 0.9) {
+                            card = node;
+                            break;
+                        }
+                    }
+                    node = node.parentElement;
+                }
+                if (!card) return null;
+
+                const img = card.querySelector('img');
+                const item = img ? (img.parentElement && img.parentElement !== document.body ? img.parentElement : img) : null;
+                const itemSel = item ? shortSel(item) : shortSel(card);
+                const cardSel = (item && item !== card) ? shortSel(card) : '';
+                let ok = false, count = 0;
+                try {
+                    count = document.querySelectorAll(itemSel + ' img').length;
+                    ok = count > 0;
+                } catch (e) { }
+                return ok ? { itemSel, cardSel, count } : null;
+            };
+
+            const cleanup = () => {
+                document.removeEventListener('mousemove', move, true);
+                document.removeEventListener('click', pick, true);
+                document.removeEventListener('keydown', esc, true);
+                tips.remove(); bar.remove();
+                document.body.style.cursor = '';
+            };
+            const move = (e) => {
+                e.preventDefault(); e.stopPropagation();
+                const el = document.elementFromPoint(e.clientX, e.clientY);
+                if (!el) return;
+                const d = deriveSelectors(el);
+                if (!d) { tips.style.display = 'none'; return; }
+                tips.style.display = 'block';
+                tips.style.left = Math.min(e.clientX + 16, window.innerWidth - 440) + 'px';
+                tips.style.top = (e.clientY + 16) + 'px';
+                tips.textContent = '图片容器: ' + d.itemSel + '（含图 ' + d.count + ' 张）' + (d.cardSel ? ' | 卡片: ' + d.cardSel : '');
+                tips.dataset.item = d.itemSel;
+                tips.dataset.card = d.cardSel || '';
+            };
+            const esc = (e) => { if (e.key === 'Escape') cleanup(); };
+            const pick = (e) => {
+                e.preventDefault(); e.stopPropagation();
+                const itemSel = tips.dataset.item, cardSel = tips.dataset.card;
+                cleanup();
+                if (!itemSel) { showToast('未能定位到图片容器，请换个位置点击'); return; }
+                section.querySelector('#izRuleItem').value = itemSel;
+                section.querySelector('#izRuleCard').value = cardSel;
+                showSaveToast('已拾取：' + itemSel + '，确认后保存');
+                const ov = document.getElementById('izModalOverlay');
+                if (ov) { ov.classList.add('anim-in'); ov.style.display = 'flex'; setTimeout(() => ov.classList.remove('anim-in'), 400); }
+            };
+            document.body.style.cursor = 'crosshair';
+            document.addEventListener('mousemove', move, true);
+            document.addEventListener('click', pick, true);
+            document.addEventListener('keydown', esc, true);
+        });
+
+        section.querySelector('#izRuleCancel').addEventListener('click', () => {
+            form.style.display = 'none';
+            const shareBar = section.querySelector('.iz-rule-share-bar');
+            if (shareBar) shareBar.remove();
+        });
+
+        section.querySelector('#izRuleSave').addEventListener('click', () => {
+            const itemSelector = section.querySelector('#izRuleItem').value.trim();
+            if (!itemSelector) { showToast('请填写图片容器选择器'); return; }
+            try { document.querySelector(itemSelector); } catch (e) { showToast('选择器语法有误，请检查'); return; }
+
+            const oldShareBar = section.querySelector('.iz-rule-share-bar');
+            if (oldShareBar) oldShareBar.remove();
+
+            const rules = getCustomRules();
+            const newRule = {
+                id: 'r' + Date.now(),
+                name: section.querySelector('#izRuleName').value.trim() || currentDomain,
+                domains: section.querySelector('#izRuleDomains').value.trim() || currentDomain,
+                imgMode: section.querySelector('#izRuleMode').value,
+                itemSelector,
+                cardSelector: section.querySelector('#izRuleCard').value.trim(),
+                pollInterval: 300,
+                enabled: true
+            };
+            rules.push(newRule);
+            saveCustomRules(rules);
+            lastSavedRule = newRule;
+            listEl.innerHTML = renderList();
+            form.style.display = 'none';
+            showSaveToast('规则已保存，刷新页面后生效');
+
+            const shareBar = document.createElement('div');
+            shareBar.className = 'iz-rule-share-bar';
+            shareBar.style.cssText = 'margin-top:10px;padding:10px 14px;background:#F0FDF4;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:#166534;';
+            shareBar.innerHTML = `
+                <span>是否把这条规则分享给作者，帮助更多用户？（仅发送域名和选择器）</span>
+                <button class="iz-rule-share-btn" style="flex-shrink:0;border:none;background:#10B981;color:#fff;padding:5px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">分享</button>
+            `;
+            form.parentNode.insertBefore(shareBar, form.nextSibling);
+
+            shareBar.querySelector('.iz-rule-share-btn').addEventListener('click', function() {
+                const btn = this;
+                btn.disabled = true; btn.textContent = '发送中…';
+                submitSiteRule(lastSavedRule).then(() => {
+                    btn.textContent = '✓ 已分享，感谢！';
+                    btn.style.background = '#64748B';
+                    GM_setValue(`rule_shared_${lastSavedRule.id}`, true);
+                    setTimeout(() => shareBar.remove(), 3000);
+                }).catch((err) => {
+                    btn.disabled = false; btn.textContent = '重试';
+                    showToast('分享失败：' + err.message);
+                });
+            });
+        });
+
+        listEl.addEventListener('click', (e) => {
+            const item = e.target.closest('.iz-rule-item');
+            if (!item) return;
+            const rules = getCustomRules();
+            const idx = rules.findIndex(r => r.id === item.dataset.id);
+            if (idx < 0) return;
+
+            if (e.target.classList.contains('iz-rule-del')) {
+                rules.splice(idx, 1);
+                saveCustomRules(rules);
+                listEl.innerHTML = renderList();
+                showSaveToast('规则已删除');
+            } else if (e.target.classList.contains('iz-rule-enabled')) {
+                rules[idx].enabled = e.target.checked;
+                saveCustomRules(rules);
+            }
+        });
+    }
+
 
         const COMMON_PARAM_DEFS = [
             { key: 'delay', label: '悬停延迟', unit: 'ms', min: 0, max: 2000, step: 100, tip: '鼠标停在图片上多久后才放大。数值越小响应越快，越大越不容易误触发。建议 300~800ms' },
@@ -978,6 +1292,7 @@
             `;
             document.body.appendChild(overlay);
             injectFeedbackSection(overlay);
+            injectCustomRulesSection(overlay);
 
             const $ = (id) => overlay.querySelector('#' + id);
             const modeSelect = $('izModeSelect');
@@ -1192,10 +1507,12 @@
         }, 16);
 
         function handleResize() {
-            if (currentZoomContainer && isEnabled) {
-                currentZoomContainer.style.opacity = '0';
-            }
-        }
+            if (!isEnabled) return;
+  // 尺寸变化后旧放大图位置已失效，直接统一收起，避免残留透明的占位容器
+  document.querySelectorAll('.image-zoom-container').forEach(container => fadeOutAndRemove(container));
+  currentZoomContainer = null;
+}
+
 
         function addKeyboardSupport() {
             document.addEventListener('keydown', (e) => {
@@ -1271,27 +1588,68 @@
                     targetWidth = Math.min(targetWidth, config.maxWidth);
                     targetHeight = Math.min(targetHeight, config.maxHeight);
                 }
+                
+                // 按原图比例校正画布，避免 contain 留空导致容器比图片大
+                // 注意：图片未加载完时 naturalWidth/Height 为 0，会算出 NaN 导致容器塌缩，必须跳过
+                if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                    const natRatio = img.naturalWidth / img.naturalHeight;
+                    const boxRatio = targetWidth / targetHeight;
+                    if (natRatio > boxRatio) {
+        targetHeight = Math.round(targetWidth / natRatio);
+      } else {
+        targetWidth = Math.round(targetHeight * natRatio);
+    }
+}
 
-                const zoomedImgStyle = `width: ${targetWidth}px; height:${targetHeight}px; max-width: ${config.maxWidth}px; max-height:${config.maxHeight}px; object-fit: contain; transition: ${config.transition}, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow: 0 4px 20px rgba(0,0,0,0.2); margin-top: 0; transform: scale(0.6); opacity: 0;`;
+
+                const zoomedImgStyle = `
+                width: ${targetWidth}px;
+                height: ${targetHeight}px;
+                max-width: ${config.maxWidth}px;
+                max-height: ${config.maxHeight}px;
+                object-fit: contain;
+                transition: ${config.transition}, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+                box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+                margin-top: 0;
+                display: block;
+                border-radius: 10px;
+                transform: scale(0.6);
+                opacity: 0;
+                `;
+                
+                const zoomZIndex = hasClickFunctionality ? config.zoomZIndex - 1 : config.zoomZIndex;
 
                 const zoomContainer = document.createElement('div');
                 zoomContainer.className = 'image-zoom-container';
-                const zoomZIndex = hasClickFunctionality ? config.zoomZIndex - 1 : config.zoomZIndex;
                 zoomContainer.style.cssText = `
-                    position: fixed; z-index: ${zoomZIndex}; opacity: 0;
-                    transition: ${config.transition}; pointer-events: none;
-                    left: 0; top: 0; width: 100%; height: 100%;
-                    display: flex; justify-content: center; align-items: center;
-                    padding: 20px; box-sizing: border-box;
-                    background-color: rgba(0,0,0,0.1);
+                position: fixed;
+                z-index: ${zoomZIndex};
+                opacity: 0;
+                transition: ${config.transition};
+                pointer-events: none;
+                left: 50%;
+                top: 50%;
+                transform: translate(-50%, -50%);
+                width: ${targetWidth}px;
+                height: ${targetHeight}px;
+                box-sizing: border-box;
+                border-radius: 10px;
+                overflow: hidden; 
                 `;
 
                 const zoomedImg = document.createElement('img');
                 const fallbackSrc = img.src || img.currentSrc;
-                const hiResSrc = upgradeImgUrl((img.src || img.currentSrc || '')
-                    .replace(/\/s\d+x\d+_/g, '/')
-                    .replace(/\.avif$/i, '')) || fallbackSrc;
-                zoomedImg.crossOrigin = 'anonymous'; 
+                let hiResSrc;
+                if (currentDomain === 'jd.com' || currentDomain.endsWith('.jd.com')) {
+                    hiResSrc = fallbackSrc;
+                    } else {
+                        hiResSrc = upgradeImgUrl((img.src || img.currentSrc || '')
+                        .replace(/\/s\d+x\d+_/g, '/')
+                        .replace(/\.avif$/i, '')) || fallbackSrc;
+                        }
+                let needsCors = true;
+                try { needsCors = new URL(hiResSrc, location.href).origin !== location.origin; } catch (e) { }
+                if (needsCors) zoomedImg.crossOrigin = 'anonymous';
                 zoomedImg.src = hiResSrc;
                 let noCorsTried = false;
                 zoomedImg.onerror = () => {
@@ -1309,6 +1667,7 @@
                 zoomedImg.style.cssText = zoomedImgStyle;
                 zoomContainer.appendChild(zoomedImg);
                 document.body.appendChild(zoomContainer);
+                if (wheelManager) wheelManager.sync();
                 currentZoomContainer = zoomContainer;
 
 
@@ -1336,24 +1695,40 @@
             if (!zoomContainer) return;
             states.set(img, { ...state, isZoomed: true, zoomContainer });
         }
+        
+        // ===== 统一的"淡出并移除"封装（img 传入时才会重置对应 state，且仅在 state 仍指向该容器时重置，避免竞态）=====
+        function fadeOutAndRemove(container, img) {
+            if (!container) return;
+            container.style.opacity = '0';
+            const zImg = container.querySelector('img');
+            if (zImg) {
+                zImg.style.transform = 'scale(0.6)';
+                zImg.style.opacity = '0';
+                if (zImg.__zoomBlobUrl) { URL.revokeObjectURL(zImg.__zoomBlobUrl); zImg.__zoomBlobUrl = null; }
+                }
+                setTimeout(() => {
+                    if (container && container.parentNode) container.parentNode.removeChild(container);
+            if (currentZoomContainer === container) {
+                        currentZoomContainer = null;
+            if (wheelManager) wheelManager.sync();
+    }
+    if (img) {
+      const state = states.get(img);
+      // 关键：只有 state 仍指向这个旧容器时才重置，
+      // 防止快速"移出→再移入"时旧定时器把新容器状态覆盖掉
+      if (state && state.zoomContainer === container) {
+        states.set(img, { ...state, isZoomed: false, zoomContainer: null, timer: null });
+      }
+    }
+  }, 300);
+}
+
 
         function hideZoom(img) {
-            const state = states.get(img);
-            if (!state || !state.isZoomed || !state.zoomContainer) return;
-            state.zoomContainer.style.opacity = '0';
-            const hideImg = state.zoomContainer.querySelector('img');
-            if (hideImg) {
-                hideImg.style.transform = 'scale(0.6)';
-                hideImg.style.opacity = '0';
-            }
-            setTimeout(() => {
-                if (state.zoomContainer && state.zoomContainer.parentNode) {
-                    state.zoomContainer.parentNode.removeChild(state.zoomContainer);
-                }
-                if (currentZoomContainer === state.zoomContainer) currentZoomContainer = null;
-                states.set(img, { ...state, isZoomed: false, zoomContainer: null, timer: null });
-            }, 300);
-        }
+  const state = states.get(img);
+  if (!state || !state.isZoomed || !state.zoomContainer) return;
+  fadeOutAndRemove(state.zoomContainer, img);
+}
 
         function handleStretchedLink(img) {
             const card = img.closest('.card');
@@ -1373,44 +1748,107 @@
             });
         }
         
-        // ===== 自动裁剪放大图的黑边（只保留有内容的区域）=====
+// ===== 自动裁剪放大图的黑边（只保留有内容的区域）=====
+// 优化：从四边向内逐行/列扫描，而不是全像素遍历；输出用 toBlob（jpeg）替代 dataURL
 function cropBlackBars(imgEl) {
+  try {
+    if (imgEl.dataset.zoomCropped) return; // 防止替换 src 后再次触发 onload 重复裁剪
+    const w = imgEl.naturalWidth, h = imgEl.naturalHeight;
+    if (!w || !h) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(imgEl, 0, 0);
+    let data;
+    try { data = ctx.getImageData(0, 0, w, h).data; }
+    catch (e) { return; } // 图片跨域受保护，读不了像素 → 放弃裁剪，按原图显示
+    
+    // 透明 PNG 检测：抽样检查是否有明显透明区域，有则跳过裁剪
+    // （透明像素会被黑边逻辑误判，且 JPEG 输出会把透明变黑）
     try {
-        const w = imgEl.naturalWidth, h = imgEl.naturalHeight;
-        if (!w || !h) return;
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(imgEl, 0, 0);
-        let data;
-        try {
-            data = ctx.getImageData(0, 0, w, h).data;
-        } catch (e) { return; } // 图片跨域受保护，读不了像素 → 放弃裁剪，按原图显示
-        const threshold = 24; // 亮度低于此值视为黑边
-        let top = h, bottom = 0, left = w, right = 0, found = false;
-        for (let y = 0; y < h; y++) {
-            for (let x = 0; x < w; x++) {
-                const i = (y * w + x) * 4;
-                if (data[i + 3] > 10 && (data[i] > threshold || data[i + 1] > threshold || data[i + 2] > threshold)) {
-                    if (y < top) top = y;
-                    if (y > bottom) bottom = y;
-                    if (x < left) left = x;
-                    if (x > right) right = x;
-                    found = true;
-                }
+        const sampleData = ctx.getImageData(0, 0, w, h).data;
+        let transparentCount = 0;
+        const total = w * h;
+        const step = Math.max(1, Math.floor(total / 20000)); // 抽样约2万个点，够快
+        for (let i = 0; i < total; i += step) {
+            if (sampleData[i * 4 + 3] < 10) transparentCount++;
             }
-        }
-        if (!found) return; // 整张全黑，不裁
-        const cw = right - left + 1, ch = bottom - top + 1;
-        if (cw >= w * 0.9 && ch >= h * 0.9) return; // 几乎没有黑边，不裁
-        if (cw < 20 || ch < 20) return;             // 裁出来太小，疑似误判，不裁
-        // 把有内容的区域画到新画布，替换显示
-        const out = document.createElement('canvas');
-        out.width = cw; out.height = ch;
-        out.getContext('2d').drawImage(imgEl, left, top, cw, ch, 0, 0, cw, ch);
-        imgEl.src = out.toDataURL('image/png');
-    } catch (e) { }
+            if (transparentCount / (total / step) > 0.05) return; // 超过5%透明像素，不裁
+            } catch (e) { }
+
+    const threshold = 24; // 亮度低于此值视为黑边
+    const isContent = (i) => data[i + 3] > 10 &&
+      (data[i] > threshold || data[i + 1] > threshold || data[i + 2] > threshold);
+    const rowHasContent = (y) => {
+      for (let x = 0; x < w; x++) if (isContent((y * w + x) * 4)) return true;
+      return false;
+    };
+    const colHasContent = (x) => {
+      for (let y = 0; y < h; y++) if (isContent((y * w + x) * 4)) return true;
+      return false;
+    };
+
+    let top = 0; while (top < h && !rowHasContent(top)) top++;
+    if (top === h) return; // 整张全黑，不裁
+    let bottom = h - 1; while (bottom > top && !rowHasContent(bottom)) bottom--;
+    let left = 0; while (left < w && !colHasContent(left)) left++;
+    let right = w - 1; while (right > left && !colHasContent(right)) right--;
+    
+    // 防误判：深色图片容易被整片误判为黑边。
+    // 每边最多只允许裁掉 25%，超出的部分强制保留
+    const maxCutX = Math.floor(w * 0.25);
+    const maxCutY = Math.floor(h * 0.25);
+    top = Math.min(top, maxCutY);
+    bottom = Math.max(bottom, h - 1 - maxCutY);
+    left = Math.min(left, maxCutX);
+    right = Math.max(right, w - 1 - maxCutX);
+
+
+    const cw = right - left + 1, ch = bottom - top + 1;
+    if (cw >= w * 0.9 && ch >= h * 0.9) return; // 几乎没有黑边，不裁
+    if (cw < 20 || ch < 20) return;             // 裁出来太小，疑似误判，不裁
+
+    const out = document.createElement('canvas');
+    out.width = cw; out.height = ch;
+    out.getContext('2d').drawImage(imgEl, left, top, cw, ch, 0, 0, cw, ch);
+
+    imgEl.dataset.zoomCropped = '1';
+    if (typeof out.toBlob === 'function') {
+      out.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        if (imgEl.__zoomBlobUrl) URL.revokeObjectURL(imgEl.__zoomBlobUrl);
+        imgEl.__zoomBlobUrl = url;
+        imgEl.src = url;
+        // 同步容器尺寸：按裁剪比例缩放"当前显示尺寸"，而不是直接用源像素尺寸
+        const box = imgEl.parentNode;
+        if (box && box.classList.contains('image-zoom-container')) {
+            const dispW = parseFloat(imgEl.style.width) || w;
+            const dispH = parseFloat(imgEl.style.height) || h;
+            // 裁剪后不缩小显示尺寸，而是按新比例重新撑满可用空间
+            const availW = Math.min(window.innerWidth - 60, config.maxWidth);
+            const availH = Math.min(window.innerHeight - 60, config.maxHeight);
+            const cropRatio = cw / ch;
+            let newW = availW, newH = Math.round(availW / cropRatio);
+            if (newH > availH) {
+                newH = availH;
+                newW = Math.round(availH * cropRatio);
+                }
+
+            box.style.width = newW + 'px';
+            box.style.height = newH + 'px';
+            imgEl.style.width = newW + 'px';
+            imgEl.style.height = newH + 'px';
+            }
+
+      }, 'image/jpeg', 0.92);
+    } else {
+      imgEl.src = out.toDataURL('image/jpeg', 0.92);
+    }
+  } catch (e) { }
 }
+
 
 // ===== 图片 URL 升级：缩略图 → 原图 =====
 function upgradeImgUrl(url) {
@@ -1469,15 +1907,22 @@ function cleanBgUrl(url) {
     return u;
 }
 
-// ===== 站点悬停代理=====
-function setupHoverProxy() {
-    const rule = SITE_HOVER_PROXY_RULES.find(r =>
-        r.domains.some(d => currentDomain === d || currentDomain.endsWith('.' + d))
-    );
-    if (!rule) return;
+    function setupHoverProxy() {
+        const customRules = getCustomRules().filter(r => r.enabled).map(r => ({
+            domains: String(r.domains).split(',').map(s => s.trim()).filter(Boolean),
+            imgMode: r.imgMode === 'background' ? 'background' : 'img',
+            itemSelector: r.itemSelector,
+            cardSelector: r.cardSelector,
+            pollInterval: Math.max(100, parseInt(r.pollInterval) || 300)
+        }));
+        const domainMatch = (r) => r.domains.some(d => currentDomain === d || currentDomain.endsWith('.' + d));
+        const rule = customRules.find(domainMatch) || SITE_HOVER_PROXY_RULES.find(domainMatch);
+        if (!rule) return;
+
 
     const itemSelector = rule.itemSelector;
     const cardSelector = rule.cardSelector;
+    let lastPolledX = -1, lastPolledY = -1;
 
     // —— 背景图模式专用：创建/移除放大层 ——
     let bgZoomContainer = null;
@@ -1574,12 +2019,15 @@ function setupHoverProxy() {
 
 
     setInterval(() => {
+        if (document.hidden) return;
         if (!isEnabled || isHomepageZoomDisabled()) return;
-        const x = (window.__lastMouseX ?? -1);
-        const y = (window.__lastMouseY ?? -1);
-        if (x < 0) return;
-        const el = document.elementFromPoint(x, y);
-        if (!el) { if (rule.imgMode === 'background') removeBgZoom(); return; }
+  const x = lastMouse.x;
+  const y = lastMouse.y;
+  if (x < 0) return;
+  if (rule.imgMode === 'img' && x === lastPolledX && y === lastPolledY) return;
+  lastPolledX = x; lastPolledY = y;
+  const el = document.elementFromPoint(x, y);
+  if (!el || !el.closest) return;
 
         // ===== 背景图模式=====
         if (rule.imgMode === 'background') {
@@ -1608,14 +2056,28 @@ function setupHoverProxy() {
             return;
         }
 
-        // ===== img 模式=====
-        const img = (
-            (el.tagName === 'IMG' ? el : null)
-            || el.querySelector?.('img')
-            || el.parentElement?.querySelector?.('img')
-            || el.closest(itemSelector)?.querySelector('img')
-            || el.closest(cardSelector)?.querySelector(`${itemSelector} img`)
-        );
+                        let scope = null;
+                if (el.tagName === 'IMG') {
+                    scope = el;
+                } else {
+                    scope = el.closest?.(itemSelector) || el.closest?.(cardSelector) || null;
+                    // 自定义规则兜底：itemSelector 直接是 img 标签选择器时，命中元素本身就是 img
+                    if (!scope || (scope !== el && scope.tagName !== 'IMG' && !scope.querySelector('img'))) {
+                        const direct = document.elementFromPoint(x, y);
+                        if (direct && direct.tagName !== 'IMG') {
+                            try {
+                                const hit = direct.closest(itemSelector);
+                                if (hit && hit.tagName === 'IMG') scope = hit;
+                            } catch (e) { }
+                        }
+                    }
+                }
+
+// 正确地把每个 item 选择器都拼上 " img"，避免 .more2_img 裸命中容器 div
+const imgSel = itemSelector.split(',').map(s => s.trim() + ' img').join(',');
+const img = scope ? (scope.tagName === 'IMG' ? scope : (scope.querySelector(imgSel) || scope.querySelector('img'))) : null;
+
+
         const hoveredImg = (img && img.closest(itemSelector)) ? img : null;
         const prevImg = document.querySelector(`img[data-__zoom-hovering="1"]`);
         if (hoveredImg && hoveredImg !== prevImg) {
@@ -1674,7 +2136,7 @@ function setupHoverProxy() {
                 const directParent = img.parentNode;
 
                 const handleParentMouseEnter = (e) => {
-                    const rect = img.getBoundingClientRect();
+                    const rect = directParent.getBoundingClientRect();
                     if (e.clientX >= rect.left && e.clientX <= rect.right &&
                         e.clientY >= rect.top && e.clientY <= rect.bottom) {
                         img.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, cancelable: true }));
@@ -1717,8 +2179,11 @@ function setupHoverProxy() {
                         if (rect.width < config.minOriginalSize || rect.height < config.minOriginalSize) return;
                         if (!isZoomed) {
                             zoomContainer = createZoomedImage(img, hasClickFunctionality);
-                            if (zoomContainer) isZoomed = true;
+                    if (zoomContainer) {
+                        isZoomed = true;
+                        states.set(img, { ...states.get(img), isZoomed: true, zoomContainer });
                         }
+                    }
                     }, config.delay);
                 };
 
@@ -1732,26 +2197,19 @@ function setupHoverProxy() {
                         timer = null;
                     }
                     if (isZoomed && zoomContainer) {
-                        zoomContainer.style.opacity = '0';
-                        const zImg = zoomContainer.querySelector('img');
-                        if (zImg) {
-                            zImg.style.transform = 'scale(0.6)';
-                            zImg.style.opacity = '0';
-                        }
-                        setTimeout(() => {
-                            if (zoomContainer && zoomContainer.parentNode) {
-                                zoomContainer.parentNode.removeChild(zoomContainer);
-                            }
-                            if (currentZoomContainer === zoomContainer) currentZoomContainer = null;
-                            isZoomed = false;
-                            zoomContainer = null;
-                        }, 300);
+                    fadeOutAndRemove(zoomContainer, img);
+                    isZoomed = false;
+                    zoomContainer = null;
                     }
                 };
 
                 const handleClick = (e) => {
-                    if (isZoomed && zoomContainer) hideZoom(img);
-                };
+                    if (isZoomed && zoomContainer) {
+                        hideZoom(img);
+                        isZoomed = false;
+                        zoomContainer = null;
+                        }
+                    };
 
                 img.addEventListener('mouseenter', handleMouseEnter);
                 img.addEventListener('mouseleave', handleMouseLeave);
@@ -1776,8 +2234,8 @@ function setupHoverProxy() {
 
         function setupLazyHoverProcessor() {
             document.addEventListener('mouseover', debounce((e) => {
-                window.__lastMouseX = e.clientX;
-                window.__lastMouseY = e.clientY;
+                lastMouse.x = e.clientX;
+                lastMouse.y = e.clientY;
                 if (!isEnabled || isHomepageZoomDisabled()) return;
                 let img = null;
                 if (e.target.tagName === 'IMG') img = e.target;
@@ -1800,12 +2258,7 @@ function setupHoverProxy() {
                     if (mutation.type === 'attributes' &&
                         (mutation.target === document.body || mutation.target === document.documentElement)) {
                         if (isImageInLightboxMode()) {
-                            document.querySelectorAll('.image-zoom-container').forEach(container => {
-                                container.style.opacity = '0';
-                                setTimeout(() => {
-                                    if (container.parentNode) container.parentNode.removeChild(container);
-                                }, 300);
-                            });
+                            document.querySelectorAll('.image-zoom-container').forEach(container => fadeOutAndRemove(container));
                             currentZoomContainer = null;
                             document.querySelectorAll('img.image-zoom-processed').forEach(img => {
                                 const state = states.get(img);
@@ -1822,23 +2275,47 @@ function setupHoverProxy() {
             lightboxObserver = observer;
             return observer;
         }
+        
+        let lazyImageObserver = null;
 
-        function initImages() {
-            if (isHomepageZoomDisabled()) return;
-            const imgs = Array.from(document.querySelectorAll('img:not(.image-zoom-processed)'));
-            const processBatch = (deadline) => {
-                while (imgs.length > 0 && (deadline.timeRemaining ? deadline.timeRemaining() > 0 : true)) {
-                    const img = imgs.shift();
-                    processImage(img);
-                }
-                if (imgs.length > 0) {
-                    if ('requestIdleCallback' in window) {
-                        requestIdleCallback(processBatch, { timeout: 1000 });
-                    } else {
-                        setTimeout(() => processBatch({ timeRemaining: () => 5 }), 10);
-                    }
-                }
-            };
+// 视口外图片先观察，进入视口（含 300px 预加载缓冲）才真正处理，省 CPU/内存
+function observeImage(img) {
+  if (!lazyImageObserver) {
+    lazyImageObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          lazyImageObserver.unobserve(entry.target);
+          processImage(entry.target);
+        }
+      });
+    }, { rootMargin: '300px 0px' });
+  }
+  lazyImageObserver.observe(img);
+}
+
+
+function initImages() {
+  if (isHomepageZoomDisabled()) return;
+  const imgs = document.querySelectorAll('img:not(.image-zoom-processed)');
+  if ('IntersectionObserver' in window) {
+    imgs.forEach(observeImage);
+    return;
+  }
+  // 旧浏览器回退：空闲时间分批处理
+  const queue = Array.from(imgs);
+  const processBatch = (deadline) => {
+    while (queue.length > 0 && (deadline.timeRemaining ? deadline.timeRemaining() > 0 : true)) {
+      processImage(queue.shift());
+    }
+    if (queue.length > 0) {
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(processBatch, { timeout: 1000 });
+      } else {
+        setTimeout(() => processBatch({ timeRemaining: () => 5 }), 10);
+      }
+    }
+  };
+
             if ('requestIdleCallback' in window) {
                 requestIdleCallback(processBatch, { timeout: 1000 });
             } else {
@@ -1879,7 +2356,10 @@ function setupHoverProxy() {
                             });
                         }
                     });
-                    nodesToProcess.forEach(img => processImage(img));
+                    nodesToProcess.forEach(img => {
+                        if (lazyImageObserver) observeImage(img);
+                        else processImage(img);
+                        });
                     processingQueue = false;
                 });
             });
@@ -1905,7 +2385,7 @@ function setupHoverProxy() {
             startObserver();
         }
 
-        return { init, cleanup, onWheel };
+        return { init, cleanup, onWheel, hasActiveZoom: () => !!currentZoomContainer };
     })();
 
     // ================================
@@ -2043,16 +2523,43 @@ function setupHoverProxy() {
             isEnabled = enabled;
             GM_setValue('bilibili_volume_enabled', enabled);
             if (enabled) {
-                window.addEventListener('keydown', handleKeydown);
-                document.addEventListener('volumechange', handleVolumeChange, { capture: true });
-            } else {
-                window.removeEventListener('keydown', handleKeydown);
-                document.removeEventListener('volumechange', handleVolumeChange, { capture: true });
-            }
-        }
+    window.addEventListener('keydown', handleKeydown);
+    document.addEventListener('volumechange', handleVolumeChange, { capture: true });
+  } else {
+    window.removeEventListener('keydown', handleKeydown);
+    document.removeEventListener('volumechange', handleVolumeChange, { capture: true });
+  }
+  if (wheelManager) wheelManager.sync();
+}
 
-        return { init, setEnabled, onWheel, get isEnabled() { return isEnabled; } };
+        return {
+            init, setEnabled, onWheel,
+            isFullscreenActive: isInFullscreenMode,
+            get isEnabled() { return isEnabled; }
+            };
     })();
+    
+    wheelManager = (function () {
+  let attached = false;
+  function handler(e) {
+    if (imageZoomModule.onWheel(e)) return;
+    bilibiliVolumeModule.onWheel(e);
+  }
+  function sync() {
+    const need = imageZoomModule.hasActiveZoom() || bilibiliVolumeModule.isFullscreenActive();
+    if (need && !attached) {
+      document.addEventListener('wheel', handler, { capture: true, passive: false });
+      attached = true;
+    } else if (!need && attached) {
+      document.removeEventListener('wheel', handler, { capture: true });
+      attached = false;
+    }
+  }
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  return { sync };
+})();
+
 
     // ================================
     // 主初始化函数
@@ -2060,10 +2567,7 @@ function setupHoverProxy() {
     function mainInit() {
         imageZoomModule.init();
         bilibiliVolumeModule.init();
-        document.addEventListener('wheel', (e) => {
-            if (imageZoomModule.onWheel(e)) return;
-            bilibiliVolumeModule.onWheel(e);
-        }, { capture: true, passive: false });
+        wheelManager.sync();
     }
 
     if (document.readyState === 'loading') {
