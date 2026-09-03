@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         鼠标悬停图片自动放大预览
 // @namespace    https://github.com/YDGG123
-// @version      4.3.5
+// @version      4.3.6
 // @description  一款好用的网页图片放大工具，鼠标悬停即可自动放大图片，适配所有网页～
 // @author       益达哥哥
 // @match        *://*/*
@@ -17,14 +17,6 @@
 // @supportURL   https://github.com/YDGG123/hover-image-zoom/issues
 // @downloadURL  https://raw.githubusercontent.com/YDGG123/hover-image-zoom/main/hover-image-zoom.user.js
 // ==/UserScript==
-
-/*
- * v4.3.0 更新日志：
- * - 新增：放大图黑边自动裁剪（图片上下/左右的黑边自动去除，只显示有效内容）
- * - 新增：论坛缩略图高清化（Discuz 站点 /remote/thumb/宽x高/ 形式的缩略图自动替换为原图地址）
- * - 优化：放大图加载更稳（跨域受限的图片自动降级重试，避免个别站点放大图加载失败）
- * - 优化：背景图卡片站点的悬停放大支持（覆盖层遮挡也能正常触发放大，防闪烁）
- */
 
 
 (function() {
