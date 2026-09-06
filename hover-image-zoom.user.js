@@ -8,7 +8,6 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_xmlhttpRequest
-// @grant        GM_info
 // @connect      damp-woodpecker-4867.ydgg123.deno.net
 // @run-at       document-end
 // @noframes
