@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         鼠标悬停图片自动放大预览
 // @namespace    https://github.com/YDGG123
-// @version      5.6.41
+// @version      5.6.42
 // @description  网页图片鼠标悬停自动放大工具：智能自适应、高清图后台升级、滚轮边界控制
 // @author       益达哥哥
 // @match        *://*/*
@@ -20,7 +20,7 @@
 (function() {
     'use strict';
 
-const SCRIPT_VERSION = "5.6.41";
+const SCRIPT_VERSION = "5.6.42";
 
     // ================
     // ★ 存储适配层（当前仍使用 Tampermonkey GM_*，仅抽象接口，不改变行为）
@@ -1654,32 +1654,12 @@ const SCRIPT_VERSION = "5.6.41";
     function isElementInsideLightbox(target) {
         if (!target || !target.closest) return false;
         try {
+            // 只信任明确的 Lightbox / Dialog 结构，不再使用
+            // “fixed/absolute + 高 z-index + 大尺寸 + 包含图片”的启发式兜底。
+            // 后者容易把普通页面的固定面板、广告层、播放器等误判为 Lightbox。
             if (target.closest(LIGHTBOX_SELECTORS.join(','))) return true;
             if (target.closest('[role="dialog"],[aria-modal="true"]')) return true;
         } catch (e) { }
-
-        let node = target.nodeType === Node.ELEMENT_NODE ? target : target.parentElement;
-        let depth = 0;
-        while (node && node !== document.body && node !== document.documentElement && depth++ < 14) {
-            try {
-                const cs = getComputedStyle(node);
-                const positioned = cs.position === 'fixed' || cs.position === 'absolute';
-                const z = cs.zIndex === 'auto' ? 0 : parseFloat(cs.zIndex);
-                const r = node.getBoundingClientRect();
-                const large = r.width >= Math.max(320, window.innerWidth * 0.45) ||
-                              r.height >= Math.max(240, window.innerHeight * 0.45);
-                const fullscreenish = r.width >= window.innerWidth * 0.75 && r.height >= window.innerHeight * 0.65;
-                const containsImage = !!(node.querySelector && node.querySelector('img'));
-                const keyword = hasLightboxKeyword(node);
-                if (positioned && z >= 100 && isVisibleLightboxElement(node) && containsImage && (keyword || large || fullscreenish)) {
-                    return true;
-                }
-                // 常见“全屏遮罩 + 内容层”结构：容器本身可能没有关键词，
-                // 但内部已有一张大图，因此再做一层更严格的兜底。
-                if (positioned && z >= 100 && fullscreenish && containsImage) return true;
-            } catch (e) { }
-            node = node.parentElement;
-        }
         return false;
     }
 
@@ -1716,11 +1696,58 @@ const SCRIPT_VERSION = "5.6.41";
     }
 
     function setupLightboxObserver() {
+        let checkScheduled = false;
+        let observer = null;
+
         const dismissIfOpen = () => {
+            checkScheduled = false;
             if (isImageInLightboxMode()) zoomFSM.dispatch('DISMISS');
         };
 
-        new MutationObserver(dismissIfOpen).observe(document.body, {
+        const scheduleCheck = () => {
+            if (checkScheduled) return;
+            checkScheduled = true;
+            requestAnimationFrame(dismissIfOpen);
+        };
+
+        const isRelevantMutation = (mutation) => {
+            if (mutation.type === 'attributes') {
+                const target = mutation.target;
+                if (!target || target.nodeType !== Node.ELEMENT_NODE) return false;
+                // Lightbox 状态只可能通过这些属性发生可见变化。
+                return target === document.body ||
+                       target === document.documentElement ||
+                       !!target.closest(LIGHTBOX_SELECTORS.join(',')) ||
+                       !!target.closest('[role="dialog"],[aria-modal="true"]') ||
+                       target.matches?.('[data-fancybox],[data-lightbox],.lightbox,.fancybox,.pswp,.viewer-container');
+            }
+
+            if (mutation.type === 'childList') {
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType !== Node.ELEMENT_NODE) continue;
+                    if (node.matches?.(LIGHTBOX_SELECTORS.join(','))) return true;
+                    if (node.matches?.('[role="dialog"],[aria-modal="true"],img,[data-fancybox],[data-lightbox],.lightbox,.fancybox,.pswp,.viewer-container')) return true;
+                    if (node.querySelector?.(LIGHTBOX_SELECTORS.join(','))) return true;
+                    if (node.querySelector?.('[role="dialog"],[aria-modal="true"],[data-fancybox],[data-lightbox],.lightbox,.fancybox,.pswp,.viewer-container')) return true;
+                }
+                return false;
+            }
+
+            return false;
+        };
+
+        observer = new MutationObserver(mutations => {
+            // Observer 仍监听页面结构，但真正的 Lightbox 检测只在
+            // 可能影响 Lightbox 状态的 mutation 上触发，并且每帧最多检测一次。
+            for (const mutation of mutations) {
+                if (isRelevantMutation(mutation)) {
+                    scheduleCheck();
+                    break;
+                }
+            }
+        });
+
+        observer.observe(document.body, {
             subtree: true,
             childList: true,
             attributes: true,
@@ -2334,7 +2361,7 @@ const bilibiliVolumeModule = (function() {
                     <div class="iz-update-item">🚀 自 5.6.11 以来，持续增强图片悬停放大、动态图片、背景图与网页灯箱兼容性。</div>
                     <div class="iz-update-item">🧩 完成核心功能的渐进式模块化：配置、状态机、悬停解析、图片处理、观察器、站点适配及 UI 已拆分。</div>
                     <div class="iz-update-item">🛡️ 优化窗口失焦、Lightbox、同链接标题桥接等兼容场景，同时保持原有放大体验。</div>
-                    <div class="iz-update-item">🧰 为后续浏览器扩展迁移做好结构准备。</div>
+                    <div class="iz-update-item">🧰 为后续浏览器扩展迁移做好结构准备；本版本新安装默认最小放大尺寸调整为 51px。</div>
                 </div>
                 <div class="iz-update-footer">
                     <button class="iz-btn-primary-solid iz-update-ok" id="izUpdateOk">知道了</button>
