@@ -116,7 +116,7 @@ image.example.com → 3 倍
 
 ## 🔎 搜索关键词
 
-网页图片放大、图片悬停放大、鼠标悬停图片、图片自动放大、网页图片预览、缩略图放大、高清图片预览、图片增强、油猴图片放大、Tampermonkey 图片放大、网页图片增强、鼠标移到图片自动放大、鼠标移上去显示大图、论坛图片放大、Discuz 图片放大、Bilibili 图片放大、动态图片放大、背景图片放大、Lightbox 图片预览、Fancybox 图片预览、Image Hover Zoom、Image Preview、Image Zoom。
+鼠标悬停图片放大、图片悬停预览、网页图片预览、缩略图放大、按网站配置、Lightbox 避让、论坛图片放大、Discuz、高清图预览、Image Hover Zoom
 
 ## 📖 项目简介
 
