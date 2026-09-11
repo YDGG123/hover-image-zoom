@@ -1,14 +1,12 @@
 // ==UserScript==
-// @name         鼠标悬停图片自动放大预览
+// @name         悬景 · HoverVista｜鼠标悬停图片自动放大预览
 // @namespace    https://github.com/YDGG123
-// @version      5.6.42
+// @version      5.6.47
 // @description  网页图片鼠标悬停自动放大工具：智能自适应、高清图后台升级、滚轮边界控制
 // @author       益达哥哥
 // @match        *://*/*
 // @grant        GM_getValue
 // @grant        GM_setValue
-// @grant        GM_xmlhttpRequest
-// @connect      damp-woodpecker-4867.ydgg123.deno.net
 // @run-at       document-end
 // @noframes
 // @license      MIT
@@ -20,7 +18,7 @@
 (function() {
     'use strict';
 
-const SCRIPT_VERSION = "5.6.42";
+const SCRIPT_VERSION = "5.6.47";
 
     // ================
     // ★ 存储适配层（当前仍使用 Tampermonkey GM_*，仅抽象接口，不改变行为）
@@ -73,10 +71,60 @@ const SCRIPT_VERSION = "5.6.42";
     // 停稳裁决器与后续校验（心跳/TIMER_FIRE）使用
     const lastMouse = { x: -1, y: -1, t: 0 };
 
+    // ★ 悬停等待指示器：停稳后继续等待 300ms 才出现，使用轻量的“三点聚焦”动画（增强可见度）。
+    // 不拦截鼠标事件；进入 SHOWING/ACTIVE/FADING、切图或取消等待时立即隐藏。
+    let hoverWaitIndicator = null;
+    let hoverWaitIndicatorTimer = null;
+    function ensureHoverWaitIndicator() {
+        if (hoverWaitIndicator && hoverWaitIndicator.isConnected) return hoverWaitIndicator;
+        const el = document.createElement('div');
+        el.id = 'hoverWaitIndicator';
+        el.setAttribute('aria-hidden', 'true');
+        el.innerHTML = '<i></i><i></i><i></i>';
+        document.documentElement.appendChild(el);
+        hoverWaitIndicator = el;
+        return el;
+    }
+    function positionHoverWaitIndicator(x, y) {
+        const el = ensureHoverWaitIndicator();
+        el.style.left = Math.round(x) + 'px';
+        el.style.top = Math.round(y) + 'px';
+    }
+    function showHoverWaitIndicator(x, y, duration) {
+        const el = ensureHoverWaitIndicator();
+        positionHoverWaitIndicator(x, y + 18);
+        el.style.setProperty('--hover-wait-duration', Math.max(80, duration || config.delay || 800) + 'ms');
+        el.classList.add('show');
+    }
+    function hideHoverWaitIndicator() {
+        if (hoverWaitIndicatorTimer) { clearTimeout(hoverWaitIndicatorTimer); hoverWaitIndicatorTimer = null; }
+        if (hoverWaitIndicator) hoverWaitIndicator.classList.remove('show');
+    }
+    function scheduleHoverWaitIndicator(img) {
+        hideHoverWaitIndicator();
+        if (!img || !img.isConnected) return;
+        hoverWaitIndicatorTimer = setTimeout(() => {
+            hoverWaitIndicatorTimer = null;
+            if (zoomFSM && zoomFSM.state === 'PENDING' && pendingImageForIndicator === img) {
+                const x = lastMouse.x;
+                const y = lastMouse.y;
+                if (x >= 0 && y >= 0) showHoverWaitIndicator(x, y, config.delay);
+            }
+        }, 300);
+    }
+    let pendingImageForIndicator = null;
+
     // ★ 光标是否在浏览器窗口内：mouseout(relatedTarget=null) 置 false，mousemove 置 true。
     // 原生窗口（文件管理器等）覆盖浏览器时，DOM 对遮挡毫无感知，
     // elementFromPoint 和 lastMouse 都会给出"光标仍在图上"的假象，必须靠此标记纠偏
     let pointerInWindow = true;
+    // ★ 浏览器窗口当前是否有焦点。关闭“失焦时收起”后，用它区分
+    // “鼠标真正离开浏览器”与“浏览器被文件管理器/其他应用暂时盖住”。
+    let browserWindowFocused = true;
+    let suppressWindowExitUntil = 0;
+    let resumeBlockX = -1;
+    let resumeBlockY = -1;
+    let resumeBlockedUntilMouseMove = false;
 
     const currentDomain = getDomain();
 
@@ -171,7 +219,7 @@ const SCRIPT_VERSION = "5.6.42";
     // 1. 配置
     // ================
     const defaultConfig = {
-        delay: 500,
+        delay: 800,
         scale: 2,
         maxWidth: 1200,
         maxHeight: 980,
@@ -183,6 +231,7 @@ const SCRIPT_VERSION = "5.6.42";
         smallImgHeight: 430,
         avoidClickConflict: true,
         blurDismiss: true,
+        wheelZoom: true,
         zoomMode: 'adaptive',
         minOriginalSize: 51
     };
@@ -211,6 +260,7 @@ const SCRIPT_VERSION = "5.6.42";
         }
         v.zoomMode = v.zoomMode === 'fixed' ? 'fixed' : 'adaptive';
         v.blurDismiss = typeof v.blurDismiss === 'boolean' ? v.blurDismiss : true;
+        v.wheelZoom = typeof v.wheelZoom === 'boolean' ? v.wheelZoom : true;
         return v;
     }
 
@@ -501,10 +551,32 @@ const SCRIPT_VERSION = "5.6.42";
                 if (imgEl.__zoomBlobUrl) URL.revokeObjectURL(imgEl.__zoomBlobUrl);
                 imgEl.__zoomBlobUrl = url;
                 imgEl.src = url;
-                // 容器尺寸保持不变（尊重当前模式的尺寸语义），
-                // 只按新宽高比在容器内做 contain 重排
+                // ★ 滚轮缩放模式：裁剪完成后绝不能重新按容器 contain 重排。
+                // 否则异步 toBlob 回调会把用户刚刚滚轮放大的尺寸重置，表现为
+                // “第一滚轮先缩小一点”，竖图甚至会直接跳回最小尺寸。
+                // 同时让容器始终与实际图片尺寸一致，避免出现透明的大框。
                 const box = imgEl.parentNode;
-                if (box && box.classList.contains('image-zoom-container')) {
+                const activeInst = box && box.__zoomInstance;
+                if (box && box.classList.contains('image-zoom-container') && activeInst && activeInst.wheelZoom) {
+                    const currentZoom = Number.isFinite(activeInst.currentZoom) ? activeInst.currentZoom : 1;
+                    const visualW = parseFloat(imgEl.style.width) || box.clientWidth || w;
+                    const visualH = parseFloat(imgEl.style.height) || box.clientHeight || h;
+                    // 以裁剪前当前实际显示尺寸反推新的 zoom=1 基准，保持当前视觉大小不跳变。
+                    activeInst.zoomBaseW = Math.max(1, visualW / currentZoom);
+                    activeInst.zoomBaseH = Math.max(1, visualH / currentZoom);
+                    const nw = Math.max(1, Math.round(activeInst.zoomBaseW * currentZoom));
+                    const nh = Math.max(1, Math.round(activeInst.zoomBaseH * currentZoom));
+                    box.style.setProperty('width', nw + 'px', 'important');
+                    box.style.setProperty('height', nh + 'px', 'important');
+                    box.style.setProperty('max-width', 'none', 'important');
+                    box.style.setProperty('max-height', 'none', 'important');
+                    box.style.setProperty('overflow', 'visible', 'important');
+                    imgEl.style.setProperty('width', nw + 'px', 'important');
+                    imgEl.style.setProperty('height', nh + 'px', 'important');
+                    imgEl.style.setProperty('left', '0px', 'important');
+                    imgEl.style.setProperty('top', '0px', 'important');
+                    imgEl.style.setProperty('object-fit', 'fill', 'important');
+                } else if (box && box.classList.contains('image-zoom-container')) {
                     const bw = box.clientWidth, bh = box.clientHeight;
                     const ratio = cw / ch;
                     let nw = bw, nh = Math.round(bw / ratio);
@@ -1054,7 +1126,9 @@ const SCRIPT_VERSION = "5.6.42";
 
         function clearPending() {
             if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
+            hideHoverWaitIndicator();
             pendingImg = null;
+            pendingImageForIndicator = null;
             pendingFails = 0;
             pendingGraceUsed = false;
         }
@@ -1123,25 +1197,44 @@ const SCRIPT_VERSION = "5.6.42";
                         boxH = Math.round(boxH * fit);
                     }
                 }
-                if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-                    const natRatio = img.naturalWidth / img.naturalHeight;
-                    const boxRatio = boxW / boxH;
-                    if (natRatio > boxRatio) boxH = Math.round(boxW / natRatio);
-                    else boxW = Math.round(boxH * natRatio);
+                // wheel 缩放模式建立独立缩放坐标系：
+                // zoom=1 的宽度等于原缩略图渲染宽度，高度严格按实际图片比例推导。
+                // 这样不会把缩略图比例误当成原图比例，也不会生成透明的横向容器。
+                const naturalW = Number(img.naturalWidth) || 0;
+                const naturalH = Number(img.naturalHeight) || 0;
+                const naturalRatio = naturalW > 0 && naturalH > 0
+                    ? naturalW / naturalH
+                    : (rect.width / Math.max(1, rect.height));
+                if (naturalRatio > 0) {
+                    const boxRatio = boxW / Math.max(1, boxH);
+                    if (naturalRatio > boxRatio) boxH = Math.max(1, Math.round(boxW / naturalRatio));
+                    else boxW = Math.max(1, Math.round(boxH * naturalRatio));
                 }
-                const imgW = Math.round(boxW * imgScale), imgH = Math.round(boxH * imgScale);
-                const offX = Math.round((boxW - imgW) / 2), offY = Math.round((boxH - imgH) / 2);
+
+                let wheelBaseW = Math.max(1, rect.width);
+                let wheelBaseH = Math.max(1, Math.round(wheelBaseW / naturalRatio));
+                let wheelInitialZoom = 1;
+                if (config.wheelZoom) {
+                    // 先保留现有首次放大尺寸，再反推出倍率；第一次滚轮就在这个尺寸上继续放大。
+                    wheelInitialZoom = Math.max(1, boxW / wheelBaseW);
+                    boxW = Math.max(1, Math.round(wheelBaseW * wheelInitialZoom));
+                    boxH = Math.max(1, Math.round(wheelBaseH * wheelInitialZoom));
+                }
+                const imgW = config.wheelZoom ? boxW : Math.round(boxW * imgScale);
+                const imgH = config.wheelZoom ? boxH : Math.round(boxH * imgScale);
+                const offX = Math.round((boxW - imgW) / 2);
+                const offY = Math.round((boxH - imgH) / 2);
                 const zi = img.__zoomHasClick ? config.zoomZIndex - 1 : config.zoomZIndex;
                 const container = document.createElement('div');
                 container.className = 'image-zoom-container';
                 container.dataset.izOwner = 'fsm';
                 container.style.cssText = `position:fixed;z-index:${zi};opacity:0;transition:opacity .3s ease;
                     pointer-events:none;left:50%;top:50%;transform:translate(-50%,-50%);
-                    width:${boxW}px;height:${boxH}px;box-sizing:border-box;border-radius:10px;overflow:hidden;`;
+                    width:${boxW}px;height:${boxH}px;max-width:none;max-height:none;box-sizing:border-box;border-radius:10px;overflow:visible;`;
                 const zoomedImg = document.createElement('img');
                 zoomedImg.alt = '';
                 zoomedImg.style.cssText = `position:absolute;left:${offX}px;top:${offY}px;width:${imgW}px;height:${imgH}px;
-                    object-fit:contain;transition:opacity .3s ease,transform .35s cubic-bezier(.34,1.56,.64,1);
+                    object-fit:fill;max-width:none;max-height:none;transition:opacity .3s ease;
                     box-shadow:0 4px 20px rgba(0,0,0,.2);display:block;border-radius:10px;transform:scale(.6);opacity:0;`;
 
                 const fallbackSrc = img.src || img.currentSrc;
@@ -1153,14 +1246,39 @@ const SCRIPT_VERSION = "5.6.42";
                 }
                 if (hiResSrc === fallbackSrc) hiResSrc = null;
 
+                const initialZoom = config.wheelZoom
+                    ? wheelInitialZoom
+                    : Math.max(1, Math.min(5, Math.min(boxW / rect.width, boxH / rect.height)));
                 const inst = {
                     container, imgEl: zoomedImg, sourceImg: img,
-                    fallbackSrc, usingHiRes: false, revealed: false
+                    fallbackSrc, usingHiRes: false, revealed: false,
+                    sourceW: rect.width, sourceH: rect.height,
+                    currentZoom: initialZoom,
+                    wheelZoom: !!config.wheelZoom,
+                    zoomBaseW: config.wheelZoom ? wheelBaseW : rect.width,
+                    zoomBaseH: config.wheelZoom ? wheelBaseH : rect.height,
+                    imageRatio: naturalRatio
                 };
+                container.__zoomInstance = inst;
 
                 zoomedImg.onload = () => {
                     if (instance !== inst) return; // 过期实例回调直接丢弃
-                    cropBlackBars(zoomedImg);
+                    if (inst.wheelZoom && zoomedImg.naturalWidth > 0 && zoomedImg.naturalHeight > 0) {
+                        const nextRatio = zoomedImg.naturalWidth / zoomedImg.naturalHeight;
+                        if (nextRatio > 0 && Math.abs(nextRatio - inst.imageRatio) > 0.0001) {
+                            inst.imageRatio = nextRatio;
+                            inst.zoomBaseH = Math.max(1, inst.zoomBaseW / nextRatio);
+                            const w = Math.max(1, Math.round(inst.zoomBaseW * inst.currentZoom));
+                            const h = Math.max(1, Math.round(inst.zoomBaseH * inst.currentZoom));
+                            inst.container.style.setProperty('width', w + 'px', 'important');
+                            inst.container.style.setProperty('height', h + 'px', 'important');
+                            zoomedImg.style.setProperty('width', w + 'px', 'important');
+                            zoomedImg.style.setProperty('height', h + 'px', 'important');
+                        }
+                    }
+                    // 滚轮缩放模式不参与异步黑边裁剪：裁剪会改变图片天然比例并在 toBlob 回调中重新布局，
+                    // 从而造成首个滚轮“先缩小一下”以及竖图跳回最小尺寸/出现透明框。
+                    if (!inst.wheelZoom) cropBlackBars(zoomedImg);
                     if (!inst.revealed) {
                         inst.revealed = true;
                         FSM.dispatch('LOADED', inst);
@@ -1207,6 +1325,8 @@ const SCRIPT_VERSION = "5.6.42";
             startPending(img) {
                 clearPending();
                 pendingImg = img;
+                pendingImageForIndicator = img;
+                scheduleHoverWaitIndicator(img);
                 pendingTimer = setTimeout(() => FSM.dispatch('TIMER_FIRE', img), config.delay);
                 state = S.PENDING;
             },
@@ -1215,6 +1335,7 @@ const SCRIPT_VERSION = "5.6.42";
                 state = S.IDLE;
             },
             show(img) {
+                hideHoverWaitIndicator();
                 const inst = createInstance(img);
                 if (!inst) {
                     state = S.IDLE;
@@ -1227,13 +1348,14 @@ const SCRIPT_VERSION = "5.6.42";
             },
             activate(inst) {
                 if (inst !== instance) return;
+                hideHoverWaitIndicator();
                 inst.container.style.opacity = '1';
                 inst.imgEl.style.transform = 'scale(1)';
                 inst.imgEl.style.opacity = '1';
-                // 容器超出视口时提示可滚动查看（1200ms 后自动消失，避免遮挡）
+                // 图片超出视口时提示当前滚轮操作（1200ms 后自动消失，避免遮挡）
                 if (inst.container.offsetHeight > window.innerHeight && !inst.toastShown) {
                     inst.toastShown = true;
-                    showToast('图片超出屏幕，滚动滚轮查看其余部分', 800);
+                    showToast(config.wheelZoom ? '滚动滚轮缩放图片' : '图片超出屏幕，滚动滚轮查看其余部分', 800);
                 }
                 state = S.ACTIVE;
             },
@@ -1258,6 +1380,59 @@ const SCRIPT_VERSION = "5.6.42";
                 state = S.FADING;
                 setTimeout(() => { if (state === S.FADING) state = S.IDLE; }, FADE_MS);
                 wheelManager.sync();
+            },
+            zoomByWheel(e) {
+                if (!instance) return;
+                const c = instance.container, im = instance.imgEl;
+                const sourceW = Number(instance.sourceW) || (instance.sourceImg ? instance.sourceImg.getBoundingClientRect().width : 0);
+                const sourceH = Number(instance.sourceH) || (instance.sourceImg ? instance.sourceImg.getBoundingClientRect().height : 0);
+                if (!(sourceW > 0 && sourceH > 0)) return;
+
+                // 缩放使用乘法倍率，避免不同基础倍率下出现“滚轮一下反而缩小一点”的视觉抖动。
+                // 向上固定放大约 8%，向下固定缩小约 7.4%，并始终以 1× 为下限。
+                const ZOOM_IN = 1.08;
+                const ZOOM_OUT = 1 / 1.08;
+                const direction = e.deltaY < 0 ? 1 : -1;
+                const current = Number.isFinite(instance.currentZoom) ? instance.currentZoom : 1;
+                const naturalW = Number(instance.sourceImg && instance.sourceImg.naturalWidth) || 0;
+                const naturalH = Number(instance.sourceImg && instance.sourceImg.naturalHeight) || 0;
+                // 最大倍率根据原图分辨率动态计算：允许明显超出页面，但避免生成失控的超大 DOM。
+                // 没有可用原图尺寸时使用保守上限。
+                const basePixels = naturalW > 0 && naturalH > 0 ? naturalW * naturalH : 0;
+                const resolutionZoom = basePixels > 0
+                    ? Math.sqrt((12000000) / basePixels) * Math.max(1, Math.min(4, Math.max(naturalW, naturalH) / 1200))
+                    : 24;
+                const maxZoom = Math.max(20, Math.min(50, resolutionZoom));
+                const nextZoom = Math.max(1, Math.min(maxZoom, current * (direction > 0 ? ZOOM_IN : ZOOM_OUT)));
+                if (Math.abs(nextZoom - current) < 0.0001) return;
+                instance.currentZoom = nextZoom;
+
+                // 宽高始终由同一个缩放倍率计算，绝不分别缩放，保证横竖图比例恒定。
+                // 缩放基准固定为实例当前的 zoom=1 尺寸。
+                // 裁剪、高清图替换等异步过程不会再把这个基准重置成容器尺寸。
+                const baseW = Number(instance.zoomBaseW) > 0 ? instance.zoomBaseW : sourceW;
+                const ratio = Number(instance.imageRatio) > 0 ? instance.imageRatio : (sourceW / Math.max(1, sourceH));
+                const baseH = Number(instance.zoomBaseH) > 0 ? instance.zoomBaseH : (baseW / ratio);
+                const w = Math.max(1, Math.round(baseW * nextZoom));
+                const h = Math.max(1, Math.round(baseH * nextZoom));
+                c.style.setProperty('width', w + 'px', 'important');
+                c.style.setProperty('height', h + 'px', 'important');
+                c.style.setProperty('max-width', 'none', 'important');
+                c.style.setProperty('max-height', 'none', 'important');
+                c.style.setProperty('overflow', 'visible', 'important');
+                c.style.transform = 'translate(-50%, -50%)';
+                instance.panY = 0;
+
+                im.style.setProperty('left', '0px', 'important');
+                im.style.setProperty('top', '0px', 'important');
+                im.style.setProperty('width', w + 'px', 'important');
+                im.style.setProperty('height', h + 'px', 'important');
+                im.style.setProperty('max-width', 'none', 'important');
+                im.style.setProperty('max-height', 'none', 'important');
+                im.style.setProperty('min-width', '0', 'important');
+                im.style.setProperty('min-height', '0', 'important');
+                im.style.setProperty('object-fit', 'contain', 'important');
+                im.style.setProperty('transform', 'none', 'important');
             },
             pan(e) {
                 if (!instance) return;
@@ -1287,12 +1462,21 @@ const SCRIPT_VERSION = "5.6.42";
             get state() { return state; },
             hasActiveZoom() { return state === S.SHOWING || state === S.ACTIVE; },
             getActiveRect() { return instance ? instance.container.getBoundingClientRect() : null; },
+            getSourceRect() { return instance && instance.sourceImg && instance.sourceImg.isConnected ? instance.sourceImg.getBoundingClientRect() : null; },
 
             heartbeat() {
                 if (!isEnabled || isHomepageZoomDisabled()) { FSM.dispatch('RESET'); return; }
 
-                // ★ 光标不在浏览器内：不维持任何状态（mouseout 可能未送达，这里兜底）
+                // ★ 窗口切换后的恢复保护：必须等用户真实移动鼠标后才恢复 hover 裁决。
+                // 防止 Alt+Tab / 原生窗口切换时浏览器仅收到 focus/mouseover 等事件，
+                // 使用旧的 lastMouse 坐标再次触发放大，造成“先收起、再自动放大”。
+                if (resumeBlockedUntilMouseMove) return;
+
+                // ★ 窗口失焦且关闭了“失焦时收起”：保留当前预览，等待切回。
+                // 文件管理器等原生窗口覆盖浏览器时，浏览器可能收到 mouseout + blur；
+                // 此时不能把“窗口失焦”误判成“鼠标离开原图”。
                 if (!pointerInWindow) {
+                    if (!browserWindowFocused && !config.blurDismiss) return;
                     if (state === S.PENDING) actions.cancel();
                     else if ((state === S.SHOWING || state === S.ACTIVE) && instance) actions.beginFade();
                     return;
@@ -1407,7 +1591,9 @@ const SCRIPT_VERSION = "5.6.42";
                                 wheelTicking = true;
                                 requestAnimationFrame(() => {
                                     wheelTicking = false;
-                                    if (lastWheelEvent && state === S.ACTIVE && instance) actions.pan(lastWheelEvent);
+                                    if (!lastWheelEvent || state !== S.ACTIVE || !instance) return;
+                                    if (config.wheelZoom) actions.zoomByWheel(lastWheelEvent);
+                                    else actions.pan(lastWheelEvent);
                                 });
                             }
                             return true;
@@ -1480,6 +1666,7 @@ const SCRIPT_VERSION = "5.6.42";
                 lastMouse.x = e.clientX;
                 lastMouse.y = e.clientY;
             }
+            if (resumeBlockedUntilMouseMove) return;
             resolveCursorTarget(e.clientX, e.clientY, e.target);
         }, 60), true);
 
@@ -1487,6 +1674,7 @@ const SCRIPT_VERSION = "5.6.42";
         // 兜底 mouseover 被节流丢弃 / 未派发 / target 不含 img 的所有情况。
         const stopResolve = debounce(() => {
             if (document.hidden) return;
+            if (resumeBlockedUntilMouseMove) return;
             if (!pointerInWindow) return;   // ★ 光标已被其他窗口覆盖，不裁决
             const x = lastMouse.x, y = lastMouse.y;
             if (x < 0) return;
@@ -1494,21 +1682,59 @@ const SCRIPT_VERSION = "5.6.42";
         }, 120);
         document.addEventListener('mousemove', () => { stopResolve(); }, { passive: true });
 
-        // 鼠标真正离开窗口（移到文件管理器等原生窗口上）
+        // ★ 鼠标真正离开浏览器窗口。
+        // 原生窗口（文件管理器等）覆盖浏览器时，mouseout 可能和 blur 一起出现。
+        // 关闭“窗口失焦时收起”后，先短暂等待 blur 事件完成；如果确认浏览器已失焦，
+        // 则把这次 mouseout 视为“窗口切换”，保留当前预览。
         document.addEventListener('mouseout', (e) => {
             if (!e.relatedTarget) {
                 pointerInWindow = false;
+                resumeBlockedUntilMouseMove = true;
+
+                // ★ 关闭“窗口失焦时收起”后，mouseout 绝不能单独收起当前预览。
+                // 浏览器/原生窗口切换时，mouseout 与 blur 的先后顺序并不固定；
+                // 如果这里立即或异步执行 HOVER_NONE，就会把“切换应用”误判成“离开原图”。
+                // 此模式下只记录窗口外状态，等真正的物理 mousemove 回来后再恢复裁决。
+                if (!config.blurDismiss) return;
+
                 zoomFSM.dispatch('HOVER_NONE', { x: lastMouse.x, y: lastMouse.y, force: true });
             }
         }, true);
 
-        // ★ 窗口失焦（Alt+Tab 切到其他应用 / 点击其他窗口）→ 可配置地强制淡出。
-        // 与 mouseout 同理：光标未移动时 DOM 无感知，但视线已离开浏览器。
-        // 不改 pointerInWindow——光标物理上可能仍在页面内（如点击独立 devtools 窗口），
-        // mousemove 会照常到达并自愈。开关关闭时不做任何处理（对照查看模式）
+        // ★ 浏览器窗口失去焦点。
+        // 开启：失焦时收起预览。
+        // 关闭：仅记录失焦，不主动收起；这样 Alt+Tab、点击其他应用、文件管理器覆盖等
+        // 场景都可以保留当前预览，切回浏览器后继续查看。
         window.addEventListener('blur', () => {
-            if (!config.blurDismiss) return;
-            zoomFSM.dispatch('HOVER_NONE', { x: lastMouse.x, y: lastMouse.y, force: true });
+            browserWindowFocused = false;
+            resumeBlockedUntilMouseMove = true;
+            suppressWindowExitUntil = Date.now() + 80;
+            if (config.blurDismiss) {
+                zoomFSM.dispatch('HOVER_NONE', { x: lastMouse.x, y: lastMouse.y, force: true });
+            }
+        });
+
+        window.addEventListener('focus', () => {
+            browserWindowFocused = true;
+            // 不在 focus 时恢复 pointerInWindow；必须等真实 mousemove。
+            // 否则 lastMouse 仍是切换应用前的旧坐标，会立即再次命中原图。
+            pointerInWindow = false;
+            resumeBlockedUntilMouseMove = true;
+            resumeBlockX = lastMouse.x;
+            resumeBlockY = lastMouse.y;
+            suppressWindowExitUntil = 0;
+
+            // 失焦期间没有主动收起时，切回浏览器后重新核对光标位置。
+            // 如果光标仍在原图区域，继续保留；如果已经离开，则立即收起。
+            if (!config.blurDismiss && zoomFSM.hasActiveZoom()) {
+                const x = lastMouse.x, y = lastMouse.y;
+                if (x >= 0) {
+                    const rect = zoomFSM.getSourceRect ? zoomFSM.getSourceRect() : null;
+                    if (!rect || !inRect(x, y, rect)) {
+                        zoomFSM.dispatch('HOVER_NONE', { x, y, force: true });
+                    }
+                }
+            }
         });
     }
 
@@ -1754,6 +1980,37 @@ const SCRIPT_VERSION = "5.6.42";
             attributeFilter: ['class', 'style', 'aria-hidden', 'aria-modal']
         });
 
+        // ★ 测试修复：点击图片打开帖子前，先立即结束当前放大状态。
+        // 某些站点在 click 之前就会执行导航/新标签页逻辑，单靠 click 可能来不及。
+        // 这里只处理当前放大源图片或其链接，不改变普通页面点击行为。
+        const dismissZoomBeforeOpen = (e) => {
+            if (!zoomFSM.hasActiveZoom()) return;
+
+            // 当前已有放大预览时，只要按下位置仍在“原始图片区域”内，
+            // 就把这次操作视为用户正在点击原图/原图所在链接。
+            // 不再依赖 event.target 必须是 img；部分网站的点击层、链接层、
+            // 图片包装器或事件代理会让 target 变成 div/a/span，导致旧版漏掉。
+            const t = e.target;
+            if (t && t.closest && t.closest('.image-zoom-container')) return;
+
+            const sourceRect = zoomFSM.getSourceRect ? zoomFSM.getSourceRect() : null;
+            if (!sourceRect) return;
+
+            const x = Number(e.clientX);
+            const y = Number(e.clientY);
+            if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+            if (!inRect(x, y, sourceRect)) return;
+
+            // pointerdown / mousedown 在导航、新标签、站点 click 代理之前执行，
+            // 因此无论 blurDismiss 开关状态如何，都先清掉旧放大实例。
+            zoomFSM.dispatch('DISMISS');
+        };
+
+        // pointerdown 优先于 click：用户点击图片准备打开帖子时先销毁预览，
+        // 无论 blurDismiss 开启还是关闭，都不会把旧预览带到返回后的页面。
+        document.addEventListener('pointerdown', dismissZoomBeforeOpen, true);
+        document.addEventListener('mousedown', dismissZoomBeforeOpen, true);
+
         document.addEventListener('click', (e) => {
             const t = e.target;
             if (!t || !t.closest) return;
@@ -1930,9 +2187,9 @@ const bilibiliVolumeModule = (function() {
                 #izModalOverlay.anim-out{animation:izOverlayFadeOut .3s ease forwards}
                 @keyframes izOverlayFade{from{opacity:0}to{opacity:1}}
                 @keyframes izOverlayFadeOut{from{opacity:1}to{opacity:0}}
-                #izConfigPanel{width:100%;max-width:560px;max-height:90vh;background:rgba(255,255,255,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:28px;box-shadow:0 25px 60px -12px rgba(0,0,0,.35),0 0 0 1px rgba(255,255,255,.6) inset;overflow:hidden;animation:izPanelSlide .40s cubic-bezier(.16,1,.3,1);display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;box-sizing:border-box}
+                #izConfigPanel{width:100%;max-width:780px;max-height:92vh;background:rgba(255,255,255,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:28px;box-shadow:0 25px 60px -12px rgba(0,0,0,.35),0 0 0 1px rgba(255,255,255,.6) inset;overflow:hidden;animation:izPanelSlide .40s cubic-bezier(.16,1,.3,1);display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;box-sizing:border-box}
                 @keyframes izPanelSlide{from{opacity:0;transform:translateY(28px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
-                .iz-panel-scroll{flex:1;overflow-y:auto;padding:0 28px 12px 28px;scroll-behavior:smooth}
+                .iz-panel-scroll{flex:1;overflow-y:auto;padding:0 28px 12px 28px;scroll-behavior:smooth}.iz-top-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:stretch}.iz-top-grid>.iz-section{margin-top:12px;min-width:0;display:flex;flex-direction:column}.iz-switch-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1;align-items:stretch}.iz-switch-card{display:grid;grid-template-columns:24px minmax(0,1fr);grid-template-rows:auto auto;align-items:start;column-gap:12px;row-gap:3px;min-height:72px;padding:9px 10px;background:rgba(248,250,252,.72);border:1px solid rgba(226,232,240,.75);border-radius:12px;cursor:pointer;user-select:none;transition:background .2s,border-color .2s,transform .2s}.iz-switch-card:hover{background:rgba(255,255,255,.9);border-color:rgba(165,180,252,.8);transform:translateY(-1px)}.iz-switch-card .iz-toggle{grid-column:1;grid-row:1;margin:1px 0 0 0;transform:scale(.64);transform-origin:top left;flex-shrink:0}.iz-switch-text{display:contents}.iz-switch-title{grid-column:2;grid-row:1;font-size:12.5px;font-weight:600;color:#1E293B;line-height:1.35;white-space:nowrap;overflow:visible}.iz-switch-sub{grid-column:1 / -1;grid-row:2;font-size:10.5px;font-weight:400;color:#94A3B8;line-height:1.5;margin-top:1px}.iz-bili-note{display:none}
                 .iz-panel-scroll::-webkit-scrollbar{width:4px}
                 .iz-panel-scroll::-webkit-scrollbar-track{background:transparent}
                 .iz-panel-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:8px}
@@ -1943,8 +2200,8 @@ const bilibiliVolumeModule = (function() {
                 .iz-panel-title span{font-weight:400;color:#64748B;font-size:14px;margin-left:6px}
                 .iz-close-btn{width:36px;height:36px;border:none;background:rgba(203,213,225,.4);border-radius:50%;cursor:pointer;font-size:18px;color:#64748B;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;line-height:1}
                 .iz-close-btn:hover{background:rgba(239,68,68,.12);color:#EF4444;transform:rotate(90deg)}
-                .iz-section{margin-top:20px;background:rgba(255,255,255,.5);border-radius:18px;padding:18px 20px 20px 20px;border:1px solid rgba(226,232,240,.7)}
-                .iz-section-title{font-size:13px;font-weight:600;color:#64748B;letter-spacing:.6px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+                .iz-section{margin-top:12px;background:rgba(255,255,255,.5);border-radius:18px;padding:14px 16px 16px 16px;border:1px solid rgba(226,232,240,.7)}
+                .iz-section-title{font-size:13.5px;font-weight:600;color:#64748B;letter-spacing:.6px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
                 .iz-badge{background:#4F46E5;color:#fff;font-size:10px;font-weight:600;padding:0 8px;border-radius:20px;line-height:18px}
                 .iz-row{display:flex;align-items:center;gap:14px;margin-bottom:14px}
                 .iz-row:last-child{margin-bottom:0}
@@ -1972,28 +2229,28 @@ const bilibiliVolumeModule = (function() {
                 .iz-toggle.active{background:linear-gradient(135deg,#4F46E5,#7C3AED)}
                 .iz-toggle .iz-knob{position:absolute;top:3px;left:3px;width:22px;height:22px;background:#fff;border-radius:50%;transition:all .3s cubic-bezier(.34,1.56,.64,1);box-shadow:0 2px 6px rgba(0,0,0,.18)}
                 .iz-toggle.active .iz-knob{left:21px}
-                .iz-exclusion-box{background:rgba(241,245,249,.7);border-radius:14px;padding:14px 16px;border:1px solid rgba(226,232,240,.5)}
+                .iz-exclusion-box{background:rgba(241,245,249,.7);border-radius:13px;padding:10px 12px;border:1px solid rgba(226,232,240,.5)}
                 .iz-exclusion-box .iz-status-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-                .iz-exclusion-box .iz-status-text{font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px;color:#1E293B}
+                .iz-exclusion-box .iz-status-text{font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;color:#1E293B}
                 .iz-exclusion-box .iz-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0}
                 .iz-exclusion-box .iz-dot.on{background:#10B981}
                 .iz-exclusion-box .iz-dot.off{background:#F59E0B}
-                .iz-exclusion-note{margin-top:8px;font-size:12px;color:#64748B}
+                .iz-exclusion-note{margin-top:5px;font-size:11px;color:#64748B}
                 .iz-btn-sm{padding:6px 16px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;flex-shrink:0;height:34px}
                 .iz-btn-sm.primary{background:#4F46E5;color:#fff}
                 .iz-btn-sm.primary:hover{background:#4338CA;transform:translateY(-1px);box-shadow:0 4px 12px rgba(79,70,229,.3)}
                 .iz-btn-sm.warning{background:#F59E0B;color:#fff}
                 .iz-btn-sm.warning:hover{background:#D97706;transform:translateY(-1px);box-shadow:0 4px 12px rgba(245,158,11,.3)}
-                .iz-collapse-header{display:flex;align-items:center;justify-content:space-between;padding:10px 0 6px 0;cursor:pointer;user-select:none;border-top:1px solid rgba(226,232,240,.5);margin-top:4px;transition:opacity .2s}
-                .iz-collapse-header .iz-left{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:#1E293B}
-                .iz-collapse-header .iz-arrow{transition:transform .3s ease;font-size:12px;color:#94A3B8}
+                .iz-collapse-header{display:flex;align-items:flex-start;justify-content:space-between;padding:8px 0 5px 0;cursor:pointer;user-select:none;border-top:1px solid rgba(226,232,240,.5);margin-top:4px;transition:opacity .2s;gap:16px}
+                .iz-collapse-header .iz-left{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:650;color:#1E293B;min-width:0;white-space:nowrap;flex-wrap:nowrap}.iz-collapse-description{font-size:11px;color:#94A3B8;line-height:1.45;margin:2px 0 0 20px;white-space:nowrap}
+                .iz-collapse-header .iz-arrow{transition:transform .3s ease;font-size:12px;color:#94A3B8;flex:0 0 auto}
                 .iz-collapse-header .iz-arrow.open{transform:rotate(90deg)}
-                .iz-badge-params{font-size:11px;font-weight:500;color:#64748B;background:#F1F5F9;padding:2px 10px;border-radius:20px}
+                .iz-badge-params{font-size:10.5px;font-weight:500;color:#64748B;background:#F1F5F9;padding:2px 9px;border-radius:20px;white-space:nowrap}.iz-header-name{white-space:nowrap;flex:0 0 auto}
                 .iz-collapse-body{overflow:hidden;max-height:0;opacity:0;transition:all .35s cubic-bezier(.16,1,.3,1)}
-                .iz-collapse-body.open{max-height:800px;opacity:1;padding-top:12px}
-                .iz-param-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}
+                .iz-collapse-body.open{max-height:800px;opacity:1;padding-top:9px}
+                .iz-param-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px}.iz-param-sections{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}.iz-param-sections>.iz-section{min-width:0}
                 .iz-param-item{display:flex;flex-direction:column;gap:4px}
-                .iz-param-item label{font-size:12px;font-weight:500;color:#64748B;letter-spacing:.2px;display:flex;align-items:center;gap:5px}
+                .iz-param-item label{font-size:12px;font-weight:500;color:#64748B;letter-spacing:.2px;display:flex;align-items:center;gap:5px;white-space:nowrap}
                 .iz-tip-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;flex-shrink:0;border-radius:50%;background:#E2E8F0;color:#64748B;font-size:10px;font-weight:700;line-height:1;cursor:help;position:relative;transition:all .2s}
                 .iz-tip-icon:hover{background:#4F46E5;color:#fff}
                 #izTipBubble{position:fixed;width:240px;background:rgba(15,23,42,.95);color:#F1F5F9;font-size:12px;font-weight:400;line-height:1.6;padding:10px 13px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:opacity .15s ease;z-index:100005;white-space:normal;text-align:left}
@@ -2037,7 +2294,7 @@ const bilibiliVolumeModule = (function() {
                 .iz-intro-ok{min-width:118px}
                 @media (max-width:600px){#izIntroPanel{border-radius:20px;max-height:95vh}.iz-intro-scroll{padding:0 18px 16px}.iz-intro-footer{padding:12px 18px 16px}.iz-intro-ok{width:100%}}
                 @media (max-width:600px){#izUpdateNotice{top:12px;right:12px;width:calc(100vw - 24px);border-radius:16px}}
-                @media (max-width:600px){#izConfigPanel{border-radius:20px;max-height:95vh}.iz-panel-scroll{padding:0 18px 8px 18px}.iz-panel-header{padding:16px 18px 0 18px}.iz-panel-footer{padding:12px 18px 16px 18px;flex-wrap:wrap;gap:10px}.iz-row{flex-direction:column;align-items:stretch;gap:6px}.iz-param-grid{grid-template-columns:1fr}.iz-panel-title{font-size:17px}.iz-panel-icon{width:34px;height:34px;font-size:17px}}
+                @media (max-width:600px){#izConfigPanel{border-radius:20px;max-height:95vh}.iz-panel-scroll{padding:0 18px 8px 18px}.iz-panel-header{padding:16px 18px 0 18px}.iz-panel-footer{padding:12px 18px 16px 18px;flex-wrap:wrap;gap:10px}.iz-row{flex-direction:column;align-items:stretch;gap:6px}.iz-param-grid{grid-template-columns:1fr}.iz-param-sections{grid-template-columns:1fr}.iz-top-grid{grid-template-columns:1fr}.iz-switch-grid{grid-template-columns:1fr}.iz-panel-title{font-size:17px}.iz-panel-icon{width:34px;height:34px;font-size:17px}}
             `;
             document.head.appendChild(s);
             dockStyleElement = s;
@@ -2047,9 +2304,14 @@ const bilibiliVolumeModule = (function() {
         const style = document.createElement('style');
         style.textContent = `
             .image-zoom-container img{object-fit:contain}
-            .image-zoom-hover{cursor:zoom-in!important}
-            a.image-zoom-hover,.cover-container.image-zoom-hover,.card.image-zoom-hover{cursor:zoom-in!important}
-            a.stretched-link.image-zoom-hover{cursor:zoom-in!important}
+            #hoverWaitIndicator{position:fixed;left:0;top:0;width:20px;height:14px;transform:translate(-50%,-50%);z-index:2147483646;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .14s ease,visibility .14s ease;filter:drop-shadow(0 1px 5px rgba(0,0,0,.28))}
+            #hoverWaitIndicator.show{opacity:1;visibility:visible}
+            #hoverWaitIndicator i{position:absolute;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:rgba(255,255,255,.98);box-shadow:0 0 6px rgba(125,211,252,.95),0 0 10px rgba(125,211,252,.38);animation:hoverWaitFocus 1s cubic-bezier(.45,0,.55,1) infinite}
+            #hoverWaitIndicator i:nth-child(1){left:1px;animation-delay:0s}
+            #hoverWaitIndicator i:nth-child(2){left:8px;width:5px;height:5px;margin-top:-2.5px;animation-delay:.14s}
+            #hoverWaitIndicator i:nth-child(3){left:15px;animation-delay:.28s}
+            @keyframes hoverWaitFocus{0%,100%{transform:translateY(1px) scale(.72);opacity:.42}38%{transform:translateY(-1px) scale(1.12);opacity:1}58%{transform:translateY(0) scale(.9);opacity:.82}}
+            /* 保留网页原本的鼠标光标，不由脚本覆盖 */
         `;
         document.head.appendChild(style);
         styleElement = style;
@@ -2297,10 +2559,6 @@ const bilibiliVolumeModule = (function() {
                             <div class="iz-intro-item-text">先检查右侧悬浮按钮是否开启，再打开设置调整“触发延迟”和“避免与点击放大功能冲突”。特殊网站无法识别时，可使用设置中的自定义规则；修改后建议刷新页面。</div>
                         </div>
 
-                        <div class="iz-intro-item">
-                            <div class="iz-intro-item-title">🎬 B站提示</div>
-                            <div class="iz-intro-item-text">如果在 B 站全屏播放时发现滚轮不能正常调音量，可在设置中开启“B站播放器辅助”。</div>
-                        </div>
                     </div>
                     <div class="iz-intro-footer">
                         <button class="iz-btn-primary-solid iz-intro-ok" id="izIntroOk">知道了，开始使用</button>
@@ -2358,10 +2616,9 @@ const bilibiliVolumeModule = (function() {
                     </div>
                 </div>
                 <div class="iz-update-body">
-                    <div class="iz-update-item">🚀 自 5.6.11 以来，持续增强图片悬停放大、动态图片、背景图与网页灯箱兼容性。</div>
-                    <div class="iz-update-item">🧩 完成核心功能的渐进式模块化：配置、状态机、悬停解析、图片处理、观察器、站点适配及 UI 已拆分。</div>
-                    <div class="iz-update-item">🛡️ 优化窗口失焦、Lightbox、同链接标题桥接等兼容场景，同时保持原有放大体验。</div>
-                    <div class="iz-update-item">🧰 为后续浏览器扩展迁移做好结构准备；本版本新安装默认最小放大尺寸调整为 51px。</div>
+                    <div class="iz-update-item">✨ 优化配置面板布局，减少纵向占用并提升操作效率。</div>
+                    <div class="iz-update-item">🎛️ 优化快捷开关、参数标题与说明的对齐显示。</div>
+                    <div class="iz-update-item">📝 增加对放大图使用“滚轮控制放大图缩放”。</div>
                 </div>
                 <div class="iz-update-footer">
                     <button class="iz-btn-primary-solid iz-update-ok" id="izUpdateOk">知道了</button>
@@ -2399,131 +2656,25 @@ const bilibiliVolumeModule = (function() {
     // ============================================================================
 
     const COMMON_PARAM_DEFS = [
-        { key: 'delay', label: '悬停延迟', unit: 'ms', min: 0, max: 2000, step: 100, tip: '鼠标停在图片上多久后才放大。数值越小响应越快，越大越不容易误触发。建议 300~800ms' },
-        { key: 'minOriginalSize', label: '最小放大尺寸', unit: 'px', min: 0, max: 500, step: 5, tip: '原图宽或高小于此值时不放大，用来过滤网站里的小图标、表情、按钮图标等。设为 0 表示全部放大' },
-        { key: 'maxWidth', label: '大图最大宽度', unit: 'px', min: 300, max: 3000, step: 100, tip: '放大后的大图宽度上限。自适应模式下它决定了放大画布的宽度上限，调小后大图整体变小；固定模式下大图最多放大到这个宽度' },
-        { key: 'maxHeight', label: '大图最大高度', unit: 'px', min: 300, max: 3000, step: 100, tip: '放大后的大图高度上限。自适应模式下它决定了放大画布的高度上限，调小后大图整体变小；固定模式下大图最多放大到这个高度' },
-        { key: 'scrollSpeed', label: '滚轮移动速度', unit: 'px', min: 5, max: 50, step: 1, tip: '大图超出屏幕时，滚动鼠标滚轮查看图片其余部分，每次滚动的距离。数值越大滚得越快' }
+        { key: 'delay', label: '悬停延迟', unit: 'ms', min: 0, max: 2000, step: 100, tip: '鼠标连续停留在图片上达到此时间后才触发放大。数值越小越灵敏，数值越大越不容易误触发。' },
+        { key: 'minOriginalSize', label: '最小放大尺寸', unit: 'px', min: 0, max: 500, step: 5, tip: '图片显示宽度或高度低于此值时不触发放大，用于跳过图标、表情、按钮等小图片。设为 0 表示不按尺寸过滤。' },
+        { key: 'maxWidth', label: '大图最大宽度', unit: 'px', min: 300, max: 3000, step: 100, tip: '预览区域允许达到的最大宽度。图片会保持原始比例，并同时受最大高度限制；调小后预览整体会更小。' },
+        { key: 'maxHeight', label: '大图最大高度', unit: 'px', min: 300, max: 3000, step: 100, tip: '预览区域允许达到的最大高度。图片会保持原始比例，并同时受最大宽度限制；调小后预览整体会更小。' },
+        { key: 'scrollSpeed', label: '滚轮移动速度', unit: 'px', min: 5, max: 50, step: 1, tip: '预览内容超出可视区域时，鼠标滚轮每次移动的距离。数值越大，每次移动的距离越大。' }
     ];
 
     const FIXED_PARAM_DEFS = [
-        { key: 'scale', label: '大图放大倍数', unit: '×', min: 1, max: 5, step: 0.1, tip: '固定倍数模式下，大图相对原图的放大倍数（最终不超过最大宽高限制）' },
-        { key: 'minScale', label: '大图最小倍数', unit: '×', min: 1, max: 3, step: 0.1, tip: '固定倍数模式下，大图至少要放大到的倍数下限，避免小图放大后依然看不清' },
-        { key: 'smallImgThreshold', label: '小图判定阈值', unit: 'px', min: 100, max: 500, step: 10, tip: '固定模式下，原图宽或高小于此值会被当作「小图」，以小图专用尺寸为保底基准放大（倍数更大时仍会按倍数继续放大）' },
-        { key: 'smallImgWidth', label: '小图目标宽度', unit: 'px', min: 300, max: 1000, step: 10, tip: '固定模式下，小图放大时使用的目标框宽度基准；最终保持原图比例，并与目标高度共同决定实际显示尺寸' },
-        { key: 'smallImgHeight', label: '小图目标高度', unit: 'px', min: 300, max: 1000, step: 10, tip: '固定模式下，小图放大时使用的目标框高度基准；最终保持原图比例，并与目标宽度共同决定实际显示尺寸' }
+        { key: 'scale', label: '大图放大倍数', unit: '×', min: 1, max: 5, step: 0.1, tip: '固定倍数模式下，预览相对原图的目标放大倍数；最终尺寸仍受最大宽高限制。' },
+        { key: 'minScale', label: '大图最小倍数', unit: '×', min: 1, max: 3, step: 0.1, tip: '固定倍数模式下，预览至少使用此放大倍数；实际尺寸仍受最大宽高限制。' },
+        { key: 'smallImgThreshold', label: '小图判定阈值', unit: 'px', min: 100, max: 500, step: 10, tip: '固定模式下，图片显示宽度或高度低于此值时按「小图」处理，并启用小图专用尺寸作为最低显示基准。' },
+        { key: 'smallImgWidth', label: '小图目标宽度', unit: 'px', min: 300, max: 1000, step: 10, tip: '固定模式下，小图预览使用的目标宽度基准。实际显示会保持原图比例，并与目标高度共同限制尺寸。' },
+        { key: 'smallImgHeight', label: '小图目标高度', unit: 'px', min: 300, max: 1000, step: 10, tip: '固定模式下，小图预览使用的目标高度基准。实际显示会保持原图比例，并与目标宽度共同限制尺寸。' }
     ];
-
-    const FEEDBACK_API = 'https://damp-woodpecker-4867.ydgg123.deno.net';
-
-    function postToAPI(payload) {
-        return new Promise((resolve, reject) => {
-            GM_xmlhttpRequest({
-                method: 'POST',
-                url: FEEDBACK_API,
-                headers: { 'Content-Type': 'application/json' },
-                data: JSON.stringify(payload),
-                timeout: 15000,
-                onload: (r) => (r.status >= 200 && r.status < 400) ? resolve() : reject(new Error('提交失败（' + r.status + '）')),
-                onerror: () => reject(new Error('网络错误，请稍后重试')),
-                ontimeout: () => reject(new Error('提交超时，请检查网络'))
-            });
-        });
-    }
-
-    function submitFeedback(text) {
-        return postToAPI({
-            text: text,
-            page: location.hostname + location.pathname + ' | 脚本 v' + (typeof GM_info !== 'undefined' && GM_info.script ? GM_info.script.version : 'unknown')
-        });
-    }
-
-    function submitSiteRule(rule, note) {
-        return postToAPI({
-            type: 'site_rule',
-            rule: {
-                name: rule.name, domains: rule.domains, imgMode: rule.imgMode,
-                itemSelector: rule.itemSelector, cardSelector: rule.cardSelector, pollInterval: rule.pollInterval
-            },
-            note: note || '',
-            context: {
-                page: location.hostname + location.pathname,
-                scriptVersion: (typeof GM_info !== 'undefined' && GM_info.script) ? GM_info.script.version : 'unknown',
-                userAgent: navigator.userAgent,
-                timestamp: Date.now()
-            }
-        });
-    }
 
     // 参数保存提示已由 showToast / showSaveToast 统一路由到面板中央
     const notifyConfigSaved = debounce((key, value, label) => {
         showSaveToast(`已保存：${label || key} = ${value}`);
     }, 600);
-
-    function injectFeedbackSection(overlay) {
-        const scroll = overlay.querySelector('.iz-panel-scroll');
-        if (!scroll || scroll.querySelector('#izFeedbackSection')) return;
-        const section = document.createElement('div');
-        section.className = 'iz-section';
-        section.id = 'izFeedbackSection';
-        section.innerHTML = `
-            <div class="iz-section-title">📮 问题反馈</div>
-            <textarea id="izFeedbackText" placeholder="遇到问题或有建议？写在这里直接反馈～&#10;" style="width:100%;box-sizing:border-box;resize:vertical;min-height:72px;background:#fff;color:#1E293B;border:1.5px solid #E2E8F0;border-radius:12px;padding:10px 12px;font-size:13px;font-family:inherit;line-height:1.6;outline:none;transition:border-color .2s,box-shadow .2s;"></textarea>
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
-                <span id="izFeedbackStatus" style="font-size:12px;color:#64748B;"></span>
-                <button id="izFeedbackBtn" style="padding:8px 20px;background:linear-gradient(135deg,#4F46E5,#7C3AED);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;transition:all .25s;box-shadow:0 4px 12px rgba(79,70,229,.3);">📮 提交反馈</button>
-            </div>`;
-        scroll.appendChild(section);
-
-        const textarea = section.querySelector('#izFeedbackText');
-        const status = section.querySelector('#izFeedbackStatus');
-        const btn = section.querySelector('#izFeedbackBtn');
-
-        textarea.addEventListener('focus', () => {
-            textarea.style.borderColor = '#4F46E5';
-            textarea.style.boxShadow = '0 0 0 3px rgba(79,70,229,.15)';
-        });
-        textarea.addEventListener('blur', () => {
-            textarea.style.borderColor = '#E2E8F0';
-            textarea.style.boxShadow = 'none';
-        });
-        btn.addEventListener('mouseenter', () => {
-            btn.style.transform = 'translateY(-2px)';
-            btn.style.boxShadow = '0 8px 24px rgba(79,70,229,.4)';
-        });
-        btn.addEventListener('mouseleave', () => {
-            btn.style.transform = '';
-            btn.style.boxShadow = '0 4px 12px rgba(79,70,229,.3)';
-        });
-        btn.addEventListener('click', () => {
-            const text = textarea.value.trim();
-            if (!text) {
-                status.textContent = '⚠️ 请先填写反馈内容';
-                status.style.color = '#F59E0B';
-                return;
-            }
-            btn.disabled = true;
-            btn.textContent = '提交中…';
-            btn.style.opacity = '0.7';
-            status.textContent = '';
-            submitFeedback(text)
-                .then(() => {
-                    status.textContent = '✅ 反馈已提交，感谢你的支持！';
-                    status.style.color = '#10B981';
-                    textarea.value = '';
-                })
-                .catch((err) => {
-                    status.textContent = '❌ ' + (err.message || '提交失败');
-                    status.style.color = '#EF4444';
-                })
-                .finally(() => {
-                    btn.disabled = false;
-                    btn.textContent = '📮 提交反馈';
-                    btn.style.opacity = '';
-                    setTimeout(() => { status.textContent = ''; }, 4000);
-                });
-        });
-    }
 
     function injectCustomRulesSection(overlay) {
         const scroll = overlay.querySelector('.iz-panel-scroll');
@@ -2547,7 +2698,7 @@ const bilibiliVolumeModule = (function() {
         };
 
         section.innerHTML = `
-            <div class="iz-section-title">🎯 高级：站点规则自定义 <span class="iz-badge">进阶-不会添加用⬆️反馈</span></div>
+            <div class="iz-section-title">🎯 高级：站点规则自定义 <span class="iz-badge">仅本地保存</span></div>
             <div class="iz-exclusion-note" style="margin-bottom:10px;">为当前网站添加悬停放大规则，解决遮罩层挡住鼠标、背景图无法放大等问题。保存后刷新页面生效。</div>
             <div id="izRuleList">${renderList()}</div>
             <button id="izRuleAddBtn" class="iz-btn-sm primary" style="margin-top:10px;">＋ 为当前网站添加规则</button>
@@ -2720,8 +2871,6 @@ const bilibiliVolumeModule = (function() {
 
         section.querySelector('#izRuleCancel').addEventListener('click', () => {
             form.style.display = 'none';
-            const shareBar = section.querySelector('.iz-rule-share-bar');
-            if (shareBar) shareBar.remove();
         });
 
         section.querySelector('#izRuleSave').addEventListener('click', () => {
@@ -2744,8 +2893,6 @@ const bilibiliVolumeModule = (function() {
                 showToast('该选择器未匹配到背景图元素。普通图片无需规则（脚本已自动支持）');
                 return;
             }
-            const oldShareBar = section.querySelector('.iz-rule-share-bar');
-            if (oldShareBar) oldShareBar.remove();
             const rules = getCustomRules();
             const newRule = {
                 id: 'r' + Date.now(),
@@ -2763,26 +2910,6 @@ const bilibiliVolumeModule = (function() {
             listEl.innerHTML = renderList();
             form.style.display = 'none';
             showSaveToast('规则已保存，刷新页面后生效');
-            const shareBar = document.createElement('div');
-            shareBar.className = 'iz-rule-share-bar';
-            shareBar.style.cssText = 'margin-top:10px;padding:10px 14px;background:#F0FDF4;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:#166534;';
-            shareBar.innerHTML = `<span>是否把这条规则分享给作者，帮助更多用户？（仅发送域名和选择器）</span><button class="iz-rule-share-btn" style="flex-shrink:0;border:none;background:#10B981;color:#fff;padding:5px 14px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">分享</button>`;
-            form.parentNode.insertBefore(shareBar, form.nextSibling);
-            shareBar.querySelector('.iz-rule-share-btn').addEventListener('click', function() {
-                const btn = this;
-                btn.disabled = true;
-                btn.textContent = '发送中…';
-                submitSiteRule(lastSavedRule).then(() => {
-                    btn.textContent = '✓ 已分享，感谢！';
-                    btn.style.background = '#64748B';
-                    storageSet(`rule_shared_${lastSavedRule.id}`, true);
-                    setTimeout(() => shareBar.remove(), 3000);
-                }).catch((err) => {
-                    btn.disabled = false;
-                    btn.textContent = '重试';
-                    showToast('分享失败：' + err.message);
-                });
-            });
         });
 
         listEl.addEventListener('click', (e) => {
@@ -2823,72 +2950,69 @@ const bilibiliVolumeModule = (function() {
                     <button class="iz-close-btn" id="izCloseBtn" title="关闭 (ESC)">✕</button>
                 </div>
                 <div class="iz-panel-scroll">
-                    <div class="iz-section">
-                        <div class="iz-section-title">📌 主页排除 <span class="iz-badge">当前网站</span></div>
-                        <div class="iz-exclusion-box">
-                            <div class="iz-status-row">
-                                <div class="iz-status-text"><span class="iz-dot on" id="izHpDot"></span><span id="izHpText">当前主页已启用图片放大</span></div>
-                                <button class="iz-btn-sm warning" id="izHpToggleBtn">禁用主页图片放大功能</button>
+                    <div class="iz-top-grid">
+                        <div class="iz-section">
+                            <div class="iz-section-title">⚙️ 基本设置</div>
+                            <div class="iz-row" style="margin-bottom:8px">
+                                <div class="iz-row-label">放大模式<span class="iz-hint">智能 / 固定</span></div>
+                                <div class="iz-row-control">
+                                    <select class="iz-select" id="izModeSelect">
+                                        <option value="adaptive">✨ 智能自适应</option>
+                                        <option value="fixed">📐 固定倍数</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="iz-exclusion-note">仅对当前网站（${currentDomain}）的主页生效，内容子页面不受影响，依然会放大图片</div>
-                        </div>
-                    </div>
-                    <div class="iz-section">
-                        <div class="iz-section-title">⚙️ 基本设置</div>
-                        <div class="iz-row">
-                            <div class="iz-row-label">放大模式<span class="iz-hint">智能 / 固定</span></div>
-                            <div class="iz-row-control">
-                                <select class="iz-select" id="izModeSelect">
-                                    <option value="adaptive">✨ 智能自适应</option>
-                                    <option value="fixed">📐 固定倍数</option>
-                                </select>
+                            <div class="iz-exclusion-box" style="padding:9px 10px;">
+                                <div class="iz-status-row">
+                                    <div class="iz-status-text"><span class="iz-dot on" id="izHpDot"></span><span id="izHpText">当前主页已启用图片放大</span><span class="iz-badge">当前网站</span></div>
+                                    <button class="iz-btn-sm warning" id="izHpToggleBtn">禁用主页图片放大</button>
+                                </div>
+                                <div class="iz-exclusion-note">仅对当前网站（${currentDomain}）的主页生效，内容子页面不受影响。</div>
                             </div>
                         </div>
-                        <div class="iz-row">
-                            <div class="iz-row-label" style="min-width:0;flex:1;">
-                                <div class="iz-checkbox-wrap" id="izConflictWrap">
-                                    <div class="iz-checkbox-custom ${config.avoidClickConflict ? 'checked' : ''}" id="izConflictCheck"></div>
-                                    <span class="iz-checkbox-label">避免与点击放大功能冲突<span class="iz-sub">自动检测网站点击放大，避免冲突</span></span>
+                        <div class="iz-section">
+                            <div class="iz-section-title">🎛️ 快捷开关</div>
+                            <div class="iz-switch-grid">
+                                <div class="iz-switch-card" id="izConflictWrap">
+                                    <div class="iz-toggle ${config.avoidClickConflict ? 'active' : ''}" id="izConflictToggle"><div class="iz-knob"></div></div>
+                                    <div class="iz-switch-text"><div class="iz-switch-title">避免与点击放大冲突</div><div class="iz-switch-sub">自动检测点击放大，减少重复触发。</div></div>
+                                </div>
+                                <div class="iz-switch-card" id="izBlurDismissWrap">
+                                    <div class="iz-toggle ${config.blurDismiss ? 'active' : ''}" id="izBlurDismissToggle"><div class="iz-knob"></div></div>
+                                    <div class="iz-switch-text"><div class="iz-switch-title">窗口失焦时自动收起</div><div class="iz-switch-sub">切换应用时收起；关闭后可保留预览。</div></div>
+                                </div>
+                                <div class="iz-switch-card" id="izWheelZoomWrap">
+                                    <div class="iz-toggle ${config.wheelZoom ? 'active' : ''}" id="izWheelZoomToggle"><div class="iz-knob"></div></div>
+                                    <div class="iz-switch-text"><div class="iz-switch-title">滚轮控制放大图缩放</div><div class="iz-switch-sub">向上放大、向下缩小；关闭后恢复上下移动。</div></div>
+                                </div>
+                                <div class="iz-switch-card" id="izBiliWrap">
+                                    <div class="iz-toggle ${bilibiliVolumeModule.isEnabled ? 'active' : ''}" id="izBiliToggle"><div class="iz-knob"></div></div>
+                                    <div class="iz-switch-text"><div class="iz-switch-title">B站播放器辅助</div><div class="iz-switch-sub">全屏滚轮调音量，方向键防穿透。B站全屏时如发现滚轮无法调节音量，开启此辅助即可。</div></div>
                                 </div>
                             </div>
                         </div>
-                        <div class="iz-row" style="margin-bottom:0">
-                            <div class="iz-row-label" style="min-width:0;flex:1;">
-                                <div class="iz-checkbox-wrap" id="izBlurDismissWrap">
-                                    <div class="iz-checkbox-custom ${config.blurDismiss ? 'checked' : ''}" id="izBlurDismissCheck"></div>
-                                    <span class="iz-checkbox-label">切换应用时自动收起放大图<span class="iz-sub">Alt+Tab 或点击其他窗口时关闭；关闭后切回可继续查看，适合对照场景</span></span>
-                                </div>
-                            </div>
-                        </div>
                     </div>
+                    <div class="iz-param-sections">
                     <div class="iz-section">
                         <div class="iz-collapse-header" id="izCommonHeader">
-                            <div class="iz-left"><span class="iz-arrow" id="izCommonArrow">▶</span><span>通用参数</span><span class="iz-badge-params">自适应 / 固定 都生效</span></div>
-                            <span style="font-size:12px;color:#94A3B8;" id="izCommonHint">点击展开 · 悬停问号查看参数说明</span>
+                            <div>
+                                <div class="iz-left"><span class="iz-arrow" id="izCommonArrow">▶</span><span class="iz-header-name">通用参数</span></div>
+                                <div class="iz-collapse-description">自适应与固定模式都生效</div>
+                            </div>
+                            <span style="font-size:12px;color:#94A3B8;line-height:1.45;text-align:right;max-width:150px;" id="izCommonHint">点击展开<br>悬停问号查看参数说明</span>
                         </div>
                         <div class="iz-collapse-body" id="izCommonBody"><div class="iz-param-grid">${renderParams(COMMON_PARAM_DEFS)}</div></div>
                     </div>
                     <div class="iz-section">
                         <div class="iz-collapse-header" id="izFixedHeader">
-                            <div class="iz-left"><span class="iz-arrow" id="izFixedArrow">▶</span><span>固定倍数专用参数</span><span class="iz-badge-params" id="izModeBadge">智能自适应模式</span></div>
-                            <span style="font-size:12px;color:#94A3B8;" id="izFixedHint">自适应模式下不可用</span>
+                            <div>
+                                <div class="iz-left"><span class="iz-arrow" id="izFixedArrow">▶</span><span class="iz-header-name">固定模式专用参数</span></div>
+                                <div class="iz-collapse-description" id="izModeBadge">仅固定模式生效</div>
+                            </div>
+                            <span style="font-size:12px;color:#94A3B8;line-height:1.45;text-align:right;max-width:150px;" id="izFixedHint">自适应模式下不可用</span>
                         </div>
                         <div class="iz-collapse-body" id="izFixedBody"><div class="iz-param-grid">${renderParams(FIXED_PARAM_DEFS)}</div></div>
                     </div>
-                    <div class="iz-section">
-                        <div class="iz-section-title">🎬 B站播放器辅助</div>
-                        <div class="iz-row" style="margin-bottom:0">
-                            <div class="iz-row-label" style="min-width:0;flex:1;">
-                                <div class="iz-toggle-wrap" id="izBiliWrap">
-                                    <div class="iz-toggle ${bilibiliVolumeModule.isEnabled ? 'active' : ''}" id="izBiliToggle"><div class="iz-knob"></div></div>
-                                    <span class="iz-toggle-label">启用B站播放器辅助<span class="iz-sub">全屏时滚轮调节音量 · 方向键防穿透</span></span>
-                                </div>
-                            </div>
-                        </div>
-                        <div style="margin-top:10px;padding-left:2px;font-size:12px;line-height:1.7;color:#94A3B8;">
-                            <div>· 放大模块会导致B站原生滚轮调整音量失效</div>
-                            <div>· 需开启此辅助解决滚轮调整音量的问题</div>
-                        </div>
                     </div>
                 </div>
                 <div class="iz-panel-footer">
@@ -2901,12 +3025,11 @@ const bilibiliVolumeModule = (function() {
             </div>`;
 
         document.body.appendChild(overlay);
-        injectFeedbackSection(overlay);
         injectCustomRulesSection(overlay);
 
         const $ = (id) => overlay.querySelector('#' + id);
         const modeSelect = $('izModeSelect');
-        const conflictCheck = $('izConflictCheck');
+        const conflictToggle = $('izConflictToggle');
         const commonHeader = $('izCommonHeader');
         const commonBody = $('izCommonBody');
         const commonArrow = $('izCommonArrow');
@@ -2951,11 +3074,11 @@ const bilibiliVolumeModule = (function() {
 
         function updateDetailState() {
             const isFixed = config.zoomMode === 'fixed';
-            modeBadge.textContent = isFixed ? '固定倍数模式' : '智能自适应模式';
+            modeBadge.textContent = isFixed ? '仅固定模式生效' : '仅固定模式生效';
             if (isFixed) {
                 fixedHeader.style.cursor = 'pointer';
                 fixedHeader.style.opacity = '1';
-                fixedHint.textContent = '点击展开 · 悬停问号查看参数说明';
+                fixedHint.innerHTML = '点击展开<br>悬停问号查看参数说明';
             } else {
                 fixedBody.classList.remove('open');
                 fixedArrow.classList.remove('open');
@@ -2984,28 +3107,34 @@ const bilibiliVolumeModule = (function() {
         });
 
         $('izConflictWrap').addEventListener('click', (e) => {
-            if (e.target.closest('.iz-checkbox-custom') || e.target.closest('.iz-checkbox-label')) {
-                config.avoidClickConflict = !config.avoidClickConflict;
-                conflictCheck.classList.toggle('checked', config.avoidClickConflict);
-                saveConfig();
-                showSaveToast(`避免与点击放大功能冲突 ${config.avoidClickConflict ? '已开启' : '已关闭'}`);
-            }
+            e.stopPropagation();
+            config.avoidClickConflict = !config.avoidClickConflict;
+            conflictToggle.classList.toggle('active', config.avoidClickConflict);
+            saveConfig();
+            showSaveToast(`避免与点击放大功能冲突 ${config.avoidClickConflict ? '已开启' : '已关闭'}`);
         });
 
         $('izBlurDismissWrap').addEventListener('click', (e) => {
-            if (e.target.closest('.iz-checkbox-custom') || e.target.closest('.iz-checkbox-label')) {
-                config.blurDismiss = !config.blurDismiss;
-                $('izBlurDismissCheck').classList.toggle('checked', config.blurDismiss);
-                saveConfig();
-                showSaveToast(`切换应用时收起放大图 ${config.blurDismiss ? '已开启' : '已关闭（切回可继续查看）'}`);
-            }
+            e.stopPropagation();
+            config.blurDismiss = !config.blurDismiss;
+            $('izBlurDismissToggle').classList.toggle('active', config.blurDismiss);
+            saveConfig();
+            showSaveToast(`窗口失焦时收起放大图 ${config.blurDismiss ? '已开启' : '已关闭（切换应用时保留预览）'}`);
+        });
+
+        $('izWheelZoomWrap').addEventListener('click', (e) => {
+            e.stopPropagation();
+            config.wheelZoom = !config.wheelZoom;
+            $('izWheelZoomToggle').classList.toggle('active', config.wheelZoom);
+            saveConfig();
+            showSaveToast(`滚轮控制放大图缩放 ${config.wheelZoom ? '已开启' : '已关闭（恢复上下移动）'}`);
         });
 
         commonHeader.addEventListener('click', () => {
             const isOpen = commonBody.classList.contains('open');
             commonBody.classList.toggle('open');
             commonArrow.classList.toggle('open');
-            commonHint.textContent = isOpen ? '点击展开 · 悬停问号查看参数说明' : '点击收起';
+            commonHint.innerHTML = isOpen ? '点击展开<br>悬停问号查看参数说明' : '点击收起';
         });
 
         fixedHeader.addEventListener('click', () => {
@@ -3016,7 +3145,7 @@ const bilibiliVolumeModule = (function() {
             const isOpen = fixedBody.classList.contains('open');
             fixedBody.classList.toggle('open');
             fixedArrow.classList.toggle('open');
-            fixedHint.textContent = isOpen ? '点击展开 · 悬停问号查看参数说明' : '点击收起';
+            fixedHint.innerHTML = isOpen ? '点击展开<br>悬停问号查看参数说明' : '点击收起';
         });
 
         overlay.querySelectorAll('.iz-param-input').forEach(input => {
@@ -3038,13 +3167,11 @@ const bilibiliVolumeModule = (function() {
         });
 
         $('izBiliWrap').addEventListener('click', (e) => {
-            if (e.target.closest('.iz-toggle')) {
-                e.stopPropagation();
-                const newState = !bilibiliVolumeModule.isEnabled;
-                bilibiliVolumeModule.setEnabled(newState);
-                biliToggle.classList.toggle('active', newState);
-                showSaveToast(`B站播放器辅助 ${newState ? '已启用' : '已禁用'}`);
-            }
+            e.stopPropagation();
+            const newState = !bilibiliVolumeModule.isEnabled;
+            bilibiliVolumeModule.setEnabled(newState);
+            biliToggle.classList.toggle('active', newState);
+            showSaveToast(`B站播放器辅助 ${newState ? '已启用' : '已禁用'}`);
         });
 
         $('izResetBtn').addEventListener('click', () => {
@@ -3052,8 +3179,9 @@ const bilibiliVolumeModule = (function() {
             config = { ...defaultConfig };
             saveConfig();
             modeSelect.value = config.zoomMode;
-            conflictCheck.classList.toggle('checked', config.avoidClickConflict);
-            $('izBlurDismissCheck').classList.toggle('checked', config.blurDismiss);
+            conflictToggle.classList.toggle('active', config.avoidClickConflict);
+            $('izBlurDismissToggle').classList.toggle('active', config.blurDismiss);
+            $('izWheelZoomToggle').classList.toggle('active', config.wheelZoom);
             overlay.querySelectorAll('.iz-param-input').forEach(input => {
                 input.value = config[input.dataset.param];
             });
@@ -3101,8 +3229,9 @@ const bilibiliVolumeModule = (function() {
             return;
         }
         overlay.querySelector('#izModeSelect').value = config.zoomMode;
-        overlay.querySelector('#izConflictCheck').classList.toggle('checked', config.avoidClickConflict);
-        overlay.querySelector('#izBlurDismissCheck').classList.toggle('checked', config.blurDismiss);
+        overlay.querySelector('#izConflictToggle').classList.toggle('active', config.avoidClickConflict);
+        overlay.querySelector('#izBlurDismissToggle').classList.toggle('active', config.blurDismiss);
+        overlay.querySelector('#izWheelZoomToggle').classList.toggle('active', config.wheelZoom);
         overlay.querySelectorAll('.iz-param-input').forEach(i => {
             i.value = config[i.dataset.param];
         });
@@ -3135,10 +3264,32 @@ const bilibiliVolumeModule = (function() {
         // 直接写入不节流——handler 本身只有三次赋值，开销可忽略；
         // 停稳裁决器通过 debounce 自身控制频率，无需在此节流。
         document.addEventListener('mousemove', (e) => {
-            lastMouse.x = e.clientX;
-            lastMouse.y = e.clientY;
+            const x = e.clientX, y = e.clientY;
+            const wasResumeBlocked = resumeBlockedUntilMouseMove;
+            // ★ 关键修复：切回窗口时浏览器可能补发 mousemove，甚至坐标会发生微小变化。
+            // 在恢复保护期间，只接受真正带有物理指针位移的 mousemove。
+            // movementX/movementY 是浏览器提供的本次指针位移量；切回窗口产生的补发事件通常为 0。
+            const physicalMouseMove = Number(e.movementX || 0) !== 0 || Number(e.movementY || 0) !== 0;
+            const movedAfterResume = !wasResumeBlocked || physicalMouseMove;
+
+            lastMouse.x = x;
+            lastMouse.y = y;
             lastMouse.t = Date.now();
-            pointerInWindow = true;   // ★ 光标回到浏览器内
+            if (hoverWaitIndicator && hoverWaitIndicator.classList.contains('show')) {
+                positionHoverWaitIndicator(x, y + 22);
+            }
+            if (!wasResumeBlocked || physicalMouseMove) {
+                pointerInWindow = true;
+                browserWindowFocused = true;
+            }
+
+            // ★ 切换应用后的恢复保护：没有真实鼠标位移就一直保持阻塞。
+            // 防止 Alt+Tab / Finder / 文件管理器切回时自动补发事件再次触发放大。
+            if (movedAfterResume) {
+                resumeBlockedUntilMouseMove = false;
+                resumeBlockX = -1;
+                resumeBlockY = -1;
+            }
         }, { passive: true });
 
         window.addEventListener('resize', debounce(() => {
