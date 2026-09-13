@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         悬景 · HoverVista｜鼠标悬停图片自动放大预览
 // @namespace    https://github.com/YDGG123
-// @version      5.6.47
+// @version      5.7.2
 // @description  网页图片鼠标悬停自动放大工具：智能自适应、高清图后台升级、滚轮边界控制
 // @author       益达哥哥
 // @match        *://*/*
