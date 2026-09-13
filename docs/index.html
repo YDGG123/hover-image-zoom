@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>悬景 HoverVista · 鼠标悬停图片自动放大预览</title>
+<meta name="description" content="悬景 HoverVista 是一款用户脚本：无需点击，鼠标悬停网页图片即可自动放大预览。支持智能自适应、固定倍数、高清图升级、网站独立配置。">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f4ee">
+<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAInUlEQVR42q2XeYxfVRXHP+e+5bd1tnY609J2AIGWQkojkChYYdRUJCTuAxISWRLAJRDjH0ZAoY1smhAjuAQkhJgQAkQ2EbAgDhIKVQSJUMEWsHTvTGftzO/3tvv1jzcDbSlgojc5efe9+/K+33PO9553rvFBQ3IM4viwMfiBq5615t9vMTzk02tUgpp5wPO/jtnvHYKIveflexVwthUAc57VsdbiFCVZn5LAuQxoeSN3uNxDBuTgPJCCn50XTubk8WzDBetHrrZ/AjCggPvKbx+awAz4nHWt5T4KbyDnTOeCmAwsKUHcDKhloBSsKOcUM3N/oJEUWZ7bH4ok/+H4zyp/P5iEHZBvM19/PPucYnePmWtnLC8sIScFS2WkJsv3A5z1OAcVUGQiz4wsg7wlyAFH2NEeBc77FqkuGv1lePf+JGx/8MYTWuHxz5NQZ6pILCW0DILMSo8zKFLIktKUAgllKgqBQVsEvXOwJZ2wtBcyD/dvIM0KF8WxORVF/9ht8Z9nSZQiXANI5n+X/5worDORJaSEZOBbMDUpaJWeYtAVYAva4fB2OLrLWDpPdky3ceQ8WNgB7XWDsFSvA/qP8pULfpGnUWelUuT+Fi7RydxKjslsNu/Ve9NTXBSu11SRkcpZWoL7BM45Flu1EDu6HY7oNHrboFE1cGUAhpuwbUpsmTJt2QdbJmHHPrFp0nTFSuyLPbKF38h9WoR5VA0rRZafMX1XtI4BBSHzyzS4nM/iTC6RV4LzCbRGxQ2rzb6/ytlbk/DGpHh6wvTWDtg6JXY3YTSBqQKSApzzpAIzaIRQhPDiOJyzCNpDsWPSK4qRMlYD6zgOC2eLiFp2OAU2PW44Dx0mOhuy85Y7G9wpzh1EjQiCQMQhqoRQDaFeg65AFoWm1Bsnd2Kf7sVeHEWP7hJRYAQVY15Vtq2JqYGRq68sYIPvFiKXEjQT+MpR2JePkpHDP/Y4PND0sLATFtchdBCFEDnQjLeRQzLRGRlXLsdqEXxqvtlQjtJCgNHbbtASLgfvXVmYevoVzm6F6XFx/BK4YRW8OQqvDJW2cwKWzIUFdTGvBlFoigMITdQqEDhIE/CCuZVSdHgj8+X9eGoCbFGXQQ6BB+UHlWIDfGLqrcF0Kl7YLYanTJNNGG0aS2LZgoapuyoCE6FBowLrXzIrCnHayQhBUohHhtAJHcYrE1LLizkzCIvmAbmI/Pv9C3JsYgpaGYRmMoE8NjwF7TF0V6ERlB52tRmPPo09NghEpr0T2PlnSBUHW1po3ZDoq8kWN9BIq9zBi+dheBHOVsj9Caj8Z2l6Glo5FAUkGWQpGpnG6gF0RWWkutvhyeewx54xNbqERbDhdVMh7OIzxKsTprcnxfZJdOp8bHEdWojD5hpmnsDPAs5o751ZAc0UmhnkBZZmZQS2j0CA0QigtwM2vGR27zqozREE5Rc628XG7ejah41Xd8mmEsfQZMAdL3vW7zASb+rpMtVDWVhA7A+VAg+tBKYTyHLIC2NkQryxs1RxX6fsyZeNOx9B1QZYWFoQgAugXoHh3dLuYfjBmbmtXpjwwFA7P1mfsXIOnDXXaMQQFhCoZDBwQASEJSnsS8AJdo1hO0dMY9Pl8uubjdseMAUVcDG4sAQOwnI+NSkCedIRcYxht/z4Vxz/xpP85ozIto2FNL1nfqPcBTEHpWBWA2kKaQajU7Bpl8kBEzMEHl1vZBJxvQQMQogjiGKjuQ/IkZPJpgs2DlfUObed8y+/Tc/8+mZ9ffGQdfVUyh6iKep2CA2Yl2UpTGcwPGmabokihz2jCC+6OyGsGFFUei4HLRm7t3mb2uNpTsgmxjE1xWtvw4plfQRtMXc+9BetPudKPf3Un+ymq9psQYfRHMsPoQGZ8qJMQVRWN7rrWA3whdE5B/ImjFehFkP3HKNDsoXL4NhFzpb2iCWdhvmQWg2aWw8jIKOrrcH4xLTOvuB6nXv2E7pxzXe5/dYue3kDDAzsR8AJKxLYNQErF4muKjY8bmzZCeMtuP4srH8pLOsxW9IJ8+oQY1DA+CRsG0Kvv+15YVPBxjdTvvX5BfTOjRmb3AfKOXXVCguCTqvUpvlIX3cpwoEDIkCG4O7njWU9sHtE7B1D47s8l90hrvqSsxV1bPO/PH/cjl7fJt7cDtuGpL17YWqqbFYqgmQi49zTu9wRi9tY/9cRFVnKx086kisuvYxLLoWxoekMoL9/0N4hoMLeJILhcWl42EAmBNYIdNdgobsGvZHMNCa+LK9hALXAUXPQ2WFUgAqwx+dMTlTV293gxqvOc5W4ossv+ZFfddJKLT/qND212W8uUfsJ2TizCdLicfN2nXPmLBbISiCTRe2BLEdhzVssCLwRFCL0RgCKclngIcKoeDGvFvD8cwXXfu9Se+FvfTr6yJATP/lbu+K6m9wjt3/CHn+o8nuAnh5k7/Tta83bxfmDxMEXaGUtZJEJc6DAQ1RA6CFSaWGBQg+hICpkMU6xZHEhXAF5C5YvjezFlxKdcFxk3/7Oa/noWBGP/HvFU1+70D4jyZmZ308DMl3YvMyIP0YQLSDJEjMLnZc5MzmDwMrqGwpiJ4sxwkLEBhWTxYJoZp0qbN6YaEGH09ZNefbAncdVQzH205uTb4JszZqD2/KZKHCRPmrmH3SB63OtgsD7LMT8rOeRoOKhIlmlKEUXC0KsjACmyAvnIRAmT9SII5sYz3ft3tH86rOb2p+9+mq5tTOnJHvPEWqtec7btzCKamuc10CkoCsum1xiD1VfAlY1Az5zX6G87h8FEygvxvC6v9qWrfnVPfWtAwMK7jvkweRgEkD9/H0LAt84MSpYGBZZUPVQKUqAyEOVUhsVD1VXPosoLTb52LmdOeFLdzxsOwCuueZdz/mQU7ExoID/0xgYUKBZwX/o4fSAaFzj2LjG2PPue6f/l6D9wCCD9D/d79fy/l7/B3AHaZMq9EU5AAAAAElFTkSuQmCC">
+<link rel="apple-touch-icon" href="icon_256x256.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="悬景 HoverVista · 鼠标悬停图片自动放大预览">
+<meta property="og:description" content="无需点击，鼠标悬停网页图片即可自动放大预览。支持智能自适应、固定倍数、高清图升级、网站独立配置，配置仅存本地。">
+<meta name="twitter:card" content="summary_large_image">
+<!-- 提前应用已保存的主题，避免深色用户看到闪白 -->
+<script>(function(){try{var t=localStorage.getItem("hv-theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
+<link rel="preload" href="fonts/sora-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/sora-latin-ext.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+
+@font-face{font-family:'Sora';font-style:normal;font-weight:400 800;font-display:swap;src:url(fonts/sora-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF}
+@font-face{font-family:'Sora';font-style:normal;font-weight:400 800;font-display:swap;src:url(fonts/sora-latin.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+
+/* ============ Tokens ============ */
+:root{
+  color-scheme:light;
+  --paper:#f6f4ee;
+  --paper-2:#efece3;
+  --paper-3:#eceae0;
+  --card:#fffdf9;
+  --panel-stage-bg:#e6e3d9;
+  --ink:#191821;
+  --ink-2:#3a3745;
+  --muted:#6b6878;
+  --faint:#9b98a6;
+  --shade:25 24 33;
+  --line:rgb(var(--shade) / .11);
+  --line-soft:rgb(var(--shade) / .07);
+  --dot:rgb(var(--shade) / .14);
+  --chrome-bg:rgb(var(--shade) / .02);
+  --nav-bg:rgba(246,244,238,.82);
+  --accent:#2563eb;
+  --accent-2:#0ea5e9;
+  --accent-ink:#1d4ed8;
+  --grad:linear-gradient(135deg,#2563eb,#0ea5e9);
+  --ok:#0f9d6c;
+  --ok-ink:#0b7a54;
+  --warn-ink:#92600a;
+  --deep:#14121d;
+  --deep-2:#1c1928;
+  --r-sm:10px; --r-md:14px; --r-lg:20px; --r-xl:28px;
+  --font-d:"Sora","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --font-b:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Sora",sans-serif;
+  --ease:cubic-bezier(.16,1,.3,1);
+  /* 深色 token（供显式切换与跟随系统共用） */
+  --d-paper:#17161d; --d-paper-2:#1e1d26; --d-paper-3:#1a1922;
+  --d-card:#211f2a; --d-panel-stage-bg:#14131b;
+  --d-ink:#edecf3; --d-ink-2:#cfccda; --d-muted:#a5a1b2; --d-faint:#868296;
+  --d-line:rgba(255,255,255,.13); --d-line-soft:rgba(255,255,255,.09);
+  --d-dot:rgba(255,255,255,.13);
+  --d-chrome-bg:rgba(255,255,255,.04);
+  --d-nav-bg:rgba(23,22,29,.84);
+  --d-shade:0 0 0;
+  --d-accent:#60a5fa; --d-accent-2:#38bdf8; --d-accent-ink:#93c5fd;
+  --d-grad:linear-gradient(135deg,#3b82f6,#0ea5e9);
+  --d-ok:#34d399; --d-ok-ink:#6ee7b7; --d-warn-ink:#fcd34d;
+  --d-deep:#0f0e15; --d-deep-2:#1a1926;
+}
+/* 深色：显式切换 */
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:var(--d-paper); --paper-2:var(--d-paper-2); --paper-3:var(--d-paper-3);
+  --card:var(--d-card); --panel-stage-bg:var(--d-panel-stage-bg);
+  --ink:var(--d-ink); --ink-2:var(--d-ink-2); --muted:var(--d-muted); --faint:var(--d-faint);
+  --line:var(--d-line); --line-soft:var(--d-line-soft); --dot:var(--d-dot);
+  --chrome-bg:var(--d-chrome-bg); --nav-bg:var(--d-nav-bg); --shade:var(--d-shade);
+  --accent:var(--d-accent); --accent-2:var(--d-accent-2); --accent-ink:var(--d-accent-ink);
+  --grad:var(--d-grad); --ok:var(--d-ok); --ok-ink:var(--d-ok-ink); --warn-ink:var(--d-warn-ink);
+  --deep:var(--d-deep); --deep-2:var(--d-deep-2);
+}
+/* 深色：跟随系统（未手动指定时生效） */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --paper:var(--d-paper); --paper-2:var(--d-paper-2); --paper-3:var(--d-paper-3);
+    --card:var(--d-card); --panel-stage-bg:var(--d-panel-stage-bg);
+    --ink:var(--d-ink); --ink-2:var(--d-ink-2); --muted:var(--d-muted); --faint:var(--d-faint);
+    --line:var(--d-line); --line-soft:var(--d-line-soft); --dot:var(--d-dot);
+    --chrome-bg:var(--d-chrome-bg); --nav-bg:var(--d-nav-bg); --shade:var(--d-shade);
+    --accent:var(--d-accent); --accent-2:var(--d-accent-2); --accent-ink:var(--d-accent-ink);
+    --grad:var(--d-grad); --ok:var(--d-ok); --ok-ink:var(--d-ok-ink); --warn-ink:var(--d-warn-ink);
+    --deep:var(--d-deep); --deep-2:var(--d-deep-2);
+  }
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--font-b);
+  background:var(--paper);
+  color:var(--ink);
+  line-height:1.7;
+  font-size:16px;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+  transition:background-color .45s var(--ease),color .45s var(--ease);
+}
+/* 切换主题时的底色过渡（不动 transform，避免影响悬停动效） */
+.panel-section,.panel-stage,.demo-shell,.footer,.hv-panel{transition:background-color .45s var(--ease),background .45s var(--ease),border-color .45s var(--ease),color .45s var(--ease)}
+::selection{background:rgba(37,99,235,.18)}
+img{display:block;max-width:100%}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+
+/* ============ 通用版式 ============ */
+.wrap{width:min(1340px,calc(100% - 56px));margin:0 auto}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:8px;
+  font-size:12.5px;font-weight:600;letter-spacing:.14em;
+  color:var(--accent-ink);text-transform:uppercase;
+  font-family:var(--font-d);
+}
+.eyebrow::before{content:"";width:22px;height:2px;background:var(--grad);border-radius:2px}
+.sec-title{
+  font-family:var(--font-d);
+  font-size:clamp(1.75rem,3.4vw,2.6rem);
+  font-weight:700;letter-spacing:-.02em;line-height:1.25;
+  margin-top:14px;
+}
+.sec-title em{font-style:normal;font-weight:700;color:var(--accent-ink)}
+.sec-sub{color:var(--muted);max-width:560px;margin-top:12px;font-size:15.5px}
+.reveal{opacity:0;transform:translateY(26px);transition:opacity .7s var(--ease),transform .7s var(--ease)}
+.reveal.in{opacity:1;transform:none}
+
+/* ============ 导航 ============ */
+.nav{
+  position:fixed;inset:0 0 auto 0;z-index:60;
+  transition:background .3s,box-shadow .3s,border-color .3s;
+  border-bottom:1px solid transparent;
+}
+.nav.scrolled{background:var(--nav-bg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-color:var(--line-soft)}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:68px}
+.brand{display:flex;align-items:center;gap:11px;font-family:var(--font-d);font-weight:700;font-size:17.5px;letter-spacing:-.01em}
+.brand small{font-weight:500;color:var(--muted);font-size:12.5px;margin-left:2px;letter-spacing:.02em}
+.nav-links{display:flex;align-items:center;gap:30px;font-size:14px;font-weight:500;color:var(--ink-2)}
+.nav-links a{position:relative;padding:4px 0;transition:color .2s}
+.nav-links a:hover{color:var(--accent-ink)}
+.nav-links a::after{content:"";position:absolute;left:0;bottom:0;width:0;height:2px;background:var(--grad);border-radius:2px;transition:width .28s var(--ease)}
+.nav-links a:hover::after{width:100%}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;
+  border:none;border-radius:999px;font-weight:600;font-size:14px;
+  padding:11px 22px;transition:transform .25s var(--ease),box-shadow .25s var(--ease),background .25s;
+}
+.btn-primary{background:var(--grad);color:#fff;box-shadow:0 6px 20px rgba(37,99,235,.28)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(37,99,235,.36)}
+.btn-ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent-ink);transform:translateY(-2px)}
+.nav-actions{display:flex;align-items:center;gap:12px}
+/* 主题切换按钮（图标随主题显隐，无需 JS 换 DOM） */
+.theme-toggle{
+  width:38px;height:38px;flex-shrink:0;border-radius:50%;
+  border:1.5px solid var(--line);background:transparent;color:var(--ink-2);
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:color .25s,border-color .25s,background .25s,transform .25s var(--ease);
+}
+.theme-toggle:hover{border-color:var(--accent);color:var(--accent-ink);background:rgba(37,99,235,.1);background:color-mix(in srgb,var(--accent) 10%,transparent);transform:translateY(-1px)}
+.theme-toggle svg{width:18px;height:18px;display:block}
+.theme-toggle .icon-moon{display:none}
+:root[data-theme="dark"] .theme-toggle .icon-sun{display:none}
+:root[data-theme="dark"] .theme-toggle .icon-moon{display:block}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .theme-toggle .icon-sun{display:none}
+  :root:not([data-theme="light"]) .theme-toggle .icon-moon{display:block}
+}
+@media(max-width:760px){
+  .nav-links{display:none}
+  .nav-actions .btn-primary{padding:9px 16px;font-size:13px}
+}
+
+/* ============ 品牌标 ============ */
+.brand-mark{flex-shrink:0;display:block;overflow:visible}
+.install-mark{display:flex;justify-content:center;margin-bottom:22px}
+.install-mark svg{display:block;filter:drop-shadow(0 16px 36px rgba(37,99,235,.45));animation:markFloat 6.5s ease-in-out infinite}
+@keyframes markFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+@media (prefers-reduced-motion:reduce){.install-mark svg{animation:none}}
+
+/* ============ Hero ============ */
+.hero{position:relative;padding:158px 0 90px;overflow:hidden}
+.hero-bg{
+  position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(52vw 40vw at 88% -8%,rgba(14,165,233,.10),transparent 60%),
+    radial-gradient(40vw 32vw at -6% 22%,rgba(37,99,235,.08),transparent 60%);
+}
+.hero-dots{
+  position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:radial-gradient(var(--dot) 1px,transparent 1px);
+  background-size:26px 26px;
+  mask-image:radial-gradient(60vw 50vw at 70% 30%,#000 20%,transparent 75%);
+  -webkit-mask-image:radial-gradient(60vw 50vw at 70% 30%,#000 20%,transparent 75%);
+}
+.hero-grid{position:relative;display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr);gap:56px;align-items:center}
+.hero h1{
+  font-family:var(--font-d);
+  font-size:clamp(2.5rem,5.6vw,4.1rem);
+  font-weight:800;letter-spacing:-.03em;line-height:1.16;
+  margin-top:20px;
+}
+.hero h1 .grad-word{
+  background:var(--grad);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  white-space:nowrap;
+}
+.hero h1 .serif-word{color:var(--accent-ink)}
+.hero-lead{margin-top:22px;color:var(--muted);font-size:17px;max-width:480px}
+.hero-lead strong{color:var(--ink-2);font-weight:600}
+.hero-cta{display:flex;gap:14px;margin-top:34px;flex-wrap:wrap}
+.hero-meta{display:flex;gap:22px;margin-top:30px;font-size:13px;color:var(--faint);flex-wrap:wrap}
+.hero-meta span{display:inline-flex;align-items:center;gap:7px}
+.hero-meta i{width:5px;height:5px;border-radius:50%;background:var(--accent);display:inline-block}
+@media(max-width:940px){.hero-grid{grid-template-columns:1fr;gap:44px}.hero{padding-top:128px}}
+
+/* ---- Hero 实时演示（微型网页 + 悬停放大） ---- */
+.demo-shell{
+  position:relative;
+  background:var(--card);
+  border:1px solid var(--line-soft);
+  border-radius:var(--r-lg);
+  box-shadow:0 30px 70px -30px rgb(var(--shade) / .28),0 2px 8px rgb(var(--shade) / .05);
+  overflow:hidden;
+}
+.demo-chrome{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line-soft);background:var(--chrome-bg)}
+.demo-chrome i{width:10px;height:10px;border-radius:50%}
+.demo-chrome i:nth-child(1){background:#f26d6d}.demo-chrome i:nth-child(2){background:#f5bd4f}.demo-chrome i:nth-child(3){background:#4fc96e}
+.demo-url{
+  flex:1;margin-left:8px;font-size:12px;color:var(--faint);
+  background:var(--paper);border:1px solid var(--line-soft);border-radius:8px;
+  padding:5px 12px;font-family:var(--font-d);letter-spacing:.01em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.demo-page{position:relative;padding:22px 22px 26px;min-height:352px}
+.demo-post-title{font-family:var(--font-d);font-size:15px;font-weight:600;color:var(--ink-2)}
+.demo-post-line{height:8px;border-radius:4px;background:var(--paper-2);margin-top:10px}
+.demo-thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}
+.demo-thumb{
+  position:relative;border-radius:12px;overflow:hidden;cursor:zoom-in;
+  border:1px solid var(--line-soft);aspect-ratio:4/3;background:var(--paper-2);
+  transition:transform .35s var(--ease),box-shadow .35s var(--ease);
+}
+.demo-thumb img{width:100%;height:100%;object-fit:cover}
+.demo-thumb:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgb(var(--shade) / .14)}
+.demo-thumb::after{
+  content:"悬停放大";position:absolute;left:8px;bottom:8px;
+  font-size:10.5px;font-weight:600;color:#fff;letter-spacing:.05em;
+  background:rgba(20,18,29,.55);backdrop-filter:blur(6px);
+  padding:3px 9px;border-radius:999px;opacity:0;transform:translateY(4px);
+  transition:opacity .25s,transform .25s var(--ease);
+}
+.demo-thumb:hover::after{opacity:1;transform:none}
+.demo-note{margin-top:16px;font-size:12.5px;color:var(--faint);display:flex;align-items:center;gap:8px}
+.demo-note .pulse{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(15,157,108,.5);animation:pulse 2s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(15,157,108,0)}100%{box-shadow:0 0 0 0 rgba(15,157,108,0)}}
+/* 顶部演示为纯播放动画：完全不响应鼠标，仅供观看 */
+.demo-shell.static-demo .demo-thumb{pointer-events:none;cursor:default}
+.demo-shell.static-demo .demo-thumb:hover{transform:none;box-shadow:none}
+.demo-shell.static-demo .demo-thumb::after{display:none}
+.demo-shell.static-demo .hv-zoom,
+.demo-shell.static-demo .hv-zoom img{cursor:default}
+
+/* 悬浮大图预览（复刻脚本行为） */
+.hv-zoom{
+  position:absolute;z-index:20;pointer-events:none; /* 鼠标穿透：缩略图始终可悬停、滚轮由页面级监听 */
+  border-radius:14px;overflow:hidden;
+  box-shadow:0 24px 60px -12px rgba(15,13,26,.45),0 0 0 1px rgba(255,255,255,.35) inset;
+  opacity:0;transform:scale(.9);transform-origin:center center;
+  transition:opacity .28s var(--ease),transform .34s var(--ease);
+  background:#0d0c14;
+  cursor:zoom-in;
+}
+.hv-zoom.show{opacity:1;transform:scale(1)}
+.hv-zoom img{width:100%;height:100%;object-fit:cover;transition:transform .3s var(--ease)}
+.hv-zoom .hv-badge{
+  position:absolute;left:10px;top:10px;font-size:10.5px;font-weight:600;color:#fff;
+  font-family:var(--font-d);letter-spacing:.04em;
+  background:rgba(20,18,29,.55);backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,.16);
+  padding:3px 10px;border-radius:999px;
+}
+/* 悬停等待指示器：三点 */
+.hv-wait{
+  position:absolute;z-index:22;width:22px;height:14px;pointer-events:none;
+  transform:translate(-50%,-50%);opacity:0;transition:opacity .14s;
+  filter:drop-shadow(0 1px 5px rgba(0,0,0,.3));
+}
+.hv-wait.show{opacity:1}
+.hv-wait i{position:absolute;top:50%;width:4px;height:4px;margin-top:-2px;border-radius:50%;background:#fff;box-shadow:0 0 6px rgba(56,189,248,.95),0 0 10px rgba(56,189,248,.4);animation:waitB 1s cubic-bezier(.45,0,.55,1) infinite}
+.hv-wait i:nth-child(1){left:1px}
+.hv-wait i:nth-child(2){left:9px;width:5px;height:5px;margin-top:-2.5px;animation-delay:.14s}
+.hv-wait i:nth-child(3){left:17px;animation-delay:.28s}
+@keyframes waitB{0%,100%{transform:translateY(1px) scale(.72);opacity:.42}38%{transform:translateY(-1px) scale(1.12);opacity:1}58%{transform:translateY(0) scale(.9);opacity:.82}}
+/* 自动演示用的虚拟光标 */
+.hv-cursor{
+  position:absolute;z-index:24;pointer-events:none;opacity:0;
+  transition:opacity .3s;filter:drop-shadow(0 3px 6px rgba(15,13,26,.35));
+}
+.hv-cursor.show{opacity:1}
+.hv-cursor svg{display:block}
+
+/* ============ 功能区 ============ */
+.section{padding:104px 0}
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:52px}
+.feat{
+  position:relative;background:var(--card);border:1px solid var(--line-soft);
+  border-radius:var(--r-lg);padding:26px 24px;
+  transition:transform .35s var(--ease),box-shadow .35s var(--ease),border-color .35s;
+}
+.feat:hover{transform:translateY(-4px);box-shadow:0 22px 44px -20px rgb(var(--shade) / .22);border-color:rgba(37,99,235,.28)}
+.feat-ico{
+  width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,rgba(37,99,235,.1),rgba(14,165,233,.08));
+  border:1px solid rgba(37,99,235,.16);color:var(--accent-ink);
+}
+.feat h3{font-family:var(--font-d);font-size:16.5px;font-weight:600;margin-top:16px;letter-spacing:-.01em}
+.feat p{font-size:13.5px;color:var(--muted);margin-top:7px;line-height:1.65}
+.feat.wide{grid-column:span 2}
+@media(max-width:900px){.feat-grid{grid-template-columns:repeat(2,1fr)}.feat.wide{grid-column:span 2}}
+@media(max-width:600px){.feat-grid{grid-template-columns:1fr}.feat.wide{grid-column:span 1}}
+
+/* ============ 深度演示（暗色舞台） ============ */
+.stage{background:var(--deep);color:#eceaf2;position:relative;overflow:hidden}
+.stage .sec-sub{color:#a29fb2}
+.stage .eyebrow{color:#93c5fd}
+.stage-bg{
+  position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(50vw 36vw at 82% 8%,rgba(14,165,233,.16),transparent 62%),
+    radial-gradient(38vw 30vw at 4% 88%,rgba(37,99,235,.12),transparent 60%);
+}
+.stage-grid{position:relative;display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:52px;align-items:center}
+.stage-list{display:flex;flex-direction:column;gap:0;margin-top:34px}
+.stage-item{display:flex;gap:16px;padding:18px 0;border-top:1px solid rgba(255,255,255,.08)}
+.stage-item:last-child{border-bottom:1px solid rgba(255,255,255,.08)}
+.stage-num{font-family:var(--font-d);font-size:12px;font-weight:700;color:#8b87a0;letter-spacing:.1em;padding-top:3px}
+.stage-item h3{font-family:var(--font-d);font-size:15.5px;font-weight:600}
+.stage-item p{font-size:13.5px;color:#a29fb2;margin-top:4px}
+/* 暗色版演示页 */
+.stage-demo .demo-shell{background:var(--deep-2);border-color:rgba(255,255,255,.09);box-shadow:0 40px 90px -30px rgba(0,0,0,.7)}
+.stage-demo .demo-chrome{background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.07)}
+.stage-demo .demo-url{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.08);color:#8b87a0}
+.stage-demo .demo-post-title{color:#d9d6e4}
+.stage-demo .demo-post-line{background:rgba(255,255,255,.07)}
+.stage-demo .demo-thumb{border-color:rgba(255,255,255,.08);background:rgba(255,255,255,.04)}
+.stage-demo .demo-note{color:#8b87a0}
+/* 悬浮控制台 dock */
+.hv-dock{
+  position:absolute;right:0;top:46%;transform:translateY(-50%);z-index:15;
+  display:flex;flex-direction:column;align-items:flex-end;gap:10px;
+  pointer-events:none; /* 装饰性控制台，不遮挡缩略图的悬停 */
+}
+.hv-dock-btn{
+  width:42px;height:42px;border-radius:21px 0 0 21px;
+  background:rgba(52,211,153,.18);backdrop-filter:blur(12px);
+  border:1px solid rgba(52,211,153,.32);border-right:none;
+  display:flex;align-items:center;justify-content:center;padding-left:3px;
+  box-shadow:0 2px 10px rgba(0,0,0,.3);cursor:pointer;position:relative;
+  transition:filter .25s;
+}
+.hv-dock-btn:hover{filter:brightness(1.3)}
+.hv-dock-btn i{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:6px;height:6px;border-radius:50%;background:#34d399;box-shadow:0 0 10px rgba(52,211,153,.6)}
+.hv-dock-gear{
+  width:30px;height:30px;border-radius:15px 0 0 15px;
+  background:rgba(20,24,44,.75);backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,.14);border-right:none;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  transition:border-color .25s;
+}
+.hv-dock-gear:hover{border-color:rgba(251,191,36,.4)}
+.hv-dock-gear svg{transition:transform .6s ease}
+.hv-dock-gear:hover svg{transform:rotate(60deg)}
+@media(max-width:940px){.stage-grid{grid-template-columns:1fr}}
+
+/* ============ 双模式 ============ */
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:52px}
+.mode{
+  position:relative;border-radius:var(--r-xl);padding:34px 32px;overflow:hidden;
+  border:1px solid var(--line-soft);background:var(--card);
+  transition:transform .35s var(--ease),box-shadow .35s var(--ease);
+}
+.mode:hover{transform:translateY(-4px);box-shadow:0 26px 54px -24px rgb(var(--shade) / .25)}
+.mode-tag{display:inline-block;font-family:var(--font-d);font-size:11.5px;font-weight:700;letter-spacing:.12em;padding:5px 13px;border-radius:999px}
+.mode-a .mode-tag{background:rgba(37,99,235,.12);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent-ink);border:1px solid rgba(37,99,235,.26);border-color:color-mix(in srgb,var(--accent) 26%,transparent)}
+.mode-b .mode-tag{background:rgba(15,157,108,.13);background:color-mix(in srgb,var(--ok) 13%,transparent);color:var(--ok-ink);border:1px solid rgba(15,157,108,.28);border-color:color-mix(in srgb,var(--ok) 28%,transparent)}
+.mode h3{font-family:var(--font-d);font-size:22px;font-weight:700;margin-top:18px;letter-spacing:-.015em}
+.mode p{color:var(--muted);font-size:14.5px;margin-top:10px;max-width:400px}
+.mode-viz{margin-top:26px;height:120px;border-radius:var(--r-md);position:relative;overflow:hidden;background:var(--paper);border:1px solid var(--line-soft)}
+.mode-viz .mv-img{position:absolute;border-radius:8px;overflow:hidden;box-shadow:0 6px 16px rgb(var(--shade) / .18)}
+.mode-viz .mv-img img{width:100%;height:100%;object-fit:cover}
+.mv-a-1{width:56px;height:42px;left:20px;top:38px}
+.mv-a-2{width:150px;height:100px;left:96px;top:10px;animation:mvGrow 3.2s var(--ease) infinite}
+@keyframes mvGrow{0%,18%{transform:scale(.55);opacity:.4}45%,80%{transform:scale(1);opacity:1}100%{transform:scale(.55);opacity:.4}}
+.mv-b-1{width:60px;height:60px;left:24px;top:30px}
+.mv-b-2{width:120px;height:120px;left:120px;top:0;animation:mvGrow2 3.2s var(--ease) infinite}
+.mv-b-label{position:absolute;font-family:var(--font-d);font-size:11px;font-weight:700;color:var(--ok-ink);left:246px;top:48px;background:color-mix(in srgb,var(--ok) 13%,transparent);border:1px solid color-mix(in srgb,var(--ok) 30%,transparent);padding:2px 10px;border-radius:999px}
+@keyframes mvGrow2{0%,18%{transform:scale(.5);opacity:.4}45%,80%{transform:scale(1);opacity:1}100%{transform:scale(.5);opacity:.4}}
+@media(max-width:800px){.modes{grid-template-columns:1fr}}
+
+/* ============ 配置面板（代码实时渲染） ============ */
+.panel-section{padding:104px 0;background:linear-gradient(180deg,var(--paper) 0%,var(--paper-3) 100%)}
+.panel-stage{
+  margin-top:52px;border-radius:var(--r-xl);padding:clamp(16px,4vw,48px);
+  background:
+    radial-gradient(60% 80% at 80% 0%,rgba(14,165,233,.12),transparent 60%),
+    radial-gradient(50% 70% at 10% 100%,rgba(37,99,235,.1),transparent 55%),
+    var(--panel-stage-bg);
+  border:1px solid var(--line-soft);
+  display:flex;justify-content:center;
+}
+/* —— 以下复刻 HoverVista 5.7.2 配置面板（作用域 .hv-panel） —— */
+.hv-panel{
+  --iz-bg-1:rgba(255,255,255,.9);--iz-bg-2:rgba(255,255,255,.5);--iz-bg-3:#ffffff;--iz-bg-4:rgba(248,250,252,.72);--iz-bg-5:#f1f5f9;
+  --iz-bd-1:rgba(226,232,240,.8);--iz-bd-2:#e2e8f0;
+  --iz-tx-1:#0f172a;--iz-tx-2:#1e293b;--iz-tx-muted:#64748b;--iz-tx-faint:#94a3b8;
+  --iz-accent:#2563eb;--iz-accent-solid:#2563eb;--iz-accent-soft:rgba(37,99,235,.15);
+  --iz-grad:linear-gradient(135deg,#2563eb,#0ea5e9);
+  --iz-hover-bg:rgba(255,255,255,.95);--iz-scroll:#cbd5e1;
+  --iz-shadow:0 25px 60px -12px rgba(20,18,35,.35);--iz-inset-ring:rgba(255,255,255,.6);
+  --iz-danger:#ef4444;--iz-danger-soft:rgba(239,68,68,.08);
+  --iz-ok:#10b981;--iz-warn:#f59e0b;--iz-warn-bg:#faeeda;--iz-warn-tx:#854f0b;--iz-warn-bd:#ef9f27;
+  --iz-r-sm:10px;--iz-r-md:12px;--iz-r-lg:16px;--iz-r-xl:24px;
+  --iz-select-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  /* 面板深色 token（对应脚本 v5.7.1 的暗色主题） */
+  --iz-d-bg-1:rgba(24,27,40,.94);--iz-d-bg-2:rgba(255,255,255,.045);--iz-d-bg-3:rgba(255,255,255,.07);--iz-d-bg-4:rgba(255,255,255,.05);--iz-d-bg-5:rgba(255,255,255,.09);
+  --iz-d-bd-1:rgba(255,255,255,.12);--iz-d-bd-2:rgba(255,255,255,.16);
+  --iz-d-tx-1:#f1f5f9;--iz-d-tx-2:#e2e8f0;--iz-d-tx-muted:#a6b0c3;--iz-d-tx-faint:#7c8699;
+  --iz-d-accent:#60a5fa;--iz-d-accent-solid:#2563eb;--iz-d-accent-soft:rgba(96,165,250,.3);
+  --iz-d-hover-bg:rgba(255,255,255,.1);--iz-d-scroll:rgba(255,255,255,.24);
+  --iz-d-shadow:0 25px 60px -12px rgba(0,0,0,.72);--iz-d-inset-ring:rgba(255,255,255,.08);
+  --iz-d-danger:#f87171;--iz-d-danger-soft:rgba(248,113,113,.16);
+  --iz-d-ok:#34d399;--iz-d-warn-bg:rgba(245,158,11,.16);--iz-d-warn-tx:#fcd34d;--iz-d-warn-bd:rgba(245,158,11,.35);
+  --iz-d-select-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a6b0c3' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  width:100%;max-width:780px;background:var(--iz-bg-1);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-radius:var(--iz-r-xl);box-shadow:var(--iz-shadow),0 0 0 1px var(--iz-inset-ring) inset;
+  overflow:hidden;display:flex;flex-direction:column;color:var(--iz-tx-1);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  position:relative;
+}
+.hv-panel *{box-sizing:border-box}
+/* 深色：面板切到脚本自带的暗色主题 */
+:root[data-theme="dark"] .hv-panel{
+  --iz-bg-1:var(--iz-d-bg-1);--iz-bg-2:var(--iz-d-bg-2);--iz-bg-3:var(--iz-d-bg-3);--iz-bg-4:var(--iz-d-bg-4);--iz-bg-5:var(--iz-d-bg-5);
+  --iz-bd-1:var(--iz-d-bd-1);--iz-bd-2:var(--iz-d-bd-2);
+  --iz-tx-1:var(--iz-d-tx-1);--iz-tx-2:var(--iz-d-tx-2);--iz-tx-muted:var(--iz-d-tx-muted);--iz-tx-faint:var(--iz-d-tx-faint);
+  --iz-accent:var(--iz-d-accent);--iz-accent-soft:var(--iz-d-accent-soft);
+  --iz-hover-bg:var(--iz-d-hover-bg);--iz-scroll:var(--iz-d-scroll);
+  --iz-shadow:var(--iz-d-shadow);--iz-inset-ring:var(--iz-d-inset-ring);
+  --iz-danger:var(--iz-d-danger);--iz-danger-soft:var(--iz-d-danger-soft);
+  --iz-ok:var(--iz-d-ok);--iz-warn-bg:var(--iz-d-warn-bg);--iz-warn-tx:var(--iz-d-warn-tx);--iz-warn-bd:var(--iz-d-warn-bd);
+  --iz-select-arrow:var(--iz-d-select-arrow);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .hv-panel{
+    --iz-bg-1:var(--iz-d-bg-1);--iz-bg-2:var(--iz-d-bg-2);--iz-bg-3:var(--iz-d-bg-3);--iz-bg-4:var(--iz-d-bg-4);--iz-bg-5:var(--iz-d-bg-5);
+    --iz-bd-1:var(--iz-d-bd-1);--iz-bd-2:var(--iz-d-bd-2);
+    --iz-tx-1:var(--iz-d-tx-1);--iz-tx-2:var(--iz-d-tx-2);--iz-tx-muted:var(--iz-d-tx-muted);--iz-tx-faint:var(--iz-d-tx-faint);
+    --iz-accent:var(--iz-d-accent);--iz-accent-soft:var(--iz-d-accent-soft);
+    --iz-hover-bg:var(--iz-d-hover-bg);--iz-scroll:var(--iz-d-scroll);
+    --iz-shadow:var(--iz-d-shadow);--iz-inset-ring:var(--iz-d-inset-ring);
+    --iz-danger:var(--iz-d-danger);--iz-danger-soft:var(--iz-d-danger-soft);
+    --iz-ok:var(--iz-d-ok);--iz-warn-bg:var(--iz-d-warn-bg);--iz-warn-tx:var(--iz-d-warn-tx);--iz-warn-bd:var(--iz-d-warn-bd);
+    --iz-select-arrow:var(--iz-d-select-arrow);
+  }
+}
+.hv-header{display:flex;align-items:center;justify-content:space-between;padding:20px 26px 0}
+.hv-header-left{display:flex;align-items:center;gap:12px}
+.hv-icon{width:38px;height:38px;background:var(--iz-grad);border-radius:var(--iz-r-md);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 12px rgba(37,99,235,.3)}
+.hv-title{font-size:19px;font-weight:600;letter-spacing:-.3px}
+.hv-title span{font-weight:400;color:var(--iz-tx-muted);font-size:13.5px;margin-left:6px}
+.hv-close{width:34px;height:34px;border:none;background:var(--iz-bg-5);border-radius:50%;font-size:16px;color:var(--iz-tx-muted);display:flex;align-items:center;justify-content:center;transition:all .25s;line-height:1}
+.hv-close:hover{background:var(--iz-danger-soft);color:var(--iz-danger);transform:rotate(90deg)}
+.hv-scroll{padding:0 26px 14px}
+.hv-top-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:stretch}
+.hv-top-grid>.hv-sec{display:flex;flex-direction:column}
+.hv-sec{margin-top:12px;background:var(--iz-bg-2);border-radius:var(--iz-r-lg);padding:14px 16px 16px;border:1px solid var(--iz-bd-1)}
+.hv-sec-title{font-size:13px;font-weight:600;color:var(--iz-tx-2);letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.hv-badge{background:var(--iz-accent-solid);color:#fff;font-size:11px;font-weight:600;padding:1px 8px;border-radius:20px;line-height:16px}
+.hv-row{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+.hv-row-label{font-size:14px;font-weight:500;color:var(--iz-tx-2);flex-shrink:0;min-width:96px}
+.hv-row-label .hv-hint{display:block;font-weight:400;font-size:12px;color:var(--iz-tx-muted);margin-top:1px}
+.hv-row-control{flex:1;min-width:0}
+.hv-select{
+  width:100%;height:42px;padding:8px 36px 8px 14px;font-size:14px;font-weight:500;color:var(--iz-tx-1);
+  background-color:var(--iz-bg-3);
+  background-image:var(--iz-select-arrow);
+  background-repeat:no-repeat;background-position:right 14px center;background-size:12px;
+  border:1.5px solid var(--iz-bd-2);border-radius:var(--iz-r-md);appearance:none;-webkit-appearance:none;
+  cursor:pointer;outline:none;transition:all .2s;font-family:inherit;
+}
+.hv-select:hover{border-color:var(--iz-accent)}
+.hv-select:focus{border-color:var(--iz-accent);box-shadow:0 0 0 3px var(--iz-accent-soft)}
+.hv-excl{background:var(--iz-bg-4);border-radius:var(--iz-r-md);padding:10px 12px;border:1px solid var(--iz-bd-1)}
+.hv-excl-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.hv-excl-text{font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;color:var(--iz-tx-2)}
+.hv-dot{width:8px;height:8px;border-radius:50%;background:var(--iz-ok);display:inline-block;flex-shrink:0}
+.hv-dot.off{background:var(--iz-warn)}
+.hv-excl-note{margin-top:5px;font-size:12px;color:var(--iz-tx-muted)}
+.hv-btn-sm{padding:6px 16px;border:none;border-radius:var(--iz-r-sm);font-size:13px;font-weight:600;transition:all .2s;height:34px;flex-shrink:0}
+.hv-btn-sm.warning{background:var(--iz-warn-bg);color:var(--iz-warn-tx);border:.5px solid var(--iz-warn-bd)}
+.hv-btn-sm.warning:hover{filter:brightness(.97);transform:translateY(-1px);box-shadow:0 4px 12px rgba(245,158,11,.22)}
+.hv-switch-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1}
+.hv-switch{
+  display:grid;grid-template-columns:24px minmax(0,1fr);grid-template-rows:auto auto;
+  column-gap:12px;row-gap:3px;align-items:start;min-height:72px;padding:9px 10px;
+  background:var(--iz-bg-4);border:1px solid var(--iz-bd-1);border-radius:var(--iz-r-md);
+  cursor:pointer;user-select:none;transition:background .2s,border-color .2s,transform .2s;
+}
+.hv-switch:hover{background:var(--iz-hover-bg);border-color:var(--iz-accent-soft);transform:translateY(-1px)}
+.hv-switch:focus-visible{outline:2px solid var(--iz-accent);outline-offset:2px}
+.hv-toggle{grid-column:1;grid-row:1;position:relative;width:30px;height:18px;margin-top:2px;background:var(--iz-bd-2);border-radius:20px;transition:background .3s;box-shadow:inset 0 1px 3px rgba(0,0,0,.1)}
+.hv-toggle .hv-knob{position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:left .3s cubic-bezier(.34,1.56,.64,1);box-shadow:0 2px 5px rgba(0,0,0,.2)}
+.hv-toggle.on{background:var(--iz-grad)}
+.hv-toggle.on .hv-knob{left:14px}
+.hv-switch-title{grid-column:2;grid-row:1;font-size:13px;font-weight:600;color:var(--iz-tx-2);line-height:1.35}
+.hv-switch-sub{grid-column:1/-1;grid-row:2;font-size:12px;color:var(--iz-tx-muted);line-height:1.5;margin-top:2px}
+/* 折叠标题：两栏标题/计数/提示严格对齐（grid 固定列 + 不换行 + 等高） */
+.hv-collapse-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px;padding:8px 6px 5px;cursor:pointer;user-select:none;transition:background .2s;border-radius:var(--iz-r-sm);min-height:58px;box-sizing:border-box}
+.hv-collapse-head:hover{background:var(--iz-bg-4)}
+.hv-collapse-head:focus-visible{outline:2px solid var(--iz-accent);outline-offset:2px}
+.hv-collapse-left{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:var(--iz-tx-1);min-width:0}
+.hv-collapse-left>span:nth-of-type(2){min-width:98px;white-space:nowrap}
+.hv-arrow{transition:transform .3s ease;font-size:12px;color:var(--iz-tx-faint);flex:0 0 auto}
+.hv-arrow.open{transform:rotate(90deg)}
+.hv-count{font-size:11px;font-weight:500;color:var(--iz-tx-muted);background:var(--iz-bg-5);padding:1px 9px;border-radius:20px;flex:0 0 auto;white-space:nowrap}
+.hv-collapse-desc{font-size:12px;color:var(--iz-tx-muted);margin:2px 0 0 20px;white-space:nowrap}
+.hv-collapse-hint{font-size:12px;color:var(--iz-tx-muted);text-align:right;white-space:nowrap;line-height:1.5;padding-top:3px}
+.hv-collapse-body{overflow:hidden;max-height:0;opacity:0;transition:max-height .35s var(--ease),opacity .35s var(--ease),padding-top .35s var(--ease)}
+.hv-collapse-body.open{max-height:900px;opacity:1;padding-top:9px}
+.hv-param-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px}
+/* 两栏参数卡片等高，避免一栏折叠时视觉错位 */
+.hv-param-cols{grid-template-columns:1fr 1fr;gap:12px;align-items:stretch}
+.hv-param-cols>.hv-sec{height:100%}
+.hv-param{display:flex;flex-direction:column;gap:4px}
+.hv-param label{font-size:12px;font-weight:500;color:var(--iz-tx-muted);display:flex;align-items:center;gap:5px}
+.hv-tip{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--iz-bd-2);color:var(--iz-tx-muted);font-size:10px;font-weight:700;cursor:help;transition:all .2s}
+.hv-tip:hover{background:var(--iz-accent);color:#fff}
+.hv-input{display:flex;align-items:center;background:var(--iz-bg-3);border:1.5px solid var(--iz-bd-2);border-radius:var(--iz-r-md);overflow:hidden;height:36px;transition:all .2s}
+.hv-input:focus-within{border-color:var(--iz-accent);box-shadow:0 0 0 3px var(--iz-accent-soft)}
+.hv-input input{flex:1;border:none;padding:0 10px;font-size:13px;font-weight:500;color:var(--iz-tx-1);background:transparent;outline:none;min-width:0;width:100%;font-family:inherit}
+.hv-input .hv-unit{padding:0 10px 0 2px;font-size:12px;color:var(--iz-tx-muted);font-weight:500;flex-shrink:0}
+.hv-input.disabled{opacity:.6;background:var(--iz-bg-5);cursor:not-allowed}
+.hv-input.disabled input{cursor:not-allowed}
+.hv-footer{padding:14px 26px 18px;border-top:1px solid var(--iz-bd-1);display:flex;align-items:center;justify-content:space-between;background:var(--iz-bg-2)}
+.hv-btn-ghost{background:none;border:none;padding:8px 13px;font-size:13px;font-weight:500;color:var(--iz-tx-muted);border-radius:var(--iz-r-sm);transition:all .2s}
+.hv-btn-ghost:hover{background:var(--iz-bg-5);color:var(--iz-tx-1)}
+.hv-btn-ghost.danger:hover{background:var(--iz-danger-soft);color:var(--iz-danger)}
+.hv-btn-save{padding:10px 26px;background:var(--iz-grad);border:none;border-radius:var(--iz-r-md);font-size:14px;font-weight:600;color:#fff;box-shadow:0 4px 16px rgba(37,99,235,.3);transition:all .25s}
+.hv-btn-save:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(37,99,235,.4)}
+.hv-btn-save:active{transform:scale(.96)}
+.hv-toast{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) translateY(6px);
+  background:rgba(15,23,42,.9);color:#fff;padding:10px 22px;border-radius:14px;
+  font-size:13px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,.35);
+  opacity:0;pointer-events:none;white-space:nowrap;z-index:5;
+  transition:opacity .25s,transform .25s var(--ease);
+}
+.hv-toast.show{opacity:1;transform:translate(-50%,-50%)}
+.hv-fixed-area.disabled-zone{opacity:.55}
+.hv-fixed-area.disabled-zone .hv-collapse-head{cursor:not-allowed}
+/* 中窄屏：标题区让位，避免溢出（计数徽标仍与桌面端同列对齐） */
+@media(max-width:900px){
+  .hv-collapse-left>span:nth-of-type(2){min-width:0}
+  .hv-collapse-desc{white-space:normal}
+}
+@media(max-width:680px){
+  .hv-top-grid,.hv-switch-grid,.hv-param-grid{grid-template-columns:1fr}
+  .hv-header,.hv-scroll,.hv-footer{padding-left:18px;padding-right:18px}
+  .hv-row{flex-direction:column;align-items:stretch;gap:6px}
+  .hv-collapse-head{grid-template-columns:minmax(0,1fr);gap:4px;min-height:0}
+  .hv-collapse-hint{text-align:left;padding-top:0}
+  .hv-collapse-desc,.hv-collapse-left>span:nth-of-type(2){white-space:normal;min-width:0}
+}
+
+/* ============ 站点独立配置 ============ */
+.sites-card{
+  margin-top:52px;background:var(--card);border:1px solid var(--line-soft);
+  border-radius:var(--r-xl);padding:clamp(24px,4vw,44px);
+  display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:44px;align-items:center;
+}
+.site-rows{display:flex;flex-direction:column;gap:10px}
+.site-row{
+  display:flex;align-items:center;gap:14px;padding:13px 18px;
+  background:var(--paper);border:1px solid var(--line-soft);border-radius:var(--r-md);
+  font-family:var(--font-d);font-size:13.5px;transition:border-color .25s,transform .25s var(--ease);
+}
+.site-row:hover{border-color:rgba(37,99,235,.3);transform:translateX(4px)}
+.site-domain{font-weight:600;color:var(--ink-2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.site-arrow{color:var(--faint);flex-shrink:0}
+.site-mode{font-size:12px;font-weight:700;padding:3px 12px;border-radius:999px;flex-shrink:0}
+.site-mode.smart{background:rgba(37,99,235,.12);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent-ink)}
+.site-mode.x2{background:rgba(15,157,108,.13);background:color-mix(in srgb,var(--ok) 13%,transparent);color:var(--ok-ink)}
+.site-mode.x3{background:rgba(217,119,6,.15);background:color-mix(in srgb,#d97706 15%,transparent);color:var(--warn-ink)}
+@media(max-width:860px){.sites-card{grid-template-columns:1fr}}
+
+/* ============ 更新日志 ============ */
+.log-list{margin-top:52px;display:flex;flex-direction:column}
+.log-item{display:grid;grid-template-columns:120px 1fr;gap:28px;padding:26px 0;border-top:1px solid var(--line-soft)}
+.log-item:last-child{border-bottom:1px solid var(--line-soft)}
+.log-ver{font-family:var(--font-d);font-weight:700;font-size:15px;color:var(--accent-ink)}
+.log-ver small{display:block;font-weight:500;font-size:12px;color:var(--faint);margin-top:3px}
+.log-body h3{font-family:var(--font-d);font-size:15.5px;font-weight:600}
+.log-body p{font-size:13.5px;color:var(--muted);margin-top:5px}
+@media(max-width:600px){.log-item{grid-template-columns:1fr;gap:8px}}
+
+/* ============ FAQ ============ */
+.faq-list{margin-top:52px;display:flex;flex-direction:column;gap:10px}
+.faq{
+  background:var(--card);border:1px solid var(--line-soft);border-radius:var(--r-md);
+  overflow:hidden;transition:border-color .25s;
+}
+.faq[open]{border-color:rgba(37,99,235,.3)}
+.faq summary{
+  list-style:none;cursor:pointer;padding:18px 22px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  font-family:var(--font-d);font-size:15px;font-weight:600;color:var(--ink-2);
+}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary .fx{flex-shrink:0;width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--muted);transition:transform .3s var(--ease),background .25s,color .25s;font-weight:400;font-family:var(--font-b)}
+.faq[open] summary .fx{transform:rotate(45deg);background:var(--accent);border-color:var(--accent);color:#fff}
+.faq-body{padding:0 22px 20px;font-size:14px;color:var(--muted);max-width:720px}
+
+/* ============ 安装 CTA ============ */
+.install{background:var(--deep);color:#eceaf2;position:relative;overflow:hidden}
+.install-bg{
+  position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(46vw 34vw at 50% -10%,rgba(14,165,233,.22),transparent 62%),
+    radial-gradient(30vw 24vw at 92% 100%,rgba(37,99,235,.14),transparent 60%);
+}
+.install .wrap{position:relative}
+.install .sec-sub{color:#a29fb2;margin-left:auto;margin-right:auto}
+.install-head{text-align:center;display:flex;flex-direction:column;align-items:center}
+.install-head .eyebrow{color:#93c5fd}
+.install-head .eyebrow::before{background:linear-gradient(135deg,#60a5fa,#38bdf8)}
+.install-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:56px}
+.inst-card{
+  background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1);
+  border-radius:var(--r-lg);padding:28px 26px;
+  transition:transform .35s var(--ease),border-color .3s,background .3s;
+  display:flex;flex-direction:column;gap:0;
+}
+.inst-card:hover{transform:translateY(-4px);border-color:rgba(56,189,248,.45);background:rgba(255,255,255,.07)}
+.inst-name{font-family:var(--font-d);font-size:17px;font-weight:700;display:flex;align-items:center;gap:10px}
+.inst-desc{font-size:13px;color:#a29fb2;margin-top:8px;flex:1}
+.inst-link{
+  margin-top:20px;display:inline-flex;align-items:center;gap:7px;
+  font-family:var(--font-d);font-size:13.5px;font-weight:600;color:#93c5fd;
+  transition:gap .25s var(--ease),color .2s;
+}
+.inst-card:hover .inst-link{gap:12px;color:#bfdbfe}
+.install-steps{
+  margin-top:44px;display:flex;justify-content:center;gap:0;flex-wrap:wrap;
+  font-size:13px;color:#8b87a0;
+}
+.install-steps span{display:inline-flex;align-items:center;gap:10px;padding:6px 0}
+.install-steps b{color:#d9d6e4;font-weight:600}
+.install-steps i{font-style:normal;color:#5b5870;padding:0 16px}
+@media(max-width:800px){.install-cards{grid-template-columns:1fr}}
+
+/* ============ 页脚 ============ */
+.footer{border-top:1px solid var(--line-soft);padding:36px 0;background:var(--paper)}
+.footer-inner{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.footer-note{font-size:13px;color:var(--faint)}
+.footer-links{display:flex;gap:22px;font-size:13px;color:var(--muted)}
+.footer-links a:hover{color:var(--accent-ink)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  html{scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<!-- 官方图标 sprite（来自 HoverVista-图标/HoverVista_Final_PixelCalibrated_v2.svg，已裁掉白底与字标） -->
+<svg class="hv-sprite" width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute;overflow:hidden">
+  <symbol id="hvLogo" viewBox="291 154 678 678"><defs><linearGradient id="hvBIcon" x1="297" y1="175" x2="955" y2="812" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#17A8EE"/><stop offset=".48" stop-color="#1580F2"/><stop offset="1" stop-color="#3038F2"/></linearGradient><linearGradient id="hvBSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4DB7F2"/><stop offset="1" stop-color="#C6EEFF"/></linearGradient><linearGradient id="hvBMtn" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1C7CF0"/><stop offset="1" stop-color="#0B63EF"/></linearGradient><clipPath id="hvBRear"><rect x="34" y="34" width="382" height="237" rx="28"/></clipPath><clipPath id="hvBFront"><rect x="36" y="36" width="388" height="325" rx="27"/></clipPath></defs><path id="icon-background"d="M475 175 H785C878 175 954 251 954 344V642C954 735 878 811 785 811H467C373 811 297 735 297 642V344C297 251 373 175 475 175 Z"fill="url(#hvBIcon)"/><g id="rear-image" transform="rotate(-8 570 518)"><rect x="333" y="366" width="470" height="305" rx="40" fill="#DCEEFF" opacity=".72"/><g clip-path="url(#hvBRear)" transform="translate(333 366)"><rect x="34" y="34" width="382" height="237" rx="28" fill="#8BC8F7" opacity=".82"/><path d="M0 270 L145 142 L224 205 L302 145 L470 275 V305 H0 Z" fill="#4D99EE" opacity=".72"/><path d="M0 275 L150 132 L253 226 L340 157 L470 265 V305 H0 Z" fill="#2477ED" opacity=".38"/></g></g><g id="front-image" transform="rotate(-7 657 470)"><rect x="430" y="280" width="455" height="395" rx="38" fill="#FFFFFF"/><g clip-path="url(#hvBFront)" transform="translate(430 280)"><rect x="36" y="36" width="388" height="325" rx="27" fill="url(#hvBSky)"/><circle id="sun" cx="334" cy="105" r="43" fill="#FFFFFF" opacity=".92"/><path id="far-mountain"d="M20 320 L190 170 L286 255 L350 185 L445 278 V380 H20 Z"fill="#59AEF0" opacity=".82"/><path id="main-mountain"d="M20 320 L194 145 L350 300 L430 220 L450 365 L20 390 Z"fill="url(#hvBMtn)"/><path d="M20 320 L194 145 L286 238 L130 390 H20 Z"fill="#1B70EA" opacity=".43"/></g></g><g id="cursor"><path d="M 789 530 787 532 787 534 786 535 786 541 787 542 787 546 788 547 788 552 789 553 789 557 790 558 790 562 791 563 791 568 792 569 792 573 793 574 793 578 794 579 794 583 795 584 795 588 796 589 796 594 797 595 797 599 798 600 798 604 799 605 799 609 800 610 800 615 801 616 801 619 802 620 802 625 803 626 803 630 804 631 804 635 805 636 805 641 806 642 806 646 807 647 807 651 808 652 808 656 809 657 809 661 810 662 810 666 811 667 811 672 812 673 812 677 813 678 813 682 814 683 814 688 815 689 815 693 816 694 816 698 817 699 817 703 818 704 818 709 819 710 819 714 820 715 820 720 821 721 821 723 824 726 825 726 826 727 829 727 830 726 831 726 835 722 835 721 838 718 838 717 842 713 842 712 845 709 845 708 848 705 848 704 852 700 852 699 856 695 856 694 859 691 859 690 862 687 865 690 865 691 867 693 867 694 869 696 869 697 870 698 870 699 873 702 873 703 875 705 875 706 876 707 876 708 878 710 878 711 880 713 880 714 882 716 882 717 883 718 883 719 885 721 885 722 887 724 887 725 889 727 889 728 891 730 891 731 893 733 893 734 894 735 894 736 896 738 896 739 898 741 898 742 900 744 900 745 901 746 901 747 903 749 903 750 905 752 905 753 909 757 917 757 919 755 920 755 922 753 923 753 925 751 926 751 928 749 929 749 932 746 933 746 935 744 936 744 936 743 937 742 937 741 938 740 938 735 937 734 937 733 936 732 936 731 934 729 934 728 932 726 932 725 931 724 931 723 929 721 929 720 927 718 927 717 925 715 925 714 924 713 924 712 922 710 922 709 920 707 920 706 918 704 918 703 917 702 917 701 914 698 914 697 913 696 913 695 911 693 911 692 909 690 909 689 908 688 908 687 906 685 906 684 904 682 904 681 902 679 902 678 901 677 901 676 899 674 899 673 897 671 897 670 895 668 895 667 893 665 893 664 892 663 893 662 894 662 895 661 900 661 901 660 904 660 905 659 909 659 910 658 915 658 916 657 919 657 920 656 924 656 925 655 930 655 931 654 935 654 936 653 939 653 940 652 944 652 945 651 948 651 949 650 950 650 953 647 953 645 954 644 954 642 953 641 953 639 948 634 947 634 945 632 944 632 941 629 940 629 938 627 937 627 935 625 934 625 931 622 930 622 928 620 927 620 925 618 924 618 921 615 920 615 918 613 917 613 915 611 914 611 911 608 910 608 908 606 907 606 905 604 904 604 902 602 901 602 898 599 897 599 895 597 894 597 891 594 890 594 888 592 887 592 884 589 883 589 882 588 881 588 878 585 877 585 875 583 874 583 871 580 870 580 868 578 867 578 865 576 864 576 861 573 860 573 858 571 857 571 855 569 854 569 852 567 851 567 848 564 847 564 845 562 844 562 842 560 841 560 838 557 837 557 835 555 834 555 832 553 831 553 829 551 828 551 825 548 824 548 822 546 821 546 819 544 818 544 816 542 815 542 813 540 812 540 809 537 808 537 806 535 805 535 803 533 802 533 800 531 799 531 797 529 791 529 790 530 Z"fill="#102C61"stroke="#FFFFFF"stroke-width="18"stroke-linejoin="round"stroke-linecap="round"/></g></symbol>
+</svg>
+
+<!-- ================= 导航 ================= -->
+<nav class="nav" id="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="悬景 HoverVista 首页">
+      <svg class="brand-mark" width="34" height="34" aria-hidden="true"><use href="#hvLogo"/></svg>
+      悬景<span style="color:var(--accent-ink)">HoverVista</span>
+      <small>v5.7.2</small>
+    </a>
+    <div class="nav-links">
+      <a href="#features">核心功能</a>
+      <a href="#demo">实时演示</a>
+      <a href="#panel">配置面板</a>
+      <a href="#changelog">更新日志</a>
+      <a href="#faq">常见问题</a>
+    </div>
+    <div class="nav-actions">
+      <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false" aria-label="切换深色 / 浅色模式" title="切换深色 / 浅色模式">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.2"/>
+          <path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4L17 7M7 17l-1.6 1.6"/>
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20.5 14.3A8.4 8.4 0 019.7 3.5 8.5 8.5 0 1020.5 14.3z"/>
+        </svg>
+      </button>
+      <a class="btn btn-primary" href="#install">立即安装</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ================= Hero ================= -->
+<header class="hero" id="top">
+  <div class="hero-bg"></div>
+  <div class="hero-dots"></div>
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">用户脚本 · Userscript</span>
+      <h1>无需点击。<br><span class="grad-word">悬停</span>，即见<span class="serif-word">大图。</span></h1>
+      <p class="hero-lead">把鼠标移到网页图片上，<strong>更大的预览自动浮现</strong>；移开鼠标，立即消失。论坛缩略图、文章配图、图片站——从此不必再点来点去。</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#install">免费安装脚本</a>
+        <a class="btn btn-ghost" href="#demo">看看实际效果 ↓</a>
+      </div>
+      <div class="hero-meta">
+        <span><i></i>Tampermonkey / Violentmonkey / ScriptCat</span>
+        <span><i></i>MIT 开源</span>
+        <span><i></i>配置仅本地保存</span>
+      </div>
+    </div>
+
+    <!-- 实时悬停放大演示 -->
+    <div class="demo-shell static-demo" id="heroDemo" aria-label="悬停放大过程自动演示">
+      <div class="demo-chrome">
+        <i></i><i></i><i></i>
+        <div class="demo-url">forum.example.com — 摄影交流版块</div>
+      </div>
+      <div class="demo-page" id="heroPage">
+        <div class="demo-post-title">【分享】周末去山里拍的几张，欢迎点评</div>
+        <div class="demo-post-line" style="width:82%"></div>
+        <div class="demo-post-line" style="width:64%"></div>
+        <div class="demo-thumbs">
+          <div class="demo-thumb" data-full="img/big-1015.jpg">
+            <img src="img/thumb-1015.jpg" alt="山谷河流缩略图" width="320" height="240" loading="lazy">
+          </div>
+          <div class="demo-thumb" data-full="img/big-1016.jpg">
+            <img src="img/thumb-1016.jpg" alt="峡谷缩略图" width="320" height="240" loading="lazy">
+          </div>
+          <div class="demo-thumb" data-full="img/big-1018.jpg">
+            <img src="img/thumb-1018.jpg" alt="山湖缩略图" width="320" height="240" loading="lazy">
+          </div>
+        </div>
+        <div class="demo-note"><span class="pulse"></span>自动演示 · 悬停约 0.35 秒后放大，移开即收起</div>
+
+        <div class="hv-wait" id="heroWait"><i></i><i></i><i></i></div>
+        <div class="hv-zoom" id="heroZoom"><img alt="放大预览"><span class="hv-badge">HoverVista 预览</span></div>
+        <div class="hv-cursor" id="heroCursor">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 3l7.2 17 2.1-7.4 7.7-2L4 3z" fill="#191821" stroke="#fff" stroke-width="1.4"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ================= 核心功能 ================= -->
+<section class="section" id="features">
+  <div class="wrap">
+    <span class="eyebrow reveal">Features · 核心功能</span>
+    <h2 class="sec-title reveal">一个脚本，照顾看图时的<em>每个细节</em></h2>
+    <p class="sec-sub reveal">从触发的时机，到预览的尺寸、加载的画质、收起的瞬间——每一步都被认真对待。</p>
+
+    <div class="feat-grid">
+      <div class="feat wide reveal">
+        <div class="feat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l7 16 2-7 7-2L4 4z"/><circle cx="17" cy="7" r="4"/></svg></div>
+        <h3>悬停自动放大</h3>
+        <p>鼠标移动到符合条件的图片上，自动显示大图预览；移开立即消失。可设置悬停延迟，既灵敏又不易误触发。</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="5"/></svg></div>
+        <h3>智能自适应尺寸</h3>
+        <p>根据原图尺寸与页面可用空间，自动算出最合适的预览大小。</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></div>
+        <h3>固定倍数放大</h3>
+        <p>设定 1.4×、2×、3×…… 预览严格按倍数呈现，小图有专属策略。</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6"/></svg></div>
+        <h3>高清图资源升级</h3>
+        <p>网页存在更高质量的图片资源时，预览自动换用高清版本。</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg></div>
+        <h3>动态页面支持</h3>
+        <p>兼容部分 AJAX、SPA 与无限滚动页面，后加载的图片也能放大。</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg></div>
+        <h3>Lightbox 主动避让</h3>
+        <p>网站打开了自己的图片查看器？HoverVista 会安静退到一边。</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6m0 8v6M2 12h6m8 0h6"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></div>
+        <h3>滚轮缩放预览</h3>
+        <p>预览过程中滚动滚轮，以约 8% 步进细腻地继续放大或缩小。</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14 0 18M12 3c-3 3.5-3 14 0 18"/></svg></div>
+        <h3>网站独立配置</h3>
+        <p>不同网站保存不同参数：这个站智能模式，那个站固定 3 倍。</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3>减少误触发</h3>
+        <p>尽量避开菜单、弹窗、播放器等交互元素，不打扰你的正常操作。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 深度演示 ================= -->
+<section class="section stage" id="demo">
+  <div class="stage-bg"></div>
+  <div class="wrap stage-grid">
+    <div>
+      <span class="eyebrow reveal">Live Demo · 实时演示</span>
+      <h2 class="sec-title reveal" style="color:#f3f2f8">这张图，<em>现在就能试</em></h2>
+      <p class="sec-sub reveal">右侧是一个模拟的图片站页面，已经“安装”了 HoverVista。把鼠标悬停到任意缩略图上——等待三点指示闪过，大图就会浮现。预览出现后还可以滚动滚轮继续缩放。</p>
+      <div class="stage-list">
+        <div class="stage-item reveal">
+          <span class="stage-num">01</span>
+          <div><h3>悬停，稍候片刻</h3><p>三点指示器在光标旁闪烁，表示正在准备预览。</p></div>
+        </div>
+        <div class="stage-item reveal">
+          <span class="stage-num">02</span>
+          <div><h3>大图居中浮现</h3><p>预览在页面中央展开，大小随可用空间自动适应。</p></div>
+        </div>
+        <div class="stage-item reveal">
+          <span class="stage-num">03</span>
+          <div><h3>滚轮继续缩放</h3><p>向上放大、向下缩小，约 8% 步进；移开鼠标立即收起。</p></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage-demo">
+      <div class="demo-shell" id="stageDemo">
+        <div class="demo-chrome">
+          <i></i><i></i><i></i>
+          <div class="demo-url">photos.example.com — 本周精选</div>
+        </div>
+        <div class="demo-page" id="stagePage" style="min-height:420px">
+          <div class="demo-post-title">本周精选 · Weekly Picks</div>
+          <div class="demo-post-line" style="width:70%"></div>
+          <div class="demo-thumbs" style="grid-template-columns:repeat(3,1fr)">
+            <div class="demo-thumb" data-full="img/big-1035.jpg"><img src="img/thumb-1035.jpg" alt="风景缩略图一" width="320" height="240" loading="lazy"></div>
+            <div class="demo-thumb" data-full="img/big-1043.jpg"><img src="img/thumb-1043.jpg" alt="风景缩略图二" width="320" height="240" loading="lazy"></div>
+            <div class="demo-thumb" data-full="img/big-1050.jpg"><img src="img/thumb-1050.jpg" alt="风景缩略图三" width="320" height="240" loading="lazy"></div>
+            <div class="demo-thumb" data-full="img/big-1019.jpg"><img src="img/thumb-1019.jpg" alt="风景缩略图四" width="320" height="240" loading="lazy"></div>
+            <div class="demo-thumb" data-full="img/big-1025.jpg"><img src="img/thumb-1025.jpg" alt="动物缩略图" width="320" height="240" loading="lazy"></div>
+            <div class="demo-thumb" data-full="img/big-1039.jpg"><img src="img/thumb-1039.jpg" alt="瀑布缩略图" width="320" height="240" loading="lazy"></div>
+          </div>
+          <div class="demo-note"><span class="pulse"></span>轮到你操作了 · 把鼠标移到缩略图上，感受装好脚本后的真实效果</div>
+
+          <!-- 悬浮控制台 -->
+          <div class="hv-dock">
+            <div class="hv-dock-btn" title="HoverVista 悬浮控制台">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.5-4.5"/></svg>
+              <i></i>
+            </div>
+            <div class="hv-dock-gear" title="打开设置">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.7 1.7 0 00-1.87-.34 1.7 1.7 0 00-1.04 1.56V21a2 2 0 11-4 0v-.09a1.7 1.7 0 00-1.04-1.56 1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.7 1.7 0 00.34-1.87 1.7 1.7 0 00-1.56-1.04H3a2 2 0 110-4h.09a1.7 1.7 0 001.56-1.04 1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06a1.7 1.7 0 001.87.34h.01a1.7 1.7 0 001.04-1.56V3a2 2 0 114 0v.09a1.7 1.7 0 001.04 1.56 1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06a1.7 1.7 0 00-.34 1.87v.01a1.7 1.7 0 001.56 1.04H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.56 1.04z"/></svg>
+            </div>
+          </div>
+
+          <div class="hv-wait" id="stageWait"><i></i><i></i><i></i></div>
+          <div class="hv-zoom" id="stageZoom"><img alt="放大预览"><span class="hv-badge">滚轮可继续缩放</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 双模式 ================= -->
+<section class="section" id="modes">
+  <div class="wrap">
+    <span class="eyebrow reveal">Two Modes · 双放大模式</span>
+    <h2 class="sec-title reveal">放多大，<em>你说了算</em></h2>
+    <p class="sec-sub reveal">智能自适应交给算法，固定倍数交给你。两种模式随时切换，竖长图与小图各有专属策略。</p>
+    <div class="modes">
+      <div class="mode mode-a reveal">
+        <span class="mode-tag">默认推荐</span>
+        <h3>✨ 智能自适应</h3>
+        <p>综合原图尺寸、窗口空间与最大宽高限制，自动计算最舒服的预览大小——大图不过界，小图看得清。</p>
+        <div class="mode-viz" aria-hidden="true">
+          <div class="mv-img mv-a-1"><img src="img/thumb-1015.jpg" alt=""></div>
+          <div class="mv-img mv-a-2"><img src="img/big-1015.jpg" alt=""></div>
+        </div>
+      </div>
+      <div class="mode mode-b reveal">
+        <span class="mode-tag">精确控制</span>
+        <h3>📐 固定倍数</h3>
+        <p>设定目标放大倍数（如 2×），预览严格按比例呈现；小图判定阈值与目标宽高可单独微调。</p>
+        <div class="mode-viz" aria-hidden="true">
+          <div class="mv-img mv-b-1"><img src="img/thumb-1016.jpg" alt=""></div>
+          <div class="mv-img mv-b-2"><img src="img/big-1016.jpg" alt=""></div>
+          <span class="mv-b-label">固定 2×</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 配置面板 ================= -->
+<section class="panel-section" id="panel">
+  <div class="wrap">
+    <span class="eyebrow reveal">Config Panel · 配置面板</span>
+    <h2 class="sec-title reveal">图形化配置，<em>所见即所得</em></h2>
+    <p class="sec-sub reveal">下面是 HoverVista 5.7.2 配置面板的实时渲染版本——不是截图。开关可以拨、参数可以展开、模式可以切换，试试看。</p>
+
+    <div class="panel-stage reveal">
+      <div class="hv-panel" role="dialog" aria-label="图片放大设置面板演示">
+        <div class="hv-header">
+          <div class="hv-header-left">
+            <div class="hv-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.5-4.5M11 8v6M8 11h6"/></svg>
+            </div>
+            <div class="hv-title">图片放大设置<span>· 悬停预览</span></div>
+          </div>
+          <button class="hv-close" id="hvClose" title="关闭 (ESC)">✕</button>
+        </div>
+
+        <div class="hv-scroll">
+          <div class="hv-top-grid">
+            <div class="hv-sec">
+              <div class="hv-sec-title">⚙️ 基本设置</div>
+              <div class="hv-row">
+                <div class="hv-row-label">放大模式<span class="hv-hint">智能 / 固定</span></div>
+                <div class="hv-row-control">
+                  <select class="hv-select" id="hvMode">
+                    <option value="adaptive" selected>✨ 智能自适应</option>
+                    <option value="fixed">📐 固定倍数</option>
+                  </select>
+                </div>
+              </div>
+              <div class="hv-excl">
+                <div class="hv-excl-row">
+                  <div class="hv-excl-text"><span class="hv-dot" id="hvHpDot"></span><span id="hvHpText">当前主页已启用图片放大</span><span class="hv-badge">当前网站</span></div>
+                  <button class="hv-btn-sm warning" id="hvHpBtn">禁用主页图片放大功能</button>
+                </div>
+                <div class="hv-excl-note">仅对当前网站（example.com）的主页生效，内容子页面不受影响。</div>
+              </div>
+            </div>
+
+            <div class="hv-sec">
+              <div class="hv-sec-title">🎛️ 快捷开关</div>
+              <div class="hv-switch-grid">
+                <div class="hv-switch" role="switch" tabindex="0" aria-checked="false" data-name="避免与点击放大冲突">
+                  <div class="hv-toggle"><div class="hv-knob"></div></div>
+                  <div class="hv-switch-title">避免与点击放大冲突</div>
+                  <div class="hv-switch-sub">自动检测点击放大，减少重复触发。</div>
+                </div>
+                <div class="hv-switch on-state" role="switch" tabindex="0" aria-checked="true" data-name="窗口失焦时自动收起">
+                  <div class="hv-toggle on"><div class="hv-knob"></div></div>
+                  <div class="hv-switch-title">窗口失焦时自动收起</div>
+                  <div class="hv-switch-sub">切换应用时收起；关闭后可保留预览。</div>
+                </div>
+                <div class="hv-switch on-state" role="switch" tabindex="0" aria-checked="true" data-name="滚轮控制放大图缩放">
+                  <div class="hv-toggle on"><div class="hv-knob"></div></div>
+                  <div class="hv-switch-title">滚轮控制放大图缩放</div>
+                  <div class="hv-switch-sub">向上放大、向下缩小；关闭后恢复上下移动。</div>
+                </div>
+                <div class="hv-switch on-state" role="switch" tabindex="0" aria-checked="true" data-name="B站播放器辅助">
+                  <div class="hv-toggle on"><div class="hv-knob"></div></div>
+                  <div class="hv-switch-title">B站播放器辅助</div>
+                  <div class="hv-switch-sub">B站全屏时如发现滚轮无法调节音量，开启此辅助即可。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="hv-top-grid hv-param-cols">
+            <div class="hv-sec">
+              <div class="hv-collapse-head" id="hvCommonHead" role="button" tabindex="0" aria-expanded="true">
+                <div>
+                  <div class="hv-collapse-left"><span class="hv-arrow open">▶</span><span>通用参数</span><span class="hv-count">5 项</span></div>
+                  <div class="hv-collapse-desc">自适应与固定模式都生效</div>
+                </div>
+                <span class="hv-collapse-hint">点击收起</span>
+              </div>
+              <div class="hv-collapse-body open" id="hvCommonBody">
+                <div class="hv-param-grid">
+                  <div class="hv-param">
+                    <label>悬停延迟<span class="hv-tip" title="鼠标连续停留在图片上达到此时间后才触发放大。数值越小越灵敏，数值越大越不容易误触发。">?</span></label>
+                    <div class="hv-input"><input type="number" value="800" min="0" max="2000" step="100" aria-label="悬停延迟"><span class="hv-unit">ms</span></div>
+                  </div>
+                  <div class="hv-param">
+                    <label>最小放大尺寸<span class="hv-tip" title="图片显示宽度或高度低于此值时不触发放大，用于跳过图标、表情、按钮等小图片。">?</span></label>
+                    <div class="hv-input"><input type="number" value="51" min="0" max="500" step="5" aria-label="最小放大尺寸"><span class="hv-unit">px</span></div>
+                  </div>
+                  <div class="hv-param">
+                    <label>大图最大宽度<span class="hv-tip" title="预览区域允许达到的最大宽度。图片保持原始比例，并同时受最大高度限制。">?</span></label>
+                    <div class="hv-input"><input type="number" value="1200" min="300" max="3000" step="100" aria-label="大图最大宽度"><span class="hv-unit">px</span></div>
+                  </div>
+                  <div class="hv-param">
+                    <label>大图最大高度<span class="hv-tip" title="预览区域允许达到的最大高度。图片保持原始比例，并同时受最大宽度限制。">?</span></label>
+                    <div class="hv-input"><input type="number" value="980" min="300" max="3000" step="100" aria-label="大图最大高度"><span class="hv-unit">px</span></div>
+                  </div>
+                  <div class="hv-param">
+                    <label>滚轮移动速度<span class="hv-tip" title="预览内容超出可视区域时，鼠标滚轮每次移动的距离。">?</span></label>
+                    <div class="hv-input"><input type="number" value="50" min="5" max="50" step="1" aria-label="滚轮移动速度"><span class="hv-unit">px</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="hv-sec hv-fixed-area disabled-zone" id="hvFixedArea">
+              <div class="hv-collapse-head" id="hvFixedHead" role="button" tabindex="0" aria-expanded="false">
+                <div>
+                  <div class="hv-collapse-left"><span class="hv-arrow">▶</span><span>固定模式参数</span><span class="hv-count">5 项</span></div>
+                  <div class="hv-collapse-desc" id="hvFixedDesc">仅固定模式生效</div>
+                </div>
+                <span class="hv-collapse-hint" id="hvFixedHint">自适应模式下不可用</span>
+              </div>
+              <div class="hv-collapse-body" id="hvFixedBody">
+                <div class="hv-param-grid">
+                  <div class="hv-param">
+                    <label>大图放大倍数<span class="hv-tip" title="固定倍数模式下，预览相对原图的目标放大倍数；最终尺寸仍受最大宽高限制。">?</span></label>
+                    <div class="hv-input disabled"><input type="number" value="2" min="1" max="5" step="0.1" disabled aria-label="大图放大倍数"><span class="hv-unit">×</span></div>
+                  </div>
+                  <div class="hv-param">
+                    <label>大图最小倍数<span class="hv-tip" title="固定倍数模式下，预览至少使用此放大倍数。">?</span></label>
+                    <div class="hv-input disabled"><input type="number" value="1.4" min="1" max="3" step="0.1" disabled aria-label="大图最小倍数"><span class="hv-unit">×</span></div>
+                  </div>
+                  <div class="hv-param">
+                    <label>小图判定阈值<span class="hv-tip" title="固定模式下，图片显示宽度或高度低于此值时按「小图」处理。">?</span></label>
+                    <div class="hv-input disabled"><input type="number" value="280" min="100" max="500" step="10" disabled aria-label="小图判定阈值"><span class="hv-unit">px</span></div>
+                  </div>
+                  <div class="hv-param">
+                    <label>小图目标宽度<span class="hv-tip" title="固定模式下，小图预览使用的目标宽度基准。">?</span></label>
+                    <div class="hv-input disabled"><input type="number" value="500" min="300" max="1000" step="10" disabled aria-label="小图目标宽度"><span class="hv-unit">px</span></div>
+                  </div>
+                  <div class="hv-param">
+                    <label>小图目标高度<span class="hv-tip" title="固定模式下，小图预览使用的目标高度基准。">?</span></label>
+                    <div class="hv-input disabled"><input type="number" value="430" min="300" max="1000" step="10" disabled aria-label="小图目标高度"><span class="hv-unit">px</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hv-footer">
+          <div style="display:flex;gap:4px">
+            <button class="hv-btn-ghost" id="hvHelp">? 使用说明</button>
+            <button class="hv-btn-ghost danger" id="hvReset">↺ 恢复默认设置</button>
+          </div>
+          <button class="hv-btn-save" id="hvSave">✓ 保存并关闭</button>
+        </div>
+        <div class="hv-toast" id="hvToast">✅ 已保存</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 站点独立配置 ================= -->
+<section class="section" id="sites" style="padding-top:0">
+  <div class="wrap">
+    <div class="sites-card reveal">
+      <div>
+        <span class="eyebrow">Per-site Config · 网站独立配置</span>
+        <h2 class="sec-title" style="font-size:clamp(1.5rem,2.6vw,2rem)">每个网站，<em>各有一套脾气</em></h2>
+        <p class="sec-sub" style="margin-top:14px">配置按域名独立保存，仅存在你的浏览器本地。论坛用 2 倍，图站用 3 倍，文章站交给智能模式——互不干扰。</p>
+      </div>
+      <div class="site-rows">
+        <div class="site-row"><span class="site-domain">example.com</span><span class="site-arrow">→</span><span class="site-mode smart">✨ 智能模式</span></div>
+        <div class="site-row"><span class="site-domain">forum.example.com</span><span class="site-arrow">→</span><span class="site-mode x2">📐 固定 2×</span></div>
+        <div class="site-row"><span class="site-domain">image.example.com</span><span class="site-arrow">→</span><span class="site-mode x3">📐 固定 3×</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 更新日志 ================= -->
+<section class="section" id="changelog" style="padding-top:0">
+  <div class="wrap">
+    <span class="eyebrow reveal">Changelog · 更新日志</span>
+    <h2 class="sec-title reveal">持续打磨，<em>每个小版本都算数</em></h2>
+    <div class="log-list">
+      <div class="log-item reveal">
+        <div class="log-ver">v5.7.2<small>最新版本</small></div>
+        <div class="log-body">
+          <h3>修复部分图片站悬停无法触发放大</h3>
+          <p>带 background-image 的真实图片不再被误判跳过；收敛灯箱/浮层判定，仅对真正的覆盖式浮层生效，真实灯箱仍照常拦截。</p>
+        </div>
+      </div>
+      <div class="log-item reveal">
+        <div class="log-ver">v5.7.1</div>
+        <div class="log-body">
+          <h3>暗色模式 + 无障碍增强</h3>
+          <p>自动跟随系统外观换色；快捷开关与参数折叠支持键盘操作，补齐焦点样式与读屏状态；收纳统一设计变量。</p>
+        </div>
+      </div>
+      <div class="log-item reveal">
+        <div class="log-ver">v5.7.0</div>
+        <div class="log-body">
+          <h3>悬停预览稳定性提升</h3>
+          <p>切换图片或移开鼠标时，旧的异步加载结果不再影响当前预览；离开时立即取消加载中的高清图请求。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FAQ ================= -->
+<section class="section" id="faq" style="padding-top:0">
+  <div class="wrap">
+    <span class="eyebrow reveal">FAQ · 常见问题</span>
+    <h2 class="sec-title reveal">你可能<em>想问</em></h2>
+    <div class="faq-list">
+      <details class="faq reveal">
+        <summary>为什么有些图片不会放大？<span class="fx">+</span></summary>
+        <div class="faq-body">脚本会根据图片尺寸、网页结构以及当前页面状态判断是否适合预览。过小图片（默认低于 51px）、控件图片以及网站特殊结构可能不会触发，可在配置面板中调整阈值。</div>
+      </details>
+      <details class="faq reveal">
+        <summary>支持动态加载的图片吗？<span class="fx">+</span></summary>
+        <div class="faq-body">支持部分 AJAX、无限滚动以及 SPA 页面。后加载的图片无需刷新即可悬停放大。</div>
+      </details>
+      <details class="faq reveal">
+        <summary>会不会和网站自己的图片查看器冲突？<span class="fx">+</span></summary>
+        <div class="faq-body">针对 Lightbox / Fancybox 等常见查看器做了兼容处理。当网站打开自己的图片查看界面时，HoverVista 会主动避让，不重复弹出预览。</div>
+      </details>
+      <details class="faq reveal">
+        <summary>不同网站可以使用不同设置吗？<span class="fx">+</span></summary>
+        <div class="faq-body">可以。网站配置按域名独立保存，且仅存储在浏览器本地，不会上传任何数据。</div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 安装 ================= -->
+<section class="section install" id="install">
+  <div class="install-bg"></div>
+  <div class="wrap">
+    <div class="install-head">
+      <div class="install-mark reveal"><svg width="92" height="92" aria-hidden="true"><use href="#hvLogo"/></svg></div>
+      <span class="eyebrow reveal">Install · 一分钟装好</span>
+      <h2 class="sec-title reveal" style="color:#f3f2f8">装上它，<em>然后去逛图</em></h2>
+      <p class="sec-sub reveal">先安装任意一个用户脚本管理器（Tampermonkey / Violentmonkey / ScriptCat），再从下面的发布页一键安装 HoverVista。</p>
+    </div>
+    <div class="install-cards">
+      <a class="inst-card reveal" href="https://greasyfork.org/zh-CN/scripts/553648-鼠标悬停图片自动放大预览" target="_blank" rel="noopener">
+        <div class="inst-name">🟢 Greasy Fork</div>
+        <p class="inst-desc">最主流的脚本发布平台，适合 Tampermonkey / Violentmonkey 用户。</p>
+        <span class="inst-link">前往安装 →</span>
+      </a>
+      <a class="inst-card reveal" href="https://scriptcat.org/zh-CN/script-show-page/7717" target="_blank" rel="noopener">
+        <div class="inst-name">🐱 ScriptCat</div>
+        <p class="inst-desc">国产脚本管理器 ScriptCat 的官方脚本站，中文体验友好。</p>
+        <span class="inst-link">前往安装 →</span>
+      </a>
+      <a class="inst-card reveal" href="https://github.com/YDGG123/hover-image-zoom" target="_blank" rel="noopener">
+        <div class="inst-name">🐙 GitHub</div>
+        <p class="inst-desc">查看完整源码、提交 Issue 或 Star 支持，MIT 协议开源。</p>
+        <span class="inst-link">查看源码 →</span>
+      </a>
+    </div>
+    <div class="install-steps reveal">
+      <span><b>①</b> 安装脚本管理器</span><i>→</i>
+      <span><b>②</b> 打开发布页点安装</span><i>→</i>
+      <span><b>③</b> 悬停任意图片</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 页脚 ================= -->
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <div class="brand" style="font-size:15.5px">
+      <svg class="brand-mark" width="26" height="26" aria-hidden="true"><use href="#hvLogo"/></svg>
+      悬景<span style="color:var(--accent-ink)">HoverVista</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/YDGG123/hover-image-zoom" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://greasyfork.org/zh-CN/scripts/553648-鼠标悬停图片自动放大预览" target="_blank" rel="noopener">Greasy Fork</a>
+      <a href="https://scriptcat.org/zh-CN/script-show-page/7717" target="_blank" rel="noopener">ScriptCat</a>
+    </div>
+    <div class="footer-note">MIT License · 悬于图，景自现</div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- 导航滚动态 ---------- */
+  var nav = document.getElementById("nav");
+  function onScroll(){ nav.classList.toggle("scrolled", window.scrollY > 24); }
+  window.addEventListener("scroll", onScroll, {passive:true});
+  onScroll();
+
+  /* ---------- 深色 / 浅色模式（跟随系统 + 手动切换，选择记忆在本地） ---------- */
+  var root = document.documentElement;
+  var themeBtn = document.getElementById("themeToggle");
+  var darkMQ = window.matchMedia("(prefers-color-scheme: dark)");
+  var themeColorMeta = document.querySelector('meta[name="theme-color"]');
+  function isDark(){
+    var set = root.getAttribute("data-theme");
+    if(set === "dark") return true;
+    if(set === "light") return false;
+    return darkMQ.matches;               /* 未手动指定时跟随系统 */
+  }
+  function syncThemeUi(){
+    var dark = isDark();
+    themeBtn.setAttribute("aria-pressed", dark ? "true" : "false");
+    themeBtn.setAttribute("title", dark ? "切换到浅色模式" : "切换到深色模式");
+    if(themeColorMeta) themeColorMeta.setAttribute("content", dark ? "#17161d" : "#f6f4ee");
+  }
+  themeBtn.addEventListener("click", function(){
+    var next = isDark() ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try{ localStorage.setItem("hv-theme", next); }catch(e){}
+    syncThemeUi();
+  });
+  if(darkMQ.addEventListener){ darkMQ.addEventListener("change", syncThemeUi); }
+  syncThemeUi();
+
+  /* ---------- 滚动入场 ---------- */
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); }
+    });
+  }, {threshold:.12});
+  document.querySelectorAll(".reveal").forEach(function(el){ io.observe(el); });
+
+  /* =========================================================
+     悬停放大引擎（复刻 HoverVista 行为）
+     ========================================================= */
+  /* 等大图加载完成再回调（失败/超时用缩略图兜底），保证预览一出现就是有内容的 */
+  function loadImage(img, src, fallback, cb){
+    var done = false, to = null;
+    function fire(){
+      if(done) return;
+      done = true;
+      clearTimeout(to);
+      img.onload = null; img.onerror = null;
+      cb();
+    }
+    if(img.getAttribute("src") === src && img.complete && img.naturalWidth){ fire(); return; }
+    to = setTimeout(function(){
+      /* 超时也用缩略图兜底，绝不出空白框 */
+      if(fallback && img.getAttribute("src") !== fallback){ img.src = fallback; }
+      fire();
+    }, 2500);
+    img.onload = fire;
+    img.onerror = function(){
+      if(fallback && img.getAttribute("src") !== fallback){
+        img.onerror = null;
+        img.src = fallback;           /* 缩略图已缓存，直接可用 */
+        setTimeout(fire, 30);
+      } else {
+        fire();
+      }
+    };
+    img.src = src;
+  }
+
+  function createHoverZoom(pageEl, zoomEl, waitEl, opts){
+    var img = zoomEl.querySelector("img");
+    var delay = (opts && opts.delay) || 350;
+    var timer = null, activeThumb = null, zoomScale = 1, visible = false;
+
+    /* 预览在演示页面内居中展开（与原脚本行为一致），保持 3:2，并受可用空间限制 */
+    function placeCenter(){
+      var pr = pageEl.getBoundingClientRect();
+      var zw = Math.min(460, pr.width - 40);
+      var zh = Math.min(Math.round(zw * 2 / 3), pr.height - 40);
+      zw = Math.round(zh * 1.5);
+      zoomEl.style.width = zw + "px";
+      zoomEl.style.height = zh + "px";
+      zoomEl.style.left = Math.round((pr.width - zw) / 2) + "px";
+      zoomEl.style.top = Math.round((pr.height - zh) / 2) + "px";
+    }
+
+    /* 触发后：先显示等待指示器，等大图就绪再浮现预览（与脚本行为一致） */
+    function open(thumb){
+      var full = thumb.getAttribute("data-full");
+      var thumbImg = thumb.querySelector("img");
+      loadImage(img, full, thumbImg ? thumbImg.src : null, function(){
+        if(activeThumb !== thumb) return;             /* 已切换或已移开则丢弃 */
+        waitEl.classList.remove("show");
+        zoomScale = 1;
+        img.style.transform = "scale(1)";
+        placeCenter();
+        zoomEl.classList.add("show");
+        visible = true;
+      });
+    }
+    function close(){
+      clearTimeout(timer); timer = null;
+      waitEl.classList.remove("show");
+      zoomEl.classList.remove("show");
+      visible = false; activeThumb = null;
+    }
+
+    pageEl.addEventListener("mouseover", function(e){
+      var thumb = e.target.closest ? e.target.closest(".demo-thumb") : null;
+      if(!thumb) return;                                // 预览框/页面空白等不处理，交给 mouseout 判断
+      if(thumb === activeThumb) return;
+      close();
+      activeThumb = thumb;
+      var pr = pageEl.getBoundingClientRect();
+      waitEl.style.left = (e.clientX - pr.left) + "px";
+      waitEl.style.top = (e.clientY - pr.top) + "px";
+      waitEl.classList.add("show");
+      timer = setTimeout(function(){
+        if(activeThumb === thumb) open(thumb);
+      }, delay);
+    });
+    pageEl.addEventListener("mouseout", function(e){
+      if(!activeThumb) return;
+      var to = e.relatedTarget;
+      if(to && activeThumb.contains(to)) return;                       // 缩略图内部移动
+      if(e.target.closest && e.target.closest(".demo-thumb")) close(); // 离开缩略图（预览可穿透，相关目标总是真实页面元素）
+    });
+    pageEl.addEventListener("mouseleave", close);
+    /* 滚轮缩放（约 8% 步进，复刻脚本行为；预览鼠标穿透，故在页面级监听） */
+    pageEl.addEventListener("wheel", function(e){
+      if(!visible) return;
+      e.preventDefault();
+      zoomScale = Math.min(2.6, Math.max(1, zoomScale * (e.deltaY < 0 ? 1.08 : 1/1.08)));
+      img.style.transform = "scale(" + zoomScale.toFixed(3) + ")";
+    }, {passive:false});
+
+    return { close:close, isVisible:function(){ return visible; } };
+  }
+
+  /* 顶部演示：纯播放动画，不绑定任何鼠标事件 */
+  /* 下方深度演示：真正可交互，用户悬停才放大（与装好脚本后的行为一致） */
+  var stageHZ = createHoverZoom(
+    document.getElementById("stagePage"),
+    document.getElementById("stageZoom"),
+    document.getElementById("stageWait"),
+    {delay:350}
+  );
+
+  /* =========================================================
+     自动巡演：虚拟光标演示流程（仅用于顶部展示区，循环播放）
+     ========================================================= */
+  function autoTour(pageEl, cursorEl, zoomEl, waitEl){
+    var thumbs = pageEl.querySelectorAll(".demo-thumb");
+    if(!thumbs.length) return;
+    var img = zoomEl.querySelector("img");
+    /* 用户开启「减少动态效果」时：静态展示一张预览，不做动画 */
+    if(reduced){
+      var t0 = thumbs[0], t0Img = t0.querySelector("img");
+      loadImage(img, t0.getAttribute("data-full"), t0Img ? t0Img.src : null, function(){
+        var pr0 = pageEl.getBoundingClientRect();
+        var zw0 = Math.min(460, pr0.width - 40);
+        var zh0 = Math.min(Math.round(zw0 * 2 / 3), pr0.height - 40);
+        zw0 = Math.round(zh0 * 1.5);
+        zoomEl.style.width = zw0 + "px"; zoomEl.style.height = zh0 + "px";
+        zoomEl.style.left = Math.round((pr0.width - zw0) / 2) + "px";
+        zoomEl.style.top = Math.round((pr0.height - zh0) / 2) + "px";
+        zoomEl.classList.add("show");
+      });
+      return;
+    }
+    var running = false, raf = null, timers = [];
+
+    function later(fn, ms){ timers.push(setTimeout(fn, ms)); }
+    function stop(){
+      running = false;
+      if(raf) cancelAnimationFrame(raf);
+      timers.forEach(clearTimeout); timers = [];
+      cursorEl.classList.remove("show");
+      waitEl.classList.remove("show");
+      zoomEl.classList.remove("show");
+    }
+    function tween(fromX, fromY, toX, toY, dur, done){
+      var t0 = null;
+      function step(t){
+        if(!running) return;
+        if(!t0) t0 = t;
+        var p = Math.min(1, (t - t0) / dur);
+        var e = 1 - Math.pow(1 - p, 3); /* easeOutCubic */
+        var x = fromX + (toX - fromX) * e;
+        var y = fromY + (toY - fromY) * e + Math.sin(p * Math.PI) * -14; /* 微弧线 */
+        cursorEl.style.left = x + "px";
+        cursorEl.style.top = y + "px";
+        if(p < 1) raf = requestAnimationFrame(step);
+        else if(done) done();
+      }
+      raf = requestAnimationFrame(step);
+    }
+    function center(el){
+      var pr = pageEl.getBoundingClientRect();
+      var r = el.getBoundingClientRect();
+      return {x: r.left - pr.left + r.width/2, y: r.top - pr.top + r.height/2};
+    }
+    function loop(i){
+      if(!running) return;
+      var t = thumbs[i % thumbs.length];
+      var c = center(t);
+      var cur = {x: parseFloat(cursorEl.style.left) || 40, y: parseFloat(cursorEl.style.top) || 40};
+      cursorEl.classList.add("show");
+      tween(cur.x, cur.y, c.x, c.y, 900, function(){
+        waitEl.style.left = c.x + "px";
+        waitEl.style.top = c.y + "px";
+        waitEl.classList.add("show");
+        later(function(){
+          var thumbImg = t.querySelector("img");
+          /* 等大图就绪再浮现，避免出现空白框 */
+          loadImage(img, t.getAttribute("data-full"), thumbImg ? thumbImg.src : null, function(){
+            if(!running) return;
+            waitEl.classList.remove("show");
+            img.style.transform = "scale(1)";
+            /* 居中展开（与脚本行为一致） */
+            var pr = pageEl.getBoundingClientRect();
+            var zw = Math.min(460, pr.width - 40);
+            var zh = Math.min(Math.round(zw * 2 / 3), pr.height - 40);
+            zw = Math.round(zh * 1.5);
+            zoomEl.style.width = zw + "px"; zoomEl.style.height = zh + "px";
+            zoomEl.style.left = Math.round((pr.width - zw) / 2) + "px";
+            zoomEl.style.top = Math.round((pr.height - zh) / 2) + "px";
+            zoomEl.classList.add("show");
+            later(function(){
+              if(!running) return;
+              zoomEl.classList.remove("show");
+              cursorEl.classList.remove("show");
+              later(function(){ loop(i + 1); }, 700);
+            }, 2400);
+          });
+        }, 620);
+      });
+    }
+    var vis = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting && !running){
+          running = true;
+          later(function(){ if(running) loop(0); }, 600);
+        } else if(!e.isIntersecting && running){
+          stop();
+        }
+      });
+    }, {threshold:.35});
+    vis.observe(pageEl);
+  }
+
+  autoTour(document.getElementById("heroPage"),
+    document.getElementById("heroCursor"),
+    document.getElementById("heroZoom"),
+    document.getElementById("heroWait"));
+
+  /* 空闲时预加载大图，让首次悬停也能立刻看到预览 */
+  window.addEventListener("load", function(){
+    setTimeout(function(){
+      document.querySelectorAll(".demo-thumb").forEach(function(t){
+        var big = new Image();
+        big.src = t.getAttribute("data-full");
+      });
+    }, 600);
+  });
+
+  /* =========================================================
+     配置面板交互
+     ========================================================= */
+  var toast = document.getElementById("hvToast");
+  var toastTimer = null;
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.classList.remove("show"); }, 1800);
+  }
+
+  /* 快捷开关 */
+  document.querySelectorAll(".hv-switch").forEach(function(sw){
+    function flip(){
+      var tg = sw.querySelector(".hv-toggle");
+      var on = tg.classList.toggle("on");
+      sw.setAttribute("aria-checked", on ? "true" : "false");
+      showToast((on ? "✅ " : "⛔ ") + sw.getAttribute("data-name") + (on ? " 已开启" : " 已关闭"));
+    }
+    sw.addEventListener("click", flip);
+    sw.addEventListener("keydown", function(e){
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); flip(); }
+    });
+  });
+
+  /* 折叠区 */
+  function bindCollapse(head, body){
+    if(!head || !body) return;
+    function toggle(){
+      var open = body.classList.toggle("open");
+      head.querySelector(".hv-arrow").classList.toggle("open", open);
+      head.setAttribute("aria-expanded", open ? "true" : "false");
+      var hint = head.querySelector(".hv-collapse-hint");
+      if(hint && !head.closest(".disabled-zone")) hint.textContent = open ? "点击收起" : "点击展开";
+    }
+    head.addEventListener("click", function(){
+      if(head.closest(".disabled-zone")){ showToast("💡 切换到「固定倍数」模式后可配置"); return; }
+      toggle();
+    });
+    head.addEventListener("keydown", function(e){
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); head.click(); }
+    });
+  }
+  bindCollapse(document.getElementById("hvCommonHead"), document.getElementById("hvCommonBody"));
+  bindCollapse(document.getElementById("hvFixedHead"), document.getElementById("hvFixedBody"));
+
+  /* 模式切换联动固定参数区 */
+  var modeSel = document.getElementById("hvMode");
+  var fixedArea = document.getElementById("hvFixedArea");
+  modeSel.addEventListener("change", function(){
+    var fixed = modeSel.value === "fixed";
+    fixedArea.classList.toggle("disabled-zone", !fixed);
+    fixedArea.querySelectorAll("input").forEach(function(inp){ inp.disabled = !fixed; });
+    fixedArea.querySelectorAll(".hv-input").forEach(function(g){ g.classList.toggle("disabled", !fixed); });
+    document.getElementById("hvFixedHint").textContent = fixed ? "点击收起" : "自适应模式下不可用";
+    if(fixed){
+      document.getElementById("hvFixedBody").classList.add("open");
+      document.getElementById("hvFixedHead").querySelector(".hv-arrow").classList.add("open");
+    }
+    showToast(fixed ? "📐 已切换到固定倍数模式" : "✨ 已切换到智能自适应模式");
+  });
+
+  /* 主页开关 */
+  var hpBtn = document.getElementById("hvHpBtn");
+  hpBtn.addEventListener("click", function(){
+    var dot = document.getElementById("hvHpDot");
+    var txt = document.getElementById("hvHpText");
+    var off = dot.classList.toggle("off");
+    txt.textContent = off ? "当前主页已禁用图片放大" : "当前主页已启用图片放大";
+    hpBtn.textContent = off ? "启用主页图片放大功能" : "禁用主页图片放大功能";
+    showToast(off ? "⛔ 已禁用当前主页的图片放大" : "✅ 已启用当前主页的图片放大");
+  });
+
+  /* 底部按钮 */
+  document.getElementById("hvSave").addEventListener("click", function(){ showToast("✅ 设置已保存"); });
+  document.getElementById("hvReset").addEventListener("click", function(){ showToast("↺ 已恢复默认设置"); });
+  document.getElementById("hvHelp").addEventListener("click", function(){ showToast("💡 悬停图片即可放大，滚轮可继续缩放"); });
+  document.getElementById("hvClose").addEventListener("click", function(){ showToast("👋 演示页面中面板不会真的关闭"); });
+
+  /* ESC 提示 */
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape"){ showToast("👋 演示页面中面板不会真的关闭"); }
+  });
+})();
+</script>
+</body>
+</html>
