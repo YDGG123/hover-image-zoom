@@ -7,6 +7,8 @@
 
 适用于文章图片、论坛图片、缩略图、图片站等网页场景，并支持动态图片、高清图升级、部分背景图片、Lightbox / Fancybox、滚轮控制以及网站独立配置。
 
+> 🌐 **在线介绍页（功能演示 · 配置面板实时预览 · 安装指引）**：https://ydgg123.github.io/hover-image-zoom/
+
 <p align="center"><img src="https://cdn.jsdelivr.net/gh/YDGG123/hover-image-zoom@main/ocs/images/hover-zoom.gif" width="560" alt="效果演示"></p>
 
 ## ✨ 核心功能
@@ -31,8 +33,6 @@
 - 不想频繁点击图片打开大图
 - 希望鼠标移动到图片上就能看到大图
 - 希望不同网站使用不同的放大参数
-
-<p align="center"><img src="https://cdn.jsdelivr.net/gh/YDGG123/hover-image-zoom@main/ocs/images/config-panel1.png" width="420" alt="配置面板"></p>
 
 ## 📦 安装
 
@@ -102,19 +102,37 @@ image.example.com → 3 倍
 可以，网站配置会独立保存。
 
 ## 🔗 官方项目
-
+- **在线介绍页**：https://ydgg123.github.io/hover-image-zoom/
 - **GitHub**：https://github.com/YDGG123/hover-image-zoom
 - **Greasy Fork**：https://greasyfork.org/zh-CN/scripts/553648-鼠标悬停图片自动放大预览
 - **ScriptCat**：https://scriptcat.org/zh-CN/script-show-page/7717
 
 ## 🔄 更新日志
 
-### v5.6.47
-- 优化配置面板布局与开关、参数的对齐显示，减少纵向占用。
-- 删除反馈相关内容，修复配置面板入口与状态同步，并优化界面细节。
+### v5.7.2
+- 修复：部分图片站（如 Unsplash）悬停无法触发放大。根因有二：① 带 background-image 的真实图片被误判为不合格而跳过；② 页面存在 aria-modal 元素时被全局误判为"已打开灯箱"，导致整页悬停预览失效。
+- 收敛灯箱 / 浮层判定：不再把通用 role="dialog" / aria-modal 当作灯箱或阻挡层，仅对真正的"覆盖式"（position:fixed/absolute）浮层生效；真实灯箱仍照常拦截。
+- 界面与暗色模式（v5.7.1）无变化。
 
 <details>
 <summary>查看更早版本</summary>
+
+### v5.7.1
+- 新增暗色模式：自动跟随系统外观，深色环境下配置面板、使用说明与更新弹窗自动换色。
+- 配置面板无障碍增强：快捷开关与参数折叠支持键盘操作（回车/空格），补齐焦点样式与读屏状态。
+- 视觉统一：收纳一套设计变量（颜色/圆角/字号），修正文字对比度与琥珀色按钮可读性。
+- 折叠区新增参数数量提示；参数区保持两列并排，节省纵向空间。
+- 修复“使用说明”按钮悬停误变红；并跟进系统“减少动态效果”偏好。
+
+### v5.7.0
+- 提升悬停预览稳定性：切换图片或移开鼠标时，旧的异步加载结果不再影响当前预览。
+- 离开或切换时立即取消加载中的高清图请求，避免残留与错位。
+- 清理“未来迁移浏览器扩展”等容易引起误解的注释。
+- 未改变既有悬停放大与滚轮缩放行为。
+
+### v5.6.47
+- 优化配置面板布局与开关、参数的对齐显示，减少纵向占用。
+- 删除反馈相关内容，修复配置面板入口与状态同步，并优化界面细节。
 
 ### v5.6.46
 
