@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         悬景 · HoverVista｜鼠标悬停图片自动放大预览
 // @namespace    https://github.com/YDGG123
-// @version      5.6.47
+// @version      5.7.2
 // @description  网页图片鼠标悬停自动放大工具：智能自适应、高清图后台升级、滚轮边界控制
 // @author       益达哥哥
 // @match        *://*/*
@@ -18,11 +18,10 @@
 (function() {
     'use strict';
 
-const SCRIPT_VERSION = "5.6.47";
+const SCRIPT_VERSION = "5.7.2";
 
     // ================
-    // ★ 存储适配层（当前仍使用 Tampermonkey GM_*，仅抽象接口，不改变行为）
-    // 后续迁移浏览器扩展时，只需要替换这里的实现。
+    // 存储读写封装
     // ================
     const storage = {
         get(key, defaultValue) {
@@ -103,14 +102,11 @@ const SCRIPT_VERSION = "5.6.47";
     function scheduleHoverWaitIndicator(img) {
         hideHoverWaitIndicator();
         if (!img || !img.isConnected) return;
-        hoverWaitIndicatorTimer = setTimeout(() => {
-            hoverWaitIndicatorTimer = null;
-            if (zoomFSM && zoomFSM.state === 'PENDING' && pendingImageForIndicator === img) {
-                const x = lastMouse.x;
-                const y = lastMouse.y;
-                if (x >= 0 && y >= 0) showHoverWaitIndicator(x, y, config.delay);
-            }
-        }, 300);
+        // 等待动画从进入 PENDING 状态就开始，并持续到放大图真正显示（LOADED/ACTIVE）。
+        // 不再用固定 300ms 的显示窗口，也不让动画时长与 config.delay 绑定。
+        const x = lastMouse.x;
+        const y = lastMouse.y;
+        if (x >= 0 && y >= 0) showHoverWaitIndicator(x, y, config.delay);
     }
     let pendingImageForIndicator = null;
 
@@ -121,9 +117,8 @@ const SCRIPT_VERSION = "5.6.47";
     // ★ 浏览器窗口当前是否有焦点。关闭“失焦时收起”后，用它区分
     // “鼠标真正离开浏览器”与“浏览器被文件管理器/其他应用暂时盖住”。
     let browserWindowFocused = true;
-    let suppressWindowExitUntil = 0;
-    let resumeBlockX = -1;
-    let resumeBlockY = -1;
+    // ★ 恢复保护只看这一个开关；原 suppressWindowExitUntil / resumeBlockX / resumeBlockY
+    // 三处状态只有写入、从未被读取（保护逻辑并未接线），已删除以免误导后续维护。
     let resumeBlockedUntilMouseMove = false;
 
     const currentDomain = getDomain();
@@ -175,9 +170,13 @@ const SCRIPT_VERSION = "5.6.47";
         toast.textContent = message;
         toast.style.opacity = '1';
         if (toast.timeoutId) clearTimeout(toast.timeoutId);
+        // ★ 移除定时器必须与淡出定时器一起管理：旧提示进入 300ms 淡出阶段后，
+        // 若新提示复用同一个元素，残留的移除回调会把刚显示的新提示一起删掉
+        //（表现为提示提前消失，之后又被重建）。
+        if (toast.removeTimerId) clearTimeout(toast.removeTimerId);
         toast.timeoutId = setTimeout(() => {
             toast.style.opacity = '0';
-            setTimeout(() => {
+            toast.removeTimerId = setTimeout(() => {
                 if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
             }, 300);
         }, duration);
@@ -278,7 +277,7 @@ const SCRIPT_VERSION = "5.6.47";
         if (isHomepageZoomDisabled()) isEnabled = false;
     }
 
-    // 主页禁用状态（保留原有实现，仅从 main.js 移入配置模块）
+    // 主页禁用状态
     function isHomepageDisabled() {
         return storageGet(`image_zoom_homepage_disabled_${currentDomain}`, false);
     }
@@ -335,6 +334,8 @@ const SCRIPT_VERSION = "5.6.47";
     // isMenuOverlay = 网站自己弹出的菜单/浮层 → 拦截
     // isBlankCover  = 无内容无样式的空白占位层 → 拦截
     // 半透明哑遮罩（淘宝类盖图场景）→ 明确放行，不误杀
+    // canPierceBlocker = 装饰性空覆盖层（无文字、无媒体/交互子元素，且不在"覆盖式"语义浮层内）
+    //                    → 允许穿透继续找下层图片，避免"图片被一层空 div 盖住就无法放大"
     // =================================================================
 
     // =============================
@@ -350,7 +351,17 @@ const SCRIPT_VERSION = "5.6.47";
 
         try {
             // 语义明确的 ARIA 浮层结构可以直接拦截。
-            if (el.closest('[role="menu"],[role="listbox"],[role="combobox"],[role="dialog"]')) return true;
+            // 但 role="dialog" 常被 SPA 用作普通内容包裹层：仅当它确实是"覆盖式"(fixed/absolute)才拦截，
+            // 否则会把包住卡片的 dialog 当成阻挡菜单，误杀其中的图片。
+            const semLayer = el.closest('[role="menu"],[role="listbox"],[role="combobox"],[role="dialog"]');
+            if (semLayer) {
+                const srole = semLayer.getAttribute('role');
+                if (srole === 'menu' || srole === 'listbox' || srole === 'combobox') return true;
+                try {
+                    const scs = getComputedStyle(semLayer);
+                    if (scs.position === 'fixed' || scs.position === 'absolute') return true;
+                } catch (e) { }
+            }
 
             // ★ 向上检查有限层级：很多老式网站的弹窗实际命中的是内部
             // span/div/td，而真正的 fixed + z-index 浮层根节点在更上层。
@@ -421,6 +432,36 @@ const SCRIPT_VERSION = "5.6.47";
         return isMenuOverlay(el) || isBlankCover(el);
     }
 
+    // ★ 装饰性空覆盖层：无文字、无媒体/交互子元素。
+    // 典型：盖在图片上的点击层 / 渐变浮层 / 空占位 div。
+    // 例：Unsplash Discover 卡片 <figure><a><img></a><div class="overlay ..."></div></figure>
+    // —— overlay 是 <a> 的兄弟节点，盖在图片上，会被判定为 blocker 而挡住放大。
+    function isDecorativeCover(el) {
+        if (!el || !el.querySelector) return false;
+        try {
+            if ((el.textContent || '').trim() !== '') return false;
+            if (el.querySelector('img,svg,video,canvas,iframe,button,a,input,select,textarea,form,[role="button"],[role="link"]')) return false;
+            return true;
+        } catch (e) { return false; }
+    }
+
+    // ★ 是否允许"穿透"该拦截层继续找图：
+    // 装饰性空层、且不在"覆盖式"语义浮层（菜单/弹窗/对话框，position:fixed/absolute）内 → 放行；
+    // 真实菜单/弹窗即便内部为空也仍然拦截，避免悬停穿透浮层。
+    function canPierceBlocker(el) {
+        if (!isDecorativeCover(el)) return false;
+        // ★ 仅对"覆盖式"的语义浮层拒绝穿透。
+        // 若对任意 role=dialog/aria-modal 祖先都拒绝，被 dialog 包住的卡片会让覆盖层永远无法穿透。
+        const sem = el.closest && el.closest('[role="menu"],[role="listbox"],[role="combobox"],[role="dialog"],[aria-modal="true"]');
+        if (sem) {
+            try {
+                const cs = getComputedStyle(sem);
+                if (cs.position === 'fixed' || cs.position === 'absolute') return false;
+            } catch (e) { return false; }
+        }
+        return true;
+    }
+
     // 实时资格：连接 + 样式可见 + 未被裁出可视区 + 尺寸达标 + 鼠标在实时矩形内
     // 祖先锚（遮罩盖图场景）：面积 ≤ 图片 8 倍、光标距图片矩形 ≤ 120px
     function canTriggerNow(img, x, y) {
@@ -476,16 +517,17 @@ const SCRIPT_VERSION = "5.6.47";
         if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) < 0.05) return false;
         const src = img.src || img.currentSrc;
         if (!src || src.trim() === '' || src.startsWith('data:') || src.includes('placeholder')) return false;
-        if (style.backgroundImage && style.backgroundImage !== 'none') return false;
+        // 现代图片站可能给真实 <img> 设置 background-image 作为模糊/占位底图。
+        // 只要 <img> 自身有真实 src、已加载且尺寸有效，就仍视为有效图片。
         if (!img.complete || img.naturalWidth === 0) return false;
         const rect = img.getBoundingClientRect();
         return !(rect.width < 10 || rect.height < 10);
     }
 
 
-    // 2. ★★★ 触发资格判定（已拆分至 image/eligibility.js）
+    // 2. ★★★ 触发资格判定
     // ================
-    // 3. 图片处理工具（已拆分至 image/url.js + image/crop.js）
+    // 3. 图片处理工具
     // ================
 // 5.6.23 image URL/background URL helpers: moved verbatim from 5.6.22.
     function upgradeImgUrl(url) {
@@ -493,6 +535,49 @@ const SCRIPT_VERSION = "5.6.47";
         return url.replace(/\/remote\/thumb\/\d+x\d+\//, '/');
     }
 
+    function extractBgUrl(el) {
+        if (!el || el.nodeType !== 1) return null;
+        let m = (el.getAttribute('style') || '').match(/url\(\s*['"]?([^'")]+)['"]?\s*\)/i);
+        let url = m ? m[1] : null;
+        if (!url) {
+            try {
+                const bg = getComputedStyle(el).backgroundImage;
+                if (bg && bg !== 'none') {
+                    m = bg.match(/url\(\s*['"]?([^'")]+)['"]?\s*\)/i);
+                    if (m) url = m[1];
+                }
+            } catch (e) { }
+        }
+        return url ? cleanBgUrl(url) : null;
+    }
+
+    function cleanBgUrl(url) {
+        let u = url.trim().replace(/^['"]|['"]$/g, '');
+        if (/alicdn\.com/i.test(u)) {
+            let prev;
+            do {
+                prev = u;
+                u = u.replace(/(_!![\w\-.,]+?\.(?:jpg|jpeg|png|webp))_[\w.\-]+$/i, '$1')
+                    .replace(/\.(jpg|jpeg|png|webp)_[\w.]+$/i, '.$1')
+                    .replace(/_\.(webp|jpg|jpeg|png)$/i, '');
+            } while (u !== prev);
+            return u;
+        }
+        let prev;
+        do {
+            prev = u;
+            u = u.replace(/![\w\-]+$/i, '')
+                .replace(/_\d+x\d+(q\d+)?\.(jpg|jpeg|png|webp)(\.\w+)?$/i, '')
+                .replace(/\.(jpg|jpeg|png|webp)_[\w.]+$/i, '.$1')
+                .replace(/_\.(webp|jpg|jpeg|png)$/i, '')
+                .replace(/\.webp$/i, '.jpg');
+        } while (u !== prev);
+        return u;
+    }
+
+
+// 修复记录：本函数此前在文件内被重复定义两次（旧的一份带滚轮保护分支、被后一份整体覆盖），
+// 现已合并为唯一实现——两份的行为分支都保留在这里，不会再出现“改了不生效”的副本。
     function cropBlackBars(imgEl) {
         try {
             if (imgEl.dataset.zoomCropped) return;
@@ -555,6 +640,8 @@ const SCRIPT_VERSION = "5.6.47";
                 // 否则异步 toBlob 回调会把用户刚刚滚轮放大的尺寸重置，表现为
                 // “第一滚轮先缩小一点”，竖图甚至会直接跳回最小尺寸。
                 // 同时让容器始终与实际图片尺寸一致，避免出现透明的大框。
+                // 注：当前唯一调用点是 !inst.wheelZoom 分支，所以下面这段滚轮保护
+                // 目前不会进入；保留它是为了保证将来放开“滚轮 + 裁剪”时尺寸语义仍然正确。
                 const box = imgEl.parentNode;
                 const activeInst = box && box.__zoomInstance;
                 if (box && box.classList.contains('image-zoom-container') && activeInst && activeInst.wheelZoom) {
@@ -577,123 +664,8 @@ const SCRIPT_VERSION = "5.6.47";
                     imgEl.style.setProperty('top', '0px', 'important');
                     imgEl.style.setProperty('object-fit', 'fill', 'important');
                 } else if (box && box.classList.contains('image-zoom-container')) {
-                    const bw = box.clientWidth, bh = box.clientHeight;
-                    const ratio = cw / ch;
-                    let nw = bw, nh = Math.round(bw / ratio);
-                    if (nh > bh) { nh = bh; nw = Math.round(bh * ratio); }
-                    imgEl.style.width = nw + 'px';
-                    imgEl.style.height = nh + 'px';
-                    imgEl.style.left = Math.round((bw - nw) / 2) + 'px';
-                    imgEl.style.top = Math.round((bh - nh) / 2) + 'px';
-                }
-            }, 'image/jpeg', 0.92);
-        } catch (e) { }
-    }
-
-    function extractBgUrl(el) {
-        if (!el || el.nodeType !== 1) return null;
-        let m = (el.getAttribute('style') || '').match(/url\(\s*['"]?([^'")]+)['"]?\s*\)/i);
-        let url = m ? m[1] : null;
-        if (!url) {
-            try {
-                const bg = getComputedStyle(el).backgroundImage;
-                if (bg && bg !== 'none') {
-                    m = bg.match(/url\(\s*['"]?([^'")]+)['"]?\s*\)/i);
-                    if (m) url = m[1];
-                }
-            } catch (e) { }
-        }
-        return url ? cleanBgUrl(url) : null;
-    }
-
-    function cleanBgUrl(url) {
-        let u = url.trim().replace(/^['"]|['"]$/g, '');
-        if (/alicdn\.com/i.test(u)) {
-            let prev;
-            do {
-                prev = u;
-                u = u.replace(/(_!![\w\-.,]+?\.(?:jpg|jpeg|png|webp))_[\w.\-]+$/i, '$1')
-                    .replace(/\.(jpg|jpeg|png|webp)_[\w.]+$/i, '.$1')
-                    .replace(/_\.(webp|jpg|jpeg|png)$/i, '');
-            } while (u !== prev);
-            return u;
-        }
-        let prev;
-        do {
-            prev = u;
-            u = u.replace(/![\w\-]+$/i, '')
-                .replace(/_\d+x\d+(q\d+)?\.(jpg|jpeg|png|webp)(\.\w+)?$/i, '')
-                .replace(/\.(jpg|jpeg|png|webp)_[\w.]+$/i, '.$1')
-                .replace(/_\.(webp|jpg|jpeg|png)$/i, '')
-                .replace(/\.webp$/i, '.jpg');
-        } while (u !== prev);
-        return u;
-    }
-
-
-// 5.6.23 image crop helper: moved verbatim from 5.6.22.
-    function cropBlackBars(imgEl) {
-        try {
-            if (imgEl.dataset.zoomCropped) return;
-            const w = imgEl.naturalWidth, h = imgEl.naturalHeight;
-            if (!w || !h) return;
-            const canvas = document.createElement('canvas');
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            ctx.drawImage(imgEl, 0, 0);
-            let data;
-            try { data = ctx.getImageData(0, 0, w, h).data; } catch (e) { return; }
-            let transparentCount = 0;
-            const total = w * h, step = Math.max(1, Math.floor(total / 20000));
-            let sampled = 0;
-            for (let i = 0; i < total; i += step) {
-                if (data[i * 4 + 3] < 10) transparentCount++;
-                sampled++;
-            }
-            if (transparentCount / sampled > 0.05) return;
-            const threshold = 24;
-            const isContent = (i) => data[i + 3] > 10 &&
-                (data[i] > threshold || data[i + 1] > threshold || data[i + 2] > threshold);
-            const rowHas = (y0) => {
-                for (let x0 = 0; x0 < w; x0++) if (isContent((y0 * w + x0) * 4)) return true;
-                return false;
-            };
-            const colHas = (x0) => {
-                for (let y0 = 0; y0 < h; y0++) if (isContent((y0 * w + x0) * 4)) return true;
-                return false;
-            };
-            let top = 0;
-            while (top < h && !rowHas(top)) top++;
-            if (top === h) return;
-            let bottom = h - 1;
-            while (bottom > top && !rowHas(bottom)) bottom--;
-            let left = 0;
-            while (left < w && !colHas(left)) left++;
-            let right = w - 1;
-            while (right > left && !colHas(right)) right--;
-            top = Math.min(top, Math.floor(h * 0.25));
-            bottom = Math.max(bottom, h - 1 - Math.floor(h * 0.25));
-            left = Math.min(left, Math.floor(w * 0.25));
-            right = Math.max(right, w - 1 - Math.floor(w * 0.25));
-            const cw = right - left + 1, ch = bottom - top + 1;
-            if (cw >= w * 0.9 && ch >= h * 0.9) return;
-            if (cw < 20 || ch < 20) return;
-            const out = document.createElement('canvas');
-            out.width = cw;
-            out.height = ch;
-            out.getContext('2d').drawImage(imgEl, left, top, cw, ch, 0, 0, cw, ch);
-            imgEl.dataset.zoomCropped = '1';
-            out.toBlob((blob) => {
-                if (!blob) return;
-                const url = URL.createObjectURL(blob);
-                if (imgEl.__zoomBlobUrl) URL.revokeObjectURL(imgEl.__zoomBlobUrl);
-                imgEl.__zoomBlobUrl = url;
-                imgEl.src = url;
-                // 容器尺寸保持不变（尊重当前模式的尺寸语义），
-                // 只按新宽高比在容器内做 contain 重排
-                const box = imgEl.parentNode;
-                if (box && box.classList.contains('image-zoom-container')) {
+                    // 容器尺寸保持不变（尊重当前模式的尺寸语义），
+                    // 只按新宽高比在容器内做 contain 重排
                     const bw = box.clientWidth, bh = box.clientHeight;
                     const ratio = cw / ch;
                     let nw = bw, nh = Math.round(bw / ratio);
@@ -727,6 +699,14 @@ const SCRIPT_VERSION = "5.6.47";
         storageSet('image_zoom_custom_rules', rules);
     }
 
+    // ★ 空字符串选择器不能直接丢给 closest()/querySelectorAll()：
+    // closest('') 会抛 SyntaxError（"The provided selector is empty"）。
+    // 规则里的卡片选择器允许留空（拾取器找不到卡片祖先时正是存空串），
+    // 统一在这里归一为「非空字符串 或 null」，使用处再按 null 跳过。
+    function toSelector(v) {
+        return (typeof v === 'string' && v.trim()) ? v.trim() : null;
+    }
+
 
     // ================
     // 背景图悬停模块
@@ -736,11 +716,12 @@ const SCRIPT_VERSION = "5.6.47";
         const customRules = getCustomRules()
             .filter(r => r.enabled && r.imgMode === 'background')
             .map(r => ({
-                domains: String(r.domains).split(',').map(s => s.trim()).filter(Boolean),
-                itemSelector: r.itemSelector,
-                cardSelector: r.cardSelector,
+                domains: String(r.domains || '').split(',').map(s => s.trim()).filter(Boolean),
+                itemSelector: toSelector(r.itemSelector),
+                cardSelector: toSelector(r.cardSelector),
                 pollInterval: Math.max(100, parseInt(r.pollInterval) || 300)
-            }));
+            }))
+            .filter(r => r.itemSelector && r.domains.length);
 
         const domainMatch = (r) => r.domains.some(d => currentDomain === d || currentDomain.endsWith('.' + d));
         const rule = customRules.find(domainMatch) || SITE_HOVER_PROXY_RULES.find(domainMatch);
@@ -760,7 +741,9 @@ const SCRIPT_VERSION = "5.6.47";
 
             let wrapper = el.closest(rule.itemSelector);
             if (!wrapper) {
-                const card0 = el.closest(rule.cardSelector);
+                // ★ 卡片选择器可能为空（归一为 null），空串会让 closest() 抛 SyntaxError，
+                // 而定时代码每 pollInterval 跑一次，异常会持续刷控制台。
+                const card0 = rule.cardSelector ? el.closest(rule.cardSelector) : null;
                 if (card0) {
                     const w = card0.querySelector(rule.itemSelector);
                     if (w) {
@@ -771,21 +754,26 @@ const SCRIPT_VERSION = "5.6.47";
             }
 
             if (wrapper) {
-                const card = (rule.cardSelector && el.closest(rule.cardSelector)) || wrapper;
+                const card = (rule.cardSelector ? el.closest(rule.cardSelector) : null) || wrapper;
                 if (card !== lastBgCard) {
                     lastBgCard = card;
                     bgZoomLayer.hide();
                     if (bgDelayTimer) clearTimeout(bgDelayTimer);
                     const mx = x, my = y;
                     bgDelayTimer = setTimeout(() => {
+                        bgDelayTimer = null;
                         if (Math.abs(lastMouse.x - mx) < 20 && Math.abs(lastMouse.y - my) < 20) {
                             const url = extractBgUrl(wrapper);
                             if (url) bgZoomLayer.show({ cleaned: url, raw: url }, 1);
+                        } else {
+                            // ★ 本次延迟显示已放弃，lastBgCard 必须回滚：
+                            // 否则回到同一张卡片时 card === lastBgCard，背景图放大永久失效。
+                            lastBgCard = null;
                         }
                     }, config.delay);
                 }
             } else {
-                const card = el.closest(rule.cardSelector);
+                const card = rule.cardSelector ? el.closest(rule.cardSelector) : null;
                 if (!card || !card.querySelector(rule.itemSelector)) {
                     if (bgDelayTimer) { clearTimeout(bgDelayTimer); bgDelayTimer = null; }
                     bgZoomLayer.hide();
@@ -861,7 +849,7 @@ const SCRIPT_VERSION = "5.6.47";
             if (!isEnabled || isHomepageZoomDisabled()) { cancelBg(); bgZoomLayer.hide(); return; }
             if (config.avoidClickConflict && isImageInLightboxMode()) { cancelBg(); bgZoomLayer.hide(); return; }
             if (e.target.closest && e.target.closest('#zoomDockZone, #izModalOverlay, #izIntroOverlay, #izUpdateNotice, .image-zoom-container')) return;
-            if (isHoverBlocker(e.target)) { cancelBg(); bgZoomLayer.hide(); return; }
+            if (isHoverBlocker(e.target) && !canPierceBlocker(e.target)) { cancelBg(); bgZoomLayer.hide(); return; }
             if (zoomFSM.hasActiveZoom()) { cancelBg(); return; }
 
             const x = e.clientX, y = e.clientY;
@@ -951,13 +939,17 @@ const SCRIPT_VERSION = "5.6.47";
     }
 
 // 5.6.38 - 图片登记处理器
-// 仅从 main.js 原位置整体迁移，不改 processImage 行为。
+// 不改 processImage 行为。
 
     // ================
     // 4. 图片登记
     // ================
     function processImage(img) {
         if (!isEnabled || !img || !img.parentNode) return;
+        // ★ 自有 UI 隔离：放大层自身的 <img> 也是 document.body 子树里的 IMG，
+        // 会被 MutationObserver 当成页面新图送进来（追加容器 → 触发 childList）。
+        // 这里统一拦掉，避免给自己的预览层打上 image-zoom-processed 并多跑一轮登记。
+        if (img.closest && img.closest('.image-zoom-container')) return;
         try {
             if (!isValidImage(img)) return;
             if (img.classList.contains('image-zoom-processed')) return;
@@ -973,10 +965,10 @@ const SCRIPT_VERSION = "5.6.47";
 
 
     // ================
-    // 4. 图片登记（已拆分至 image/processor.js）
+    // 4. 图片登记
     // ================
     // ================
-    // 5. ★ 核心：单实例状态机 zoomFSM（已拆分至 core/zoom-fsm.js）
+    // 5. ★ 核心：单实例状态机 zoomFSM
     // ================
 
     // 6. ★ 全局事件流 + 停稳裁决器
@@ -992,7 +984,7 @@ const SCRIPT_VERSION = "5.6.47";
             if (el && el.closest && el.closest('.image-zoom-container')) { continue; }
             if (el.tagName !== 'IMG') {
                 // ★ 从顶往下扫，先碰到菜单/空白占位 → 判定无图，不再穿透
-                if (el !== document.body && el !== document.documentElement && isHoverBlocker(el)) return null;
+                if (el !== document.body && el !== document.documentElement && isHoverBlocker(el) && !canPierceBlocker(el)) return null;
                 continue;
             }
             if (!isImgVisibleNow(el)) continue;
@@ -1080,7 +1072,7 @@ const SCRIPT_VERSION = "5.6.47";
 
         // 路径C：遮罩盖图 —— 局部扫描
         if (!img) {
-            if (t && t !== document.body && isHoverBlocker(t)) {
+            if (t && t !== document.body && isHoverBlocker(t) && !canPierceBlocker(t)) {
                 zoomFSM.dispatch('HOVER_NONE', { x, y });
                 return;
             }
@@ -1118,6 +1110,8 @@ const SCRIPT_VERSION = "5.6.47";
         const S = Object.freeze({ IDLE:'IDLE', PENDING:'PENDING', SHOWING:'SHOWING', ACTIVE:'ACTIVE', FADING:'FADING' });
         let state = S.IDLE;
         let instance = null;      // 唯一活实例
+        let generation = 0;       // 代际计数：每次目标变化/离开/切换 +1，旧异步任务据此丢弃
+        let currentAbort = null;  // 当前在途媒体加载的取消控制器（leave/switch 时 abort）
         let pendingImg = null;    // PENDING 中等待的图
         let pendingTimer = null;
         let pendingFails = 0;     // 心跳连续失败计数（容忍轮播动画的瞬时错位）
@@ -1149,6 +1143,25 @@ const SCRIPT_VERSION = "5.6.47";
             setTimeout(() => {
                 if (container.parentNode) container.parentNode.removeChild(container);
             }, FADE_MS);
+        }
+
+        // 按图片当前的天然比例，在容器内做一次 contain 适配（非滚轮模式专用）。
+        // 算法与 cropBlackBars 的非滚轮分支保持一致，确保两条路径结果相同。
+        function refitInstanceImage(inst) {
+            if (!inst || !inst.container || !inst.imgEl) return;
+            const box = inst.container, im = inst.imgEl;
+            const nw0 = Number(im.naturalWidth) || 0, nh0 = Number(im.naturalHeight) || 0;
+            const ratio = (nw0 > 0 && nh0 > 0) ? (nw0 / nh0)
+                : (Number(inst.imageRatio) > 0 ? inst.imageRatio : 0);
+            if (!(ratio > 0)) return;
+            const bw = box.clientWidth, bh = box.clientHeight;
+            if (!(bw > 0 && bh > 0)) return;
+            let nw = bw, nh = Math.round(bw / ratio);
+            if (nh > bh) { nh = bh; nw = Math.round(bh * ratio); }
+            im.style.width = nw + 'px';
+            im.style.height = nh + 'px';
+            im.style.left = Math.round((bw - nw) / 2) + 'px';
+            im.style.top = Math.round((bh - nh) / 2) + 'px';
         }
 
         function computeAdaptiveSize(img, rect) {
@@ -1251,6 +1264,7 @@ const SCRIPT_VERSION = "5.6.47";
                     : Math.max(1, Math.min(5, Math.min(boxW / rect.width, boxH / rect.height)));
                 const inst = {
                     container, imgEl: zoomedImg, sourceImg: img,
+                    generation,   // 创建时代际；异步回调据此判断是否过期
                     fallbackSrc, usingHiRes: false, revealed: false,
                     sourceW: rect.width, sourceH: rect.height,
                     currentZoom: initialZoom,
@@ -1262,7 +1276,7 @@ const SCRIPT_VERSION = "5.6.47";
                 container.__zoomInstance = inst;
 
                 zoomedImg.onload = () => {
-                    if (instance !== inst) return; // 过期实例回调直接丢弃
+                    if (inst.generation !== generation || instance !== inst) return; // 过期代际/实例回调直接丢弃
                     if (inst.wheelZoom && zoomedImg.naturalWidth > 0 && zoomedImg.naturalHeight > 0) {
                         const nextRatio = zoomedImg.naturalWidth / zoomedImg.naturalHeight;
                         if (nextRatio > 0 && Math.abs(nextRatio - inst.imageRatio) > 0.0001) {
@@ -1276,6 +1290,15 @@ const SCRIPT_VERSION = "5.6.47";
                             zoomedImg.style.setProperty('height', h + 'px', 'important');
                         }
                     }
+                    // ★ 非滚轮模式：容器尺寸在 createInstance 里定好后不再变化（尺寸语义固定）。
+                    // 但这里加载成功的图未必就是建实例时那张——最典型的是后台探活通过后
+                    // 替换成的高清图，宽高比可能与缩略图不同。此时若不按新比例重做一次
+                    // contain 适配，内联的 object-fit:fill 会把图片拉伸变形
+                    //（cropBlackBars 在“几乎无黑边”时会提前 return，兜不住这种情况）。
+                    // 比例一致时计算结果与建实例时完全相同，不会产生任何视觉变化。
+                    if (!inst.wheelZoom && zoomedImg.naturalWidth > 0 && zoomedImg.naturalHeight > 0) {
+                        refitInstanceImage(inst);
+                    }
                     // 滚轮缩放模式不参与异步黑边裁剪：裁剪会改变图片天然比例并在 toBlob 回调中重新布局，
                     // 从而造成首个滚轮“先缩小一下”以及竖图跳回最小尺寸/出现透明框。
                     if (!inst.wheelZoom) cropBlackBars(zoomedImg);
@@ -1285,14 +1308,18 @@ const SCRIPT_VERSION = "5.6.47";
                     }
                 };
                 zoomedImg.onerror = () => {
-                    if (instance === inst) FSM.dispatch('ERROR', inst);
+                    if (inst.generation === generation && instance === inst) FSM.dispatch('ERROR', inst);
                 };
 
                 zoomedImg.src = fallbackSrc;
 
                 if (hiResSrc) {
+                    const ac = currentAbort;
                     const probe = new Image();
+                    if (ac) ac.signal.addEventListener('abort', () => { probe.src = ''; });
                     probe.onload = () => {
+                        if (ac && ac.signal.aborted) return;
+                        if (inst.generation !== generation) return;
                         if (!zoomedImg.isConnected || zoomedImg.src === hiResSrc) return;
                         if (zoomedImg.__zoomBlobUrl) {
                             URL.revokeObjectURL(zoomedImg.__zoomBlobUrl);
@@ -1308,7 +1335,7 @@ const SCRIPT_VERSION = "5.6.47";
                 if (zoomedImg.complete && zoomedImg.naturalWidth > 0 && !inst.revealed) {
                     inst.revealed = true;
                     setTimeout(() => {
-                        if (instance === inst) FSM.dispatch('LOADED', inst);
+                        if (inst.generation === generation && instance === inst) FSM.dispatch('LOADED', inst);
                     }, 10);
                 }
 
@@ -1332,12 +1359,19 @@ const SCRIPT_VERSION = "5.6.47";
             },
             cancel() {
                 clearPending();
+                generation++;                       // ★ 作废在途异步任务
+                if (currentAbort) { currentAbort.abort(); currentAbort = null; }
                 state = S.IDLE;
             },
             show(img) {
-                hideHoverWaitIndicator();
+                // ★ 等待动画保持显示，直到该实例真正 LOADED/ACTIVE。
+                // 新目标：作废上一代在途任务并开启新代（ADR-002）
+                if (currentAbort) currentAbort.abort();
+                currentAbort = new AbortController();
+                generation++;
                 const inst = createInstance(img);
                 if (!inst) {
+                    hideHoverWaitIndicator();
                     state = S.IDLE;
                     wheelManager.sync();
                     return;
@@ -1347,7 +1381,7 @@ const SCRIPT_VERSION = "5.6.47";
                 wheelManager.sync();
             },
             activate(inst) {
-                if (inst !== instance) return;
+                if (inst.generation !== generation || inst !== instance) return;
                 hideHoverWaitIndicator();
                 inst.container.style.opacity = '1';
                 inst.imgEl.style.transform = 'scale(1)';
@@ -1360,12 +1394,13 @@ const SCRIPT_VERSION = "5.6.47";
                 state = S.ACTIVE;
             },
             onError(inst) {
-                if (inst !== instance) return;
+                if (inst.generation !== generation || inst !== instance) return;
                 if (inst.usingHiRes) {
                     inst.usingHiRes = false;
                     inst.imgEl.src = inst.fallbackSrc;
                     return;
                 }
+                if (currentAbort) { currentAbort.abort(); currentAbort = null; }
                 fadeOutContainer(inst.container);
                 instance = null;
                 state = S.IDLE;
@@ -1373,6 +1408,8 @@ const SCRIPT_VERSION = "5.6.47";
             },
             beginFade() {
                 clearPending();
+                generation++;                       // ★ 离开/切换：立即作废在途任务（ADR-003）
+                if (currentAbort) { currentAbort.abort(); currentAbort = null; }
                 if (instance) {
                     fadeOutContainer(instance.container);
                     instance = null;
@@ -1461,7 +1498,6 @@ const SCRIPT_VERSION = "5.6.47";
         const FSM = {
             get state() { return state; },
             hasActiveZoom() { return state === S.SHOWING || state === S.ACTIVE; },
-            getActiveRect() { return instance ? instance.container.getBoundingClientRect() : null; },
             getSourceRect() { return instance && instance.sourceImg && instance.sourceImg.isConnected ? instance.sourceImg.getBoundingClientRect() : null; },
 
             heartbeat() {
@@ -1606,6 +1642,8 @@ const SCRIPT_VERSION = "5.6.47";
                         break;
                     }
                     case 'RESET': {
+                        generation++;
+                        if (currentAbort) { currentAbort.abort(); currentAbort = null; }
                         clearPending();
                         if (instance) {
                             const c = instance.container;
@@ -1708,7 +1746,6 @@ const SCRIPT_VERSION = "5.6.47";
         window.addEventListener('blur', () => {
             browserWindowFocused = false;
             resumeBlockedUntilMouseMove = true;
-            suppressWindowExitUntil = Date.now() + 80;
             if (config.blurDismiss) {
                 zoomFSM.dispatch('HOVER_NONE', { x: lastMouse.x, y: lastMouse.y, force: true });
             }
@@ -1720,9 +1757,6 @@ const SCRIPT_VERSION = "5.6.47";
             // 否则 lastMouse 仍是切换应用前的旧坐标，会立即再次命中原图。
             pointerInWindow = false;
             resumeBlockedUntilMouseMove = true;
-            resumeBlockX = lastMouse.x;
-            resumeBlockY = lastMouse.y;
-            suppressWindowExitUntil = 0;
 
             // 失焦期间没有主动收起时，切回浏览器后重新核对光标位置。
             // 如果光标仍在原图区域，继续保留；如果已经离开，则立即收起。
@@ -1752,17 +1786,17 @@ const SCRIPT_VERSION = "5.6.47";
     }
 
 
-    // 6. ★ 全局事件流 + 停稳裁决器（已拆分至 core/hover-stream.js）
+    // 6. ★ 全局事件流 + 停稳裁决器
 
     // ================
-    // 7/8. ★ 背景图悬停模块（已拆分至 image/background-hover.js）
+    // 7/8. ★ 背景图悬停模块
     // ================
 
     // ================
-    // 9. 动态图片观察器（已拆分至 core/observer.js）
+    // 9. 动态图片观察器
     // ================
 // 5.6.25 - 动态图片观察器
-// 仅从 main.js 原位置整体迁移，不改观察/MutationObserver 行为。
+// 不改观察/MutationObserver 行为。
 
     // ================
     // 9. 动态图片观察器
@@ -1802,17 +1836,23 @@ const SCRIPT_VERSION = "5.6.47";
             processingQueue = true;
             const processBatch = (batch) => {
                 const nodes = new Set();
+                // ★ 自有 UI 隔离：放大层容器及其内部节点不作为页面图片登记对象
+                const isOwnUI = (el) => !!(el.closest && el.closest('.image-zoom-container'));
                 batch.forEach(mutation => {
                     if (mutation.type === 'attributes' && mutation.target.tagName === 'IMG' &&
-                        !mutation.target.classList.contains('image-zoom-processed')) {
+                        !mutation.target.classList.contains('image-zoom-processed') &&
+                        !isOwnUI(mutation.target)) {
                         nodes.add(mutation.target);
                     } else if (mutation.type === 'childList') {
                         mutation.addedNodes.forEach(node => {
                             if (node.nodeType !== Node.ELEMENT_NODE) return;
+                            if (isOwnUI(node)) return;
                             if (node.tagName === 'IMG' && !node.classList.contains('image-zoom-processed')) {
                                 nodes.add(node);
                             } else if (node.querySelectorAll) {
-                                node.querySelectorAll('img:not(.image-zoom-processed)').forEach(i => nodes.add(i));
+                                node.querySelectorAll('img:not(.image-zoom-processed)').forEach(i => {
+                                    if (!isOwnUI(i)) nodes.add(i);
+                                });
                             }
                         });
                     }
@@ -1820,7 +1860,10 @@ const SCRIPT_VERSION = "5.6.47";
                 nodes.forEach(img => observeImage(img));
             };
             const run = (batch) => {
-                requestAnimationFrame(() => {
+                let flushed = false;
+                const flush = () => {
+                    if (flushed) return;
+                    flushed = true;
                     processBatch(batch);
                     processingQueue = false;
                     if (pendingMutations && pendingMutations.length) {
@@ -1829,7 +1872,16 @@ const SCRIPT_VERSION = "5.6.47";
                         processingQueue = true;
                         run(nextBatch);
                     }
-                });
+                };
+                // 可见页仍走 rAF（保持原有帧对齐时序）。后台标签页不执行 rAF，
+                // 若只依赖它，processingQueue 会一直停在 true，后续 MutationRecord
+                // 只能不断堆进 pendingMutations（无上限，且会长期持有已删除节点的引用）。
+                if (document.hidden) {
+                    setTimeout(flush, 16);
+                } else {
+                    requestAnimationFrame(flush);
+                    setTimeout(() => { if (document.hidden) flush(); }, 250);
+                }
             };
             run(mutations);
         });
@@ -1854,9 +1906,11 @@ const SCRIPT_VERSION = "5.6.47";
         '.fancybox-container', '.fancybox-overlay', '.fancybox-bg', '.fancybox__container',
         '.pswp', '.pswp__bg', '.lg-backdrop', '.lg-outer',
         '.viewer-container', '.viewer-backdrop', '[data-fancybox-container]',
-        '[aria-modal="true"]',
         '#imgzoom', '#imgzoom_zoomlayer', '#imgzoom_zoom'
     ];
+    // 预拼一次即可：isElementInsideLightbox / isRelevantMutation 每次调用都会用到，
+    // 而 isRelevantMutation 对每条 mutation 最多要用 4 次，现场 join 属于纯浪费。
+    const LIGHTBOX_SELECTOR_STR = LIGHTBOX_SELECTORS.join(',');
 
     function isVisibleLightboxElement(el) {
         if (!el || !el.isConnected) return false;
@@ -1880,22 +1934,44 @@ const SCRIPT_VERSION = "5.6.47";
     function isElementInsideLightbox(target) {
         if (!target || !target.closest) return false;
         try {
-            // 只信任明确的 Lightbox / Dialog 结构，不再使用
-            // “fixed/absolute + 高 z-index + 大尺寸 + 包含图片”的启发式兜底。
-            // 后者容易把普通页面的固定面板、广告层、播放器等误判为 Lightbox。
-            if (target.closest(LIGHTBOX_SELECTORS.join(','))) return true;
-            if (target.closest('[role="dialog"],[aria-modal="true"]')) return true;
+            // 明确的 Lightbox / 图片查看器结构优先。
+            if (target.closest(LIGHTBOX_SELECTOR_STR)) return true;
+
+            // aria-modal / role=dialog 本身不能证明是图片灯箱。
+            // 只有对话框具备明确的图片查看器语义，或内部存在可见的大尺寸媒体，
+            // 才把它视为 Lightbox，避免误伤普通网站弹窗。
+            const dialog = target.closest('[role="dialog"],[aria-modal="true"]');
+            if (dialog) {
+                if (hasLightboxKeyword(dialog)) return true;
+                // ★ 仅"覆盖式"对话框 + 可见大图才算灯箱。
+                // role="dialog"/aria-modal 常被 SPA 当作普通内容包裹层；若只看"里面有没有大图"，
+                // 会把包住整页卡片的 dialog 误判为灯箱，从而在找图之前截断流程。
+                // 另外遍历全部媒体，避免只看到第一个（可能是隐藏小图标）就下结论。
+                let overlayLike = false;
+                try {
+                    const dcs = getComputedStyle(dialog);
+                    overlayLike = dcs.position === 'fixed' || dcs.position === 'absolute';
+                } catch (e) { }
+                if (overlayLike && dialog.querySelectorAll) {
+                    for (const m of dialog.querySelectorAll('img,video,canvas')) {
+                        if (isVisibleLightboxElement(m)) return true;
+                    }
+                }
+            }
         } catch (e) { }
         return false;
     }
 
-    function isImageInLightboxMode(target) {
+    // ★ Lightbox 全局状态缓存：鼠标移动是高频路径，不再每次都全页面
+    // querySelectorAll + getComputedStyle。缓存只保存“全局是否存在可见灯箱”，
+    // target 是否位于灯箱内部仍由 isElementInsideLightbox() 实时判断。
+    let lightboxGlobalOpen = null;
+
+    function scanGlobalLightboxState() {
         if (LIGHTBOX_CLASSES.some(c =>
             document.body.classList.contains(c) ||
             document.documentElement.classList.contains(c)
         )) return true;
-
-        if (target && isElementInsideLightbox(target)) return true;
 
         for (const selector of LIGHTBOX_SELECTORS) {
             try {
@@ -1921,6 +1997,16 @@ const SCRIPT_VERSION = "5.6.47";
         return false;
     }
 
+    function invalidateLightboxState() {
+        lightboxGlobalOpen = null;
+    }
+
+    function isImageInLightboxMode(target) {
+        if (target && isElementInsideLightbox(target)) return true;
+        if (lightboxGlobalOpen === null) lightboxGlobalOpen = scanGlobalLightboxState();
+        return lightboxGlobalOpen;
+    }
+
     function setupLightboxObserver() {
         let checkScheduled = false;
         let observer = null;
@@ -1943,17 +2029,20 @@ const SCRIPT_VERSION = "5.6.47";
                 // Lightbox 状态只可能通过这些属性发生可见变化。
                 return target === document.body ||
                        target === document.documentElement ||
-                       !!target.closest(LIGHTBOX_SELECTORS.join(',')) ||
+                       !!target.closest(LIGHTBOX_SELECTOR_STR) ||
                        !!target.closest('[role="dialog"],[aria-modal="true"]') ||
                        target.matches?.('[data-fancybox],[data-lightbox],.lightbox,.fancybox,.pswp,.viewer-container');
             }
 
             if (mutation.type === 'childList') {
-                for (const node of mutation.addedNodes) {
+                // 新增和移除都可能改变灯箱状态；旧版只检查 addedNodes，
+                // 导致灯箱被移除后缓存/检测可能继续保留旧状态。
+                const nodes = [...mutation.addedNodes, ...mutation.removedNodes];
+                for (const node of nodes) {
                     if (node.nodeType !== Node.ELEMENT_NODE) continue;
-                    if (node.matches?.(LIGHTBOX_SELECTORS.join(','))) return true;
+                    if (node.matches?.(LIGHTBOX_SELECTOR_STR)) return true;
                     if (node.matches?.('[role="dialog"],[aria-modal="true"],img,[data-fancybox],[data-lightbox],.lightbox,.fancybox,.pswp,.viewer-container')) return true;
-                    if (node.querySelector?.(LIGHTBOX_SELECTORS.join(','))) return true;
+                    if (node.querySelector?.(LIGHTBOX_SELECTOR_STR)) return true;
                     if (node.querySelector?.('[role="dialog"],[aria-modal="true"],[data-fancybox],[data-lightbox],.lightbox,.fancybox,.pswp,.viewer-container')) return true;
                 }
                 return false;
@@ -1967,6 +2056,7 @@ const SCRIPT_VERSION = "5.6.47";
             // 可能影响 Lightbox 状态的 mutation 上触发，并且每帧最多检测一次。
             for (const mutation of mutations) {
                 if (isRelevantMutation(mutation)) {
+                    invalidateLightboxState();
                     scheduleCheck();
                     break;
                 }
@@ -2006,10 +2096,14 @@ const SCRIPT_VERSION = "5.6.47";
             zoomFSM.dispatch('DISMISS');
         };
 
-        // pointerdown 优先于 click：用户点击图片准备打开帖子时先销毁预览，
-        // 无论 blurDismiss 开启还是关闭，都不会把旧预览带到返回后的页面。
-        document.addEventListener('pointerdown', dismissZoomBeforeOpen, true);
-        document.addEventListener('mousedown', dismissZoomBeforeOpen, true);
+        // pointerdown 优先于 click：用户点击图片准备打开帖子时先销毁预览。
+        // 现代浏览器使用 Pointer Events，因此不再同时监听 mousedown，避免一次点击
+        // 连续进入两次 DISMISS；仅在极少数不支持 PointerEvent 的环境回退到 mousedown。
+        if ('PointerEvent' in window) {
+            document.addEventListener('pointerdown', dismissZoomBeforeOpen, true);
+        } else {
+            document.addEventListener('mousedown', dismissZoomBeforeOpen, true);
+        }
 
         document.addEventListener('click', (e) => {
             const t = e.target;
@@ -2026,7 +2120,7 @@ const SCRIPT_VERSION = "5.6.47";
         dismissIfOpen();
     }
 
-    // setupLightboxObserver 已拆分至 core/lightbox-observer.js
+    // setupLightboxObserver（灯箱观察）
 
     // ================
     // 10. 滚轮管理器
@@ -2104,8 +2198,15 @@ const bilibiliVolumeModule = (function() {
             }, 2000);
         }
 
+        function isBilibiliHost() {
+            return window.location.hostname.includes('bilibili.com');
+        }
+
         function onWheel(e) {
-            if (!enabled || !isInFullscreenMode()) return false;
+            // ★ 必须带域名判断：onWheel 是滚轮事件链的末端（wheelManager → onWheel），
+            // 少了这道门槛，任何站点只要进入全屏且页面里存在 <video>，
+            // 滚轮都会被拿去做音量调节，而不是页面原本的滚动/缩放行为。
+            if (!enabled || !isBilibiliHost() || !isInFullscreenMode()) return false;
             const video = findVideoElement();
             if (!video) return false;
             e.stopPropagation();
@@ -2116,41 +2217,34 @@ const bilibiliVolumeModule = (function() {
             return true;
         }
 
-        function handleKeydown(e) {
-            if (!enabled) return;
-            const tag = (e.target.tagName || '').toLowerCase();
-            if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
-            if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code) && isInFullscreenMode()) e.preventDefault();
-        }
-
         function init() {
-            if (!window.location.hostname.includes('bilibili.com')) return;
-            if (enabled) {
-                window.addEventListener('keydown', handleKeydown);
-                document.addEventListener('volumechange', (e) => {
-                    if (!enabled || e.target.tagName !== 'VIDEO' || !isInFullscreenMode()) return;
-                    showVolumeToast(e.target.muted ? 0 : e.target.volume);
-                }, { capture: true });
-            }
+            if (!isBilibiliHost()) return;
+            // ★ 不再接管方向键：方向键完全交给 B 站播放器原生处理。
+            // 本模块仅负责全屏滚轮音量辅助与音量提示。
+            // 方向键由 B 站原生播放器处理。不要监听 volumechange 显示自定义提示，
+            // 否则 ↑/↓ 会同时出现 B 站原生音量提示和 HoverVista 提示。
+            // HoverVista 自定义提示仅用于本模块实际接管的全屏滚轮调音量。
         }
 
         return {
             init, onWheel,
-            isFullscreenActive: isInFullscreenMode,
+            // 供 wheelManager 判断是否需要挂滚轮监听：同样必须限定站点，
+            // 否则非 B 站页面一进全屏就会被挂上滚轮拦截。
+            isFullscreenActive: () => isBilibiliHost() && isInFullscreenMode(),
             get isEnabled() { return enabled; },
             setEnabled(v) { enabled = v; storageSet('bilibili_volume_enabled', v); }
         };
     })();
 
 
-    // 10. Bilibili 播放器辅助（已拆分至 sites/bilibili.js）
+    // 10. Bilibili 播放器辅助
     // ================
 
-    // wheelManager 已拆分至 core/wheel-manager.js
+    // wheelManager（滚轮调度）
 
 
     // ================
-    // 11. 样式 / 悬浮按钮 / 配置面板 / 反馈 / 自定义规则
+    // 11. 样式 / 悬浮按钮 / 配置面板 / 自定义规则
     // ================
     let styleElement = null, dockStyleElement = null;
 
@@ -2182,119 +2276,167 @@ const bilibiliVolumeModule = (function() {
                 .zoom-bubble-tip.visible{opacity:1}
                 body.zoom-dock-dragging,body.zoom-dock-dragging *{transition:none!important;cursor:grabbing!important;user-select:none!important}
                 body.zoom-dock-dragging #zoomDock{cursor:grabbing!important}
-                #izModalOverlay{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.45);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+                                /* ===== 设计 token（浅色）===== */
+                #izModalOverlay,#izIntroOverlay,#izConfigPanel,#izIntroPanel,#izUpdateNotice{
+                  --iz-bg-1:rgba(255,255,255,.88);--iz-bg-2:rgba(255,255,255,.5);--iz-bg-3:#ffffff;--iz-bg-4:rgba(248,250,252,.72);--iz-bg-5:#f1f5f9;
+                  --iz-bd-1:rgba(226,232,240,.7);--iz-bd-2:#e2e8f0;
+                  --iz-tx-1:#0f172a;--iz-tx-2:#1e293b;--iz-tx-muted:#64748b;--iz-tx-faint:#94a3b8;
+                  --iz-accent:#4f46e5;--iz-accent-solid:#4f46e5;--iz-accent-soft:rgba(79,70,229,.15);
+                  --iz-grad:linear-gradient(135deg,#4f46e5,#7c3aed);
+                  --iz-hover-bg:rgba(255,255,255,.9);--iz-scroll:#cbd5e1;
+                  --iz-shadow:0 25px 60px -12px rgba(0,0,0,.35);--iz-inset-ring:rgba(255,255,255,.6);--iz-overlay:rgba(15,23,42,.45);
+                  --iz-danger:#ef4444;--iz-danger-soft:rgba(239,68,68,.08);
+                  --iz-ok:#10b981;--iz-warn:#f59e0b;--iz-warn-bg:#faeeda;--iz-warn-tx:#854f0b;--iz-warn-bd:#ef9f27;
+                  --iz-lead-bg:linear-gradient(135deg,rgba(79,70,229,.08),rgba(124,58,237,.06));--iz-lead-bd:rgba(99,102,241,.14);
+                  --iz-r-sm:10px;--iz-r-md:12px;--iz-r-lg:16px;--iz-r-xl:24px;
+                }
+                /* ===== 设计 token（暗色，跟随系统）===== */
+                @media (prefers-color-scheme: dark){
+                  #izModalOverlay,#izIntroOverlay,#izConfigPanel,#izIntroPanel,#izUpdateNotice{
+                    --iz-bg-1:rgba(24,27,40,.92);--iz-bg-2:rgba(255,255,255,.045);--iz-bg-3:rgba(255,255,255,.07);--iz-bg-4:rgba(255,255,255,.05);--iz-bg-5:rgba(255,255,255,.09);
+                    --iz-bd-1:rgba(255,255,255,.11);--iz-bd-2:rgba(255,255,255,.15);
+                    --iz-tx-1:#f1f5f9;--iz-tx-2:#e2e8f0;--iz-tx-muted:#a6b0c3;--iz-tx-faint:#7c8699;
+                    --iz-accent:#818cf8;--iz-accent-solid:#4f46e5;--iz-accent-soft:rgba(129,140,248,.30);
+                    --iz-grad:linear-gradient(135deg,#4f46e5,#7c3aed);
+                    --iz-hover-bg:rgba(255,255,255,.10);--iz-scroll:rgba(255,255,255,.24);
+                    --iz-shadow:0 25px 60px -12px rgba(0,0,0,.72);--iz-inset-ring:rgba(255,255,255,.08);--iz-overlay:rgba(0,0,0,.62);
+                    --iz-danger:#f87171;--iz-danger-soft:rgba(248,113,113,.15);
+                    --iz-ok:#34d399;--iz-warn:#fbbf24;--iz-warn-bg:rgba(245,158,11,.16);--iz-warn-tx:#fcd34d;--iz-warn-bd:rgba(245,158,11,.35);
+                    --iz-lead-bg:linear-gradient(135deg,rgba(129,140,248,.14),rgba(167,139,250,.10));--iz-lead-bd:rgba(129,140,248,.22);
+                  }
+                  .iz-select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a6b0c3' d='M6 8L1 3h10z'/%3E%3C/svg%3E")}
+                }
+                #izModalOverlay{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;padding:24px;background:var(--iz-overlay);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
                 #izModalOverlay.anim-in{animation:izOverlayFade .35s ease}
                 #izModalOverlay.anim-out{animation:izOverlayFadeOut .3s ease forwards}
                 @keyframes izOverlayFade{from{opacity:0}to{opacity:1}}
                 @keyframes izOverlayFadeOut{from{opacity:1}to{opacity:0}}
-                #izConfigPanel{width:100%;max-width:780px;max-height:92vh;background:rgba(255,255,255,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:28px;box-shadow:0 25px 60px -12px rgba(0,0,0,.35),0 0 0 1px rgba(255,255,255,.6) inset;overflow:hidden;animation:izPanelSlide .40s cubic-bezier(.16,1,.3,1);display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;box-sizing:border-box}
+                #izConfigPanel{width:100%;max-width:780px;max-height:92vh;background:var(--iz-bg-1);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:var(--iz-r-xl);box-shadow:var(--iz-shadow),0 0 0 1px var(--iz-inset-ring) inset;overflow:hidden;animation:izPanelSlide .40s cubic-bezier(.16,1,.3,1);display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;box-sizing:border-box;color:var(--iz-tx-1)}
                 @keyframes izPanelSlide{from{opacity:0;transform:translateY(28px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
-                .iz-panel-scroll{flex:1;overflow-y:auto;padding:0 28px 12px 28px;scroll-behavior:smooth}.iz-top-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:stretch}.iz-top-grid>.iz-section{margin-top:12px;min-width:0;display:flex;flex-direction:column}.iz-switch-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1;align-items:stretch}.iz-switch-card{display:grid;grid-template-columns:24px minmax(0,1fr);grid-template-rows:auto auto;align-items:start;column-gap:12px;row-gap:3px;min-height:72px;padding:9px 10px;background:rgba(248,250,252,.72);border:1px solid rgba(226,232,240,.75);border-radius:12px;cursor:pointer;user-select:none;transition:background .2s,border-color .2s,transform .2s}.iz-switch-card:hover{background:rgba(255,255,255,.9);border-color:rgba(165,180,252,.8);transform:translateY(-1px)}.iz-switch-card .iz-toggle{grid-column:1;grid-row:1;margin:1px 0 0 0;transform:scale(.64);transform-origin:top left;flex-shrink:0}.iz-switch-text{display:contents}.iz-switch-title{grid-column:2;grid-row:1;font-size:12.5px;font-weight:600;color:#1E293B;line-height:1.35;white-space:nowrap;overflow:visible}.iz-switch-sub{grid-column:1 / -1;grid-row:2;font-size:10.5px;font-weight:400;color:#94A3B8;line-height:1.5;margin-top:1px}.iz-bili-note{display:none}
+                .iz-panel-scroll{flex:1;overflow-y:auto;padding:0 28px 12px 28px;scroll-behavior:smooth}.iz-top-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:stretch}.iz-top-grid>.iz-section{margin-top:12px;min-width:0;display:flex;flex-direction:column}.iz-switch-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1;align-items:stretch}.iz-switch-card{display:grid;grid-template-columns:24px minmax(0,1fr);grid-template-rows:auto auto;align-items:start;column-gap:12px;row-gap:3px;min-height:72px;padding:9px 10px;background:var(--iz-bg-4);border:1px solid var(--iz-bd-1);border-radius:var(--iz-r-md);cursor:pointer;user-select:none;transition:background .2s,border-color .2s,transform .2s}.iz-switch-card:hover{background:var(--iz-hover-bg);border-color:var(--iz-accent-soft);transform:translateY(-1px)}.iz-switch-card:focus-visible{outline:2px solid var(--iz-accent);outline-offset:2px}.iz-switch-card .iz-toggle{grid-column:1;grid-row:1;margin:1px 0 0 0;transform:scale(.64);transform-origin:top left;flex-shrink:0}.iz-switch-text{display:contents}.iz-switch-title{grid-column:2;grid-row:1;font-size:13px;font-weight:600;color:var(--iz-tx-2);line-height:1.35}.iz-switch-sub{grid-column:1 / -1;grid-row:2;font-size:12px;font-weight:400;color:var(--iz-tx-muted);line-height:1.5;margin-top:2px}.iz-bili-note{display:none}
                 .iz-panel-scroll::-webkit-scrollbar{width:4px}
                 .iz-panel-scroll::-webkit-scrollbar-track{background:transparent}
-                .iz-panel-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:8px}
+                .iz-panel-scroll::-webkit-scrollbar-thumb{background:var(--iz-scroll);border-radius:8px}
                 .iz-panel-header{display:flex;align-items:center;justify-content:space-between;padding:20px 28px 0 28px;flex-shrink:0}
                 .iz-panel-header-left{display:flex;align-items:center;gap:12px}
-                .iz-panel-icon{width:38px;height:38px;background:linear-gradient(135deg,#4F46E5,#7C3AED);border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex-shrink:0;box-shadow:0 4px 12px rgba(79,70,229,.3)}
-                .iz-panel-title{font-size:20px;font-weight:600;color:#0F172A;letter-spacing:-.3px}
-                .iz-panel-title span{font-weight:400;color:#64748B;font-size:14px;margin-left:6px}
-                .iz-close-btn{width:36px;height:36px;border:none;background:rgba(203,213,225,.4);border-radius:50%;cursor:pointer;font-size:18px;color:#64748B;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;line-height:1}
-                .iz-close-btn:hover{background:rgba(239,68,68,.12);color:#EF4444;transform:rotate(90deg)}
-                .iz-section{margin-top:12px;background:rgba(255,255,255,.5);border-radius:18px;padding:14px 16px 16px 16px;border:1px solid rgba(226,232,240,.7)}
-                .iz-section-title{font-size:13.5px;font-weight:600;color:#64748B;letter-spacing:.6px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
-                .iz-badge{background:#4F46E5;color:#fff;font-size:10px;font-weight:600;padding:0 8px;border-radius:20px;line-height:18px}
+                .iz-panel-icon{width:38px;height:38px;background:var(--iz-grad);border-radius:var(--iz-r-md);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex-shrink:0;box-shadow:0 4px 12px rgba(79,70,229,.3)}
+                .iz-panel-title{font-size:20px;font-weight:600;color:var(--iz-tx-1);letter-spacing:-.3px}
+                .iz-panel-title span{font-weight:400;color:var(--iz-tx-muted);font-size:14px;margin-left:6px}
+                .iz-close-btn{width:36px;height:36px;border:none;background:var(--iz-bg-5);border-radius:50%;cursor:pointer;font-size:18px;color:var(--iz-tx-muted);display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;line-height:1}
+                .iz-close-btn:hover{background:var(--iz-danger-soft);color:var(--iz-danger);transform:rotate(90deg)}
+                .iz-close-btn:focus-visible{outline:2px solid var(--iz-accent);outline-offset:2px}
+                .iz-section{margin-top:12px;background:var(--iz-bg-2);border-radius:var(--iz-r-lg);padding:14px 16px 16px 16px;border:1px solid var(--iz-bd-1)}
+                .iz-section-title{font-size:13px;font-weight:600;color:var(--iz-tx-2);letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+                .iz-badge{background:var(--iz-accent-solid);color:#fff;font-size:11px;font-weight:600;padding:1px 8px;border-radius:20px;line-height:16px}
                 .iz-row{display:flex;align-items:center;gap:14px;margin-bottom:14px}
                 .iz-row:last-child{margin-bottom:0}
-                .iz-row-label{font-size:14px;font-weight:500;color:#1E293B;flex-shrink:0;min-width:100px}
-                .iz-row-label .iz-hint{font-weight:400;font-size:12px;color:#94A3B8;display:block;margin-top:1px}
+                .iz-row-label{font-size:14px;font-weight:500;color:var(--iz-tx-2);flex-shrink:0;min-width:100px}
+                .iz-row-label .iz-hint{font-weight:400;font-size:12px;color:var(--iz-tx-muted);display:block;margin-top:1px}
                 .iz-row-control{flex:1;min-width:0}
-                .iz-select{width:100%;padding:8px 36px 8px 14px;font-size:14px;font-weight:500;color:#0F172A;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 14px center;background-size:12px;border:1.5px solid #E2E8F0;border-radius:12px;appearance:none;-webkit-appearance:none;transition:all .2s;cursor:pointer;outline:none;height:42px}
-                .iz-select:hover{border-color:#A5B4FC}
-                .iz-select:focus{border-color:#4F46E5;box-shadow:0 0 0 3px rgba(79,70,229,.15)}
-                .iz-input-group{display:flex;align-items:center;background:#fff;border:1.5px solid #E2E8F0;border-radius:12px;overflow:hidden;transition:all .2s;height:42px}
-                .iz-input-group:focus-within{border-color:#4F46E5;box-shadow:0 0 0 3px rgba(79,70,229,.15)}
-                .iz-input-group input[type="number"]{flex:1;border:none;padding:0 12px;font-size:14px;font-weight:500;color:#0F172A;background:transparent;outline:none;min-width:0;height:100%;width:100%;-moz-appearance:textfield}
+                .iz-select{width:100%;padding:8px 36px 8px 14px;font-size:14px;font-weight:500;color:var(--iz-tx-1);background-color:var(--iz-bg-3);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;background-size:12px;border:1.5px solid var(--iz-bd-2);border-radius:var(--iz-r-md);appearance:none;-webkit-appearance:none;transition:all .2s;cursor:pointer;outline:none;height:42px}
+                .iz-select:hover{border-color:var(--iz-accent)}
+                .iz-select:focus{border-color:var(--iz-accent);box-shadow:0 0 0 3px var(--iz-accent-soft)}
+                .iz-input-group{display:flex;align-items:center;background-color:var(--iz-bg-3);border:1.5px solid var(--iz-bd-2);border-radius:var(--iz-r-md);overflow:hidden;transition:all .2s;height:42px}
+                .iz-input-group:focus-within{border-color:var(--iz-accent);box-shadow:0 0 0 3px var(--iz-accent-soft)}
+                .iz-input-group input[type="number"]{flex:1;border:none;padding:0 12px;font-size:14px;font-weight:500;color:var(--iz-tx-1);background:transparent;outline:none;min-width:0;height:100%;width:100%;-moz-appearance:textfield}
                 .iz-input-group input[type="number"]::-webkit-inner-spin-button,.iz-input-group input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
-                .iz-input-group .iz-unit{padding:0 14px 0 4px;font-size:13px;color:#94A3B8;font-weight:500;flex-shrink:0}
-                .iz-input-group.disabled-group{opacity:.6;background-color:#f8fafc;border-color:#e2e8f0;cursor:not-allowed}
-                .iz-input-group.disabled-group input{cursor:not-allowed;background-color:#f8fafc}
+                .iz-input-group .iz-unit{padding:0 14px 0 4px;font-size:13px;color:var(--iz-tx-muted);font-weight:500;flex-shrink:0}
+                .iz-input-group.disabled-group{opacity:.6;background-color:var(--iz-bg-5);border-color:var(--iz-bd-2);cursor:not-allowed}
+                .iz-input-group.disabled-group input{cursor:not-allowed;background-color:var(--iz-bg-5)}
                 .iz-checkbox-wrap{display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none}
-                .iz-checkbox-custom{width:20px;height:20px;flex-shrink:0;border:2px solid #CBD5E1;border-radius:6px;background:#fff;transition:all .2s;display:flex;align-items:center;justify-content:center}
-                .iz-checkbox-custom.checked{background:#4F46E5;border-color:#4F46E5}
+                .iz-checkbox-wrap:focus-visible{outline:2px solid var(--iz-accent);outline-offset:2px;border-radius:var(--iz-r-sm)}
+                .iz-checkbox-custom{width:20px;height:20px;flex-shrink:0;border:2px solid var(--iz-bd-2);border-radius:6px;background-color:var(--iz-bg-3);transition:all .2s;display:flex;align-items:center;justify-content:center}
+                .iz-checkbox-custom.checked{background-color:var(--iz-accent-solid);border-color:var(--iz-accent-solid)}
                 .iz-checkbox-custom.checked::after{content:"✓";color:#fff;font-size:14px;font-weight:700;line-height:1}
-                .iz-checkbox-label{font-size:14px;font-weight:500;color:#1E293B}
-                .iz-checkbox-label .iz-sub{font-weight:400;font-size:12px;color:#94A3B8;display:block;margin-top:1px}
+                .iz-checkbox-label{font-size:14px;font-weight:500;color:var(--iz-tx-2)}
+                .iz-checkbox-label .iz-sub{font-weight:400;font-size:12px;color:var(--iz-tx-muted);display:block;margin-top:1px}
                 .iz-toggle-wrap{display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none}
-                .iz-toggle{position:relative;width:46px;height:28px;flex-shrink:0;background:#CBD5E1;border-radius:20px;transition:all .3s cubic-bezier(.34,1.56,.64,1);box-shadow:inset 0 1px 3px rgba(0,0,0,.1)}
-                .iz-toggle.active{background:linear-gradient(135deg,#4F46E5,#7C3AED)}
+                .iz-toggle{position:relative;width:46px;height:28px;flex-shrink:0;background:var(--iz-bd-2);border-radius:20px;transition:all .3s cubic-bezier(.34,1.56,.64,1);box-shadow:inset 0 1px 3px rgba(0,0,0,.1)}
+                .iz-toggle.active{background:var(--iz-grad)}
                 .iz-toggle .iz-knob{position:absolute;top:3px;left:3px;width:22px;height:22px;background:#fff;border-radius:50%;transition:all .3s cubic-bezier(.34,1.56,.64,1);box-shadow:0 2px 6px rgba(0,0,0,.18)}
                 .iz-toggle.active .iz-knob{left:21px}
-                .iz-exclusion-box{background:rgba(241,245,249,.7);border-radius:13px;padding:10px 12px;border:1px solid rgba(226,232,240,.5)}
+                .iz-exclusion-box{background-color:var(--iz-bg-4);border-radius:var(--iz-r-md);padding:10px 12px;border:1px solid var(--iz-bd-1)}
                 .iz-exclusion-box .iz-status-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-                .iz-exclusion-box .iz-status-text{font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;color:#1E293B}
+                .iz-exclusion-box .iz-status-text{font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;color:var(--iz-tx-2)}
                 .iz-exclusion-box .iz-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0}
-                .iz-exclusion-box .iz-dot.on{background:#10B981}
-                .iz-exclusion-box .iz-dot.off{background:#F59E0B}
-                .iz-exclusion-note{margin-top:5px;font-size:11px;color:#64748B}
-                .iz-btn-sm{padding:6px 16px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;flex-shrink:0;height:34px}
-                .iz-btn-sm.primary{background:#4F46E5;color:#fff}
-                .iz-btn-sm.primary:hover{background:#4338CA;transform:translateY(-1px);box-shadow:0 4px 12px rgba(79,70,229,.3)}
-                .iz-btn-sm.warning{background:#F59E0B;color:#fff}
-                .iz-btn-sm.warning:hover{background:#D97706;transform:translateY(-1px);box-shadow:0 4px 12px rgba(245,158,11,.3)}
-                .iz-collapse-header{display:flex;align-items:flex-start;justify-content:space-between;padding:8px 0 5px 0;cursor:pointer;user-select:none;border-top:1px solid rgba(226,232,240,.5);margin-top:4px;transition:opacity .2s;gap:16px}
-                .iz-collapse-header .iz-left{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:650;color:#1E293B;min-width:0;white-space:nowrap;flex-wrap:nowrap}.iz-collapse-description{font-size:11px;color:#94A3B8;line-height:1.45;margin:2px 0 0 20px;white-space:nowrap}
-                .iz-collapse-header .iz-arrow{transition:transform .3s ease;font-size:12px;color:#94A3B8;flex:0 0 auto}
+                .iz-exclusion-box .iz-dot.on{background:var(--iz-ok)}
+                .iz-exclusion-box .iz-dot.off{background:var(--iz-warn)}
+                .iz-exclusion-note{margin-top:5px;font-size:12px;color:var(--iz-tx-muted)}
+                .iz-btn-sm{padding:6px 16px;border:none;border-radius:var(--iz-r-sm);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;flex-shrink:0;height:34px}
+                .iz-btn-sm.primary{background:var(--iz-accent-solid);color:#fff}
+                .iz-btn-sm.primary:hover{filter:brightness(1.1);transform:translateY(-1px);box-shadow:0 4px 12px rgba(79,70,229,.3)}
+                .iz-btn-sm.warning{background:var(--iz-warn-bg);color:var(--iz-warn-tx);border:0.5px solid var(--iz-warn-bd)}
+                .iz-btn-sm.warning:hover{filter:brightness(.97);transform:translateY(-1px);box-shadow:0 4px 12px rgba(245,158,11,.22)}
+                .iz-btn-sm:focus-visible{outline:2px solid var(--iz-accent);outline-offset:2px}
+                .iz-collapse-header{display:flex;align-items:flex-start;justify-content:space-between;padding:8px 6px 5px 6px;cursor:pointer;user-select:none;border-top:1px solid var(--iz-bd-1);margin-top:4px;transition:background .2s;gap:16px;border-radius:var(--iz-r-sm)}
+                .iz-collapse-header:hover{background:var(--iz-bg-4)}
+                .iz-collapse-header:focus-visible{outline:2px solid var(--iz-accent);outline-offset:2px}
+                .iz-collapse-header .iz-left{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:var(--iz-tx-1);min-width:0;white-space:nowrap;flex-wrap:nowrap}.iz-collapse-description{font-size:12px;color:var(--iz-tx-muted);line-height:1.45;margin:2px 0 0 20px;white-space:nowrap}
+                .iz-collapse-header .iz-arrow{transition:transform .3s ease;font-size:12px;color:var(--iz-tx-faint);flex:0 0 auto}
                 .iz-collapse-header .iz-arrow.open{transform:rotate(90deg)}
-                .iz-badge-params{font-size:10.5px;font-weight:500;color:#64748B;background:#F1F5F9;padding:2px 9px;border-radius:20px;white-space:nowrap}.iz-header-name{white-space:nowrap;flex:0 0 auto}
-                .iz-collapse-body{overflow:hidden;max-height:0;opacity:0;transition:all .35s cubic-bezier(.16,1,.3,1)}
-                .iz-collapse-body.open{max-height:800px;opacity:1;padding-top:9px}
+                .iz-count{font-size:11px;font-weight:500;color:var(--iz-tx-muted);background-color:var(--iz-bg-5);padding:1px 9px;border-radius:20px;white-space:nowrap;flex:0 0 auto}
+                .iz-badge-params{font-size:11px;font-weight:500;color:var(--iz-tx-muted);background-color:var(--iz-bg-5);padding:2px 9px;border-radius:20px;white-space:nowrap}.iz-header-name{white-space:nowrap;flex:0 0 auto}
+                .iz-collapse-body{overflow:hidden;max-height:0;opacity:0;transition:max-height .35s cubic-bezier(.16,1,.3,1),opacity .35s cubic-bezier(.16,1,.3,1),padding-top .35s cubic-bezier(.16,1,.3,1)}
+                .iz-collapse-body.open{max-height:1200px;opacity:1;padding-top:9px}
                 .iz-param-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px}.iz-param-sections{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}.iz-param-sections>.iz-section{min-width:0}
                 .iz-param-item{display:flex;flex-direction:column;gap:4px}
-                .iz-param-item label{font-size:12px;font-weight:500;color:#64748B;letter-spacing:.2px;display:flex;align-items:center;gap:5px;white-space:nowrap}
-                .iz-tip-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;flex-shrink:0;border-radius:50%;background:#E2E8F0;color:#64748B;font-size:10px;font-weight:700;line-height:1;cursor:help;position:relative;transition:all .2s}
-                .iz-tip-icon:hover{background:#4F46E5;color:#fff}
-                #izTipBubble{position:fixed;width:240px;background:rgba(15,23,42,.95);color:#F1F5F9;font-size:12px;font-weight:400;line-height:1.6;padding:10px 13px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:opacity .15s ease;z-index:100005;white-space:normal;text-align:left}
+                .iz-param-item label{font-size:12px;font-weight:500;color:var(--iz-tx-muted);letter-spacing:.2px;display:flex;align-items:center;gap:5px;white-space:nowrap}
+                .iz-tip-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;flex-shrink:0;border-radius:50%;background-color:var(--iz-bd-2);color:var(--iz-tx-muted);font-size:10px;font-weight:700;line-height:1;cursor:help;position:relative;transition:all .2s}
+                .iz-tip-icon:hover,.iz-tip-icon:focus-visible{background-color:var(--iz-accent);color:#fff}
+                #izTipBubble{position:fixed;width:240px;background:rgba(15,23,42,.95);color:#f1f5f9;font-size:12px;font-weight:400;line-height:1.6;padding:10px 13px;border-radius:var(--iz-r-sm);box-shadow:0 8px 24px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:opacity .15s ease;z-index:100005;white-space:normal;text-align:left}
                 .iz-param-item .iz-input-group{height:36px}
                 .iz-param-item .iz-input-group input[type="number"]{font-size:13px;padding:0 10px}
                 .iz-param-item .iz-input-group .iz-unit{font-size:12px;padding:0 10px 0 2px}
-                .iz-panel-footer{padding:14px 28px 20px 28px;border-top:1px solid rgba(226,232,240,.5);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:rgba(255,255,255,.4);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-                .iz-btn-ghost{background:none;border:none;padding:8px 14px;font-size:13px;font-weight:500;color:#64748B;cursor:pointer;border-radius:10px;transition:all .2s}
-                .iz-btn-ghost:hover{background:rgba(239,68,68,.08);color:#EF4444}
+                .iz-panel-footer{padding:14px 28px 20px 28px;border-top:1px solid var(--iz-bd-1);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background-color:var(--iz-bg-2);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+                .iz-btn-ghost{background:none;border:none;padding:8px 14px;font-size:13px;font-weight:500;color:var(--iz-tx-muted);cursor:pointer;border-radius:var(--iz-r-sm);transition:all .2s}
+                .iz-btn-ghost:hover{background:var(--iz-bg-5);color:var(--iz-tx-1)}
+                .iz-btn-ghost:focus-visible{outline:2px solid var(--iz-accent);outline-offset:2px}
                 .iz-btn-ghost:active{transform:scale(.96)}
-                .iz-btn-primary-solid{padding:10px 28px;background:linear-gradient(135deg,#4F46E5,#7C3AED);border:none;border-radius:14px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;transition:all .25s;box-shadow:0 4px 16px rgba(79,70,229,.3)}
+                .iz-btn-danger-ghost{background:none;border:none;padding:8px 14px;font-size:13px;font-weight:500;color:var(--iz-tx-muted);cursor:pointer;border-radius:var(--iz-r-sm);transition:all .2s}
+                .iz-btn-danger-ghost:hover{background:var(--iz-danger-soft);color:var(--iz-danger)}
+                .iz-btn-danger-ghost:focus-visible{outline:2px solid var(--iz-danger);outline-offset:2px}
+                .iz-btn-danger-ghost:active{transform:scale(.96)}
+                .iz-btn-primary-solid{padding:10px 28px;background:var(--iz-grad);border:none;border-radius:var(--iz-r-md);font-size:14px;font-weight:600;color:#fff;cursor:pointer;transition:all .25s;box-shadow:0 4px 16px rgba(79,70,229,.3)}
                 .iz-btn-primary-solid:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(79,70,229,.4)}
                 .iz-btn-primary-solid:active{transform:scale(.96)}
-                #izIntroOverlay{position:fixed;inset:0;z-index:100010;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.45);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);pointer-events:auto}
+                .iz-btn-primary-solid:focus-visible{outline:2px solid var(--iz-accent);outline-offset:3px}
+                .iz-rule-input{width:100%;box-sizing:border-box;height:36px;padding:0 10px;border:1.5px solid var(--iz-bd-2);border-radius:var(--iz-r-sm);outline:none;font-size:13px;background-color:var(--iz-bg-3);color:var(--iz-tx-1);transition:all .2s;font-family:inherit}
+                .iz-rule-input:focus{border-color:var(--iz-accent);box-shadow:0 0 0 3px var(--iz-accent-soft)}
+                #izIntroOverlay{position:fixed;inset:0;z-index:100010;display:none;align-items:center;justify-content:center;padding:24px;background:var(--iz-overlay);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);pointer-events:auto}
                 #izIntroPanel{pointer-events:auto}
-                #izUpdateNotice{position:fixed;top:22px;right:22px;width:min(360px,calc(100vw - 44px));z-index:100011;display:none;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(226,232,240,.82);border-radius:20px;box-shadow:0 18px 50px -12px rgba(15,23,42,.28),0 0 0 1px rgba(255,255,255,.55) inset;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;box-sizing:border-box;pointer-events:auto}
+                #izUpdateNotice{position:fixed;top:22px;right:22px;width:min(360px,calc(100vw - 44px));z-index:100011;display:none;background:var(--iz-bg-1);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--iz-bd-1);border-radius:var(--iz-r-lg);box-shadow:var(--iz-shadow),0 0 0 1px var(--iz-inset-ring) inset;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;box-sizing:border-box;pointer-events:auto;color:var(--iz-tx-1)}
                 #izUpdateNotice.anim-in{animation:izUpdateSlide .35s cubic-bezier(.16,1,.3,1)}
                 #izUpdateNotice.anim-out{animation:izUpdateFadeOut .25s ease forwards}
                 #izUpdateNotice .iz-update-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 10px 18px}
-                #izUpdateNotice .iz-update-title{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600;color:#0F172A}
-                #izUpdateNotice .iz-update-icon{width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,#4F46E5,#7C3AED);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;box-shadow:0 4px 12px rgba(79,70,229,.22)}
-                #izUpdateNotice .iz-update-version{font-size:11px;font-weight:600;color:#6366F1;background:#EEF2FF;padding:4px 8px;border-radius:999px}
-                #izUpdateNotice .iz-update-close{width:28px;height:28px;border:none;background:rgba(203,213,225,.45);border-radius:50%;cursor:pointer;font-size:15px;color:#64748B;display:flex;align-items:center;justify-content:center;line-height:1}
-                #izUpdateNotice .iz-update-close:hover{background:rgba(239,68,68,.12);color:#EF4444}
-                #izUpdateNotice .iz-update-body{padding:0 18px 14px 18px;font-size:12.5px;line-height:1.75;color:#64748B}
-                #izUpdateNotice .iz-update-item{padding:8px 10px;background:rgba(248,250,252,.72);border:1px solid rgba(226,232,240,.68);border-radius:10px;margin-top:7px}
+                #izUpdateNotice .iz-update-title{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600;color:var(--iz-tx-1)}
+                #izUpdateNotice .iz-update-icon{width:30px;height:30px;border-radius:var(--iz-r-sm);background:var(--iz-grad);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;box-shadow:0 4px 12px rgba(79,70,229,.22)}
+                #izUpdateNotice .iz-update-version{font-size:11px;font-weight:600;color:var(--iz-accent);background:var(--iz-accent-soft);padding:4px 8px;border-radius:999px}
+                #izUpdateNotice .iz-update-close{width:28px;height:28px;border:none;background:var(--iz-bg-5);border-radius:50%;cursor:pointer;font-size:15px;color:var(--iz-tx-muted);display:flex;align-items:center;justify-content:center;line-height:1}
+                #izUpdateNotice .iz-update-close:hover{background:var(--iz-danger-soft);color:var(--iz-danger)}
+                #izUpdateNotice .iz-update-body{padding:0 18px 14px 18px;font-size:12.5px;line-height:1.75;color:var(--iz-tx-muted)}
+                #izUpdateNotice .iz-update-item{padding:8px 10px;background:var(--iz-bg-4);border:1px solid var(--iz-bd-1);border-radius:var(--iz-r-sm);margin-top:7px}
                 #izUpdateNotice .iz-update-item:first-child{margin-top:0}
-                #izUpdateNotice .iz-update-footer{display:flex;justify-content:flex-end;padding:12px 18px 14px;border-top:1px solid rgba(226,232,240,.5);background:rgba(255,255,255,.45)}
-                #izUpdateNotice .iz-update-ok{padding:8px 16px;font-size:12px;border-radius:11px}
+                #izUpdateNotice .iz-update-footer{display:flex;justify-content:flex-end;padding:12px 18px 14px;border-top:1px solid var(--iz-bd-1);background:var(--iz-bg-2)}
+                #izUpdateNotice .iz-update-ok{padding:8px 16px;font-size:12px;border-radius:var(--iz-r-sm)}
                 @keyframes izUpdateSlide{from{opacity:0;transform:translateY(-12px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
                 @keyframes izUpdateFadeOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-8px)}}
                 #izIntroOverlay.anim-in{animation:izOverlayFade .35s ease}
                 #izIntroOverlay.anim-out{animation:izOverlayFadeOut .3s ease forwards}
-                #izIntroPanel{width:100%;max-width:560px;max-height:90vh;background:rgba(255,255,255,.90);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:28px;box-shadow:0 25px 60px -12px rgba(0,0,0,.35),0 0 0 1px rgba(255,255,255,.6) inset;overflow:hidden;animation:izPanelSlide .40s cubic-bezier(.16,1,.3,1);display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;box-sizing:border-box}
+                #izIntroPanel{width:100%;max-width:560px;max-height:90vh;background:var(--iz-bg-1);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:var(--iz-r-xl);box-shadow:var(--iz-shadow),0 0 0 1px var(--iz-inset-ring) inset;overflow:hidden;animation:izPanelSlide .40s cubic-bezier(.16,1,.3,1);display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;box-sizing:border-box;color:var(--iz-tx-1)}
                 .iz-intro-scroll{flex:1;overflow-y:auto;padding:0 28px 20px 28px}
-                .iz-intro-lead{margin-top:18px;padding:14px 16px;background:linear-gradient(135deg,rgba(79,70,229,.08),rgba(124,58,237,.06));border:1px solid rgba(99,102,241,.14);border-radius:16px;font-size:13px;line-height:1.75;color:#475569}
-                .iz-intro-item{margin-top:12px;padding:14px 16px;background:rgba(248,250,252,.72);border:1px solid rgba(226,232,240,.7);border-radius:14px}
-                .iz-intro-item-title{font-size:14px;font-weight:600;color:#1E293B;margin-bottom:5px;display:flex;align-items:center;gap:7px}
-                .iz-intro-item-text{font-size:12.5px;line-height:1.75;color:#64748B}
-                .iz-intro-footer{padding:14px 28px 20px 28px;border-top:1px solid rgba(226,232,240,.5);display:flex;justify-content:flex-end;align-items:center;flex-shrink:0;background:rgba(255,255,255,.4);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+                .iz-intro-lead{margin-top:18px;padding:14px 16px;background:var(--iz-lead-bg);border:1px solid var(--iz-lead-bd);border-radius:var(--iz-r-lg);font-size:13px;line-height:1.75;color:var(--iz-tx-muted)}
+                .iz-intro-item{margin-top:12px;padding:14px 16px;background:var(--iz-bg-4);border:1px solid var(--iz-bd-1);border-radius:var(--iz-r-md)}
+                .iz-intro-item-title{font-size:14px;font-weight:600;color:var(--iz-tx-2);margin-bottom:5px;display:flex;align-items:center;gap:7px}
+                .iz-intro-item-text{font-size:12.5px;line-height:1.75;color:var(--iz-tx-muted)}
+                .iz-intro-footer{padding:14px 28px 20px 28px;border-top:1px solid var(--iz-bd-1);display:flex;justify-content:flex-end;align-items:center;flex-shrink:0;background-color:var(--iz-bg-2);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
                 .iz-intro-ok{min-width:118px}
-                @media (max-width:600px){#izIntroPanel{border-radius:20px;max-height:95vh}.iz-intro-scroll{padding:0 18px 16px}.iz-intro-footer{padding:12px 18px 16px}.iz-intro-ok{width:100%}}
-                @media (max-width:600px){#izUpdateNotice{top:12px;right:12px;width:calc(100vw - 24px);border-radius:16px}}
-                @media (max-width:600px){#izConfigPanel{border-radius:20px;max-height:95vh}.iz-panel-scroll{padding:0 18px 8px 18px}.iz-panel-header{padding:16px 18px 0 18px}.iz-panel-footer{padding:12px 18px 16px 18px;flex-wrap:wrap;gap:10px}.iz-row{flex-direction:column;align-items:stretch;gap:6px}.iz-param-grid{grid-template-columns:1fr}.iz-param-sections{grid-template-columns:1fr}.iz-top-grid{grid-template-columns:1fr}.iz-switch-grid{grid-template-columns:1fr}.iz-panel-title{font-size:17px}.iz-panel-icon{width:34px;height:34px;font-size:17px}}
+                @media (max-width:600px){#izIntroPanel{border-radius:var(--iz-r-lg);max-height:95vh}.iz-intro-scroll{padding:0 18px 16px}.iz-intro-footer{padding:12px 18px 16px}.iz-intro-ok{width:100%}}
+                @media (max-width:600px){#izUpdateNotice{top:12px;right:12px;width:calc(100vw - 24px);border-radius:var(--iz-r-lg)}}
+                @media (max-width:600px){#izConfigPanel{border-radius:var(--iz-r-lg);max-height:95vh}.iz-panel-scroll{padding:0 18px 8px 18px}.iz-panel-header{padding:16px 18px 0 18px}.iz-panel-footer{padding:12px 18px 16px 18px;flex-wrap:wrap;gap:10px}.iz-row{flex-direction:column;align-items:stretch;gap:6px}.iz-param-grid{grid-template-columns:1fr}.iz-param-sections{grid-template-columns:1fr}.iz-top-grid{grid-template-columns:1fr}.iz-switch-grid{grid-template-columns:1fr}.iz-panel-title{font-size:17px}.iz-panel-icon{width:34px;height:34px;font-size:17px}}
+                @media (prefers-reduced-motion:reduce){
+                  #izConfigPanel,#izIntroPanel,#izUpdateNotice,#izModalOverlay,#izIntroOverlay,.iz-toggle,.iz-toggle .iz-knob,.iz-collapse-body,.iz-collapse-header .iz-arrow,.iz-switch-card,.iz-btn-sm,.iz-btn-primary-solid{animation:none!important;transition:none!important}
+                  .iz-panel-scroll{scroll-behavior:auto}
+                }
             `;
             document.head.appendChild(s);
             dockStyleElement = s;
@@ -2317,7 +2459,7 @@ const bilibiliVolumeModule = (function() {
         styleElement = style;
     }
 
-    // 全局样式注入已拆分至 ui/styles.js
+    // 全局样式注入
 
 
 
@@ -2466,7 +2608,7 @@ const bilibiliVolumeModule = (function() {
     }
 
 
-    // ★ Dock 悬浮控制区已拆分至 ui/dock.js
+    // ★ Dock 悬浮控制区
 
     // ----- 配置面板 -----
     // ================
@@ -2616,9 +2758,9 @@ const bilibiliVolumeModule = (function() {
                     </div>
                 </div>
                 <div class="iz-update-body">
-                    <div class="iz-update-item">✨ 优化配置面板布局，减少纵向占用并提升操作效率。</div>
-                    <div class="iz-update-item">🎛️ 优化快捷开关、参数标题与说明的对齐显示。</div>
-                    <div class="iz-update-item">📝 增加对放大图使用“滚轮控制放大图缩放”。</div>
+                    <div class="iz-update-item">🔧 修复：部分图片站（如 Unsplash）悬停无法触发放大。根因有二：① 带 background-image 的真实图片被误判为不合格；② 页面存在 aria-modal 元素时被全局误判为"已打开灯箱"，导致整页悬停预览失效。</div>
+                    <div class="iz-update-item">🛡️ 收敛灯箱 / 浮层判定：不再把通用 role="dialog" / aria-modal 当作灯箱或阻挡层，仅对真正的"覆盖式"浮层生效；真实灯箱仍照常拦截。</div>
+                    <div class="iz-update-item">🎨 说明：配置面板界面与暗色模式（v5.7.1）保持不变。</div>
                 </div>
                 <div class="iz-update-footer">
                     <button class="iz-btn-primary-solid iz-update-ok" id="izUpdateOk">知道了</button>
@@ -2647,12 +2789,12 @@ const bilibiliVolumeModule = (function() {
     }
 
 
-    // 配置面板 UI（已拆分至 ui/config-panel.js）
+    // 配置面板 UI
     // ================
 
     // ============================================================================
     // Config Panel UI module
-    // 仅搬运 5.6.28 原有配置面板代码；不改运行行为。
+    // 保留原有配置面板代码；不改运行行为。
     // ============================================================================
 
     const COMMON_PARAM_DEFS = [
@@ -2685,15 +2827,15 @@ const bilibiliVolumeModule = (function() {
 
         const renderList = () => {
             const rules = getCustomRules();
-            if (!rules.length) return '<div style="font-size:12px;color:#94A3B8;padding:6px 0;line-height:1.6;">暂无自定义规则。</div>';
+            if (!rules.length) return '<div style="font-size:12px;color:var(--iz-tx-muted);padding:6px 0;line-height:1.6;">暂无自定义规则。</div>';
             return rules.map(r => `
-                <div class="iz-rule-item" data-id="${r.id}" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(226,232,240,.5);">
+                <div class="iz-rule-item" data-id="${r.id}" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--iz-bd-1);">
                     <input type="checkbox" class="iz-rule-enabled" ${r.enabled ? 'checked' : ''} style="flex-shrink:0;">
                     <div style="flex:1;min-width:0;">
-                        <div style="font-size:13px;font-weight:600;color:#1E293B;">${escapeHtml(r.name)} <span style="font-size:11px;color:#94A3B8;font-weight:400;">· ${escapeHtml(r.domains)}</span></div>
-                        <div style="font-size:11px;color:#64748B;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.imgMode === 'img' ? 'IMG' : '背景图'} | ${escapeHtml(r.itemSelector)} | ${escapeHtml(r.cardSelector || '无卡片选择器')}</div>
+                        <div style="font-size:13px;font-weight:600;color:var(--iz-tx-2);">${escapeHtml(r.name)} <span style="font-size:11px;color:var(--iz-tx-muted);font-weight:400;">· ${escapeHtml(r.domains)}</span></div>
+                        <div style="font-size:11px;color:var(--iz-tx-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.imgMode === 'img' ? 'IMG' : '背景图'} | ${escapeHtml(r.itemSelector)} | ${escapeHtml(r.cardSelector || '无卡片选择器')}</div>
                     </div>
-                    <button class="iz-rule-del" style="border:none;background:none;color:#EF4444;cursor:pointer;font-size:16px;flex-shrink:0;" title="删除">✕</button>
+                    <button class="iz-rule-del" style="border:none;background:none;color:var(--iz-danger);cursor:pointer;font-size:16px;flex-shrink:0;" title="删除">✕</button>
                 </div>`).join('');
         };
 
@@ -2702,15 +2844,15 @@ const bilibiliVolumeModule = (function() {
             <div class="iz-exclusion-note" style="margin-bottom:10px;">为当前网站添加悬停放大规则，解决遮罩层挡住鼠标、背景图无法放大等问题。保存后刷新页面生效。</div>
             <div id="izRuleList">${renderList()}</div>
             <button id="izRuleAddBtn" class="iz-btn-sm primary" style="margin-top:10px;">＋ 为当前网站添加规则</button>
-            <div id="izRuleForm" style="display:none;margin-top:12px;padding:14px;background:#fff;border-radius:12px;border:1.5px solid #E2E8F0;">
-                <div class="iz-param-item" style="margin-bottom:10px;"><label>规则名称</label><input id="izRuleName" type="text" placeholder="选填" style="width:100%;box-sizing:border-box;height:36px;padding:0 10px;border:1.5px solid #E2E8F0;border-radius:10px;outline:none;font-size:13px;"></div>
-                <div class="iz-param-item" style="margin-bottom:10px;"><label>域名（逗号分隔，留空为当前网站）</label><input id="izRuleDomains" type="text" placeholder="${currentDomain}" style="width:100%;box-sizing:border-box;height:36px;padding:0 10px;border:1.5px solid #E2E8F0;border-radius:10px;outline:none;font-size:13px;"></div>
-                <div class="iz-param-item" style="margin-bottom:10px;"><label>图片容器选择器（背景图元素的 CSS 选择器）</label><input id="izRuleItem" type="text" placeholder="如：.image-container-top 或 .img-wrapper" style="width:100%;box-sizing:border-box;height:36px;padding:0 10px;border:1.5px solid #E2E8F0;border-radius:10px;outline:none;font-size:13px;"></div>
-                <div class="iz-param-item" style="margin-bottom:10px;"><label>卡片选择器</label><input id="izRuleCard" type="text" placeholder="如：.qtd-theme-card" style="width:100%;box-sizing:border-box;height:36px;padding:0 10px;border:1.5px solid #E2E8F0;border-radius:10px;outline:none;font-size:13px;"></div>
-                <div style="font-size:12px;color:#94A3B8;margin-bottom:10px;">💡 不会写选择器？点「🖱️ 拾取选择器」后直接在页面上点一下图片即可自动填写。</div>
+            <div id="izRuleForm" style="display:none;margin-top:12px;padding:14px;background-color:var(--iz-bg-3);border-radius:var(--iz-r-md);border:1.5px solid var(--iz-bd-2);">
+                <div class="iz-param-item" style="margin-bottom:10px;"><label>规则名称</label><input id="izRuleName" type="text" placeholder="选填" class="iz-rule-input"></div>
+                <div class="iz-param-item" style="margin-bottom:10px;"><label>域名（逗号分隔，留空为当前网站）</label><input id="izRuleDomains" type="text" placeholder="${currentDomain}" class="iz-rule-input"></div>
+                <div class="iz-param-item" style="margin-bottom:10px;"><label>图片容器选择器（背景图元素的 CSS 选择器）</label><input id="izRuleItem" type="text" placeholder="如：.image-container-top 或 .img-wrapper" class="iz-rule-input"></div>
+                <div class="iz-param-item" style="margin-bottom:10px;"><label>卡片选择器</label><input id="izRuleCard" type="text" placeholder="如：.qtd-theme-card" class="iz-rule-input"></div>
+                <div style="font-size:12px;color:var(--iz-tx-muted);margin-bottom:10px;">💡 不会写选择器？点「🖱️ 拾取选择器」后直接在页面上点一下图片即可自动填写。</div>
                 <div style="display:flex;gap:10px;justify-content:flex-end;">
-                    <button id="izRulePickBtn" class="iz-btn-sm" style="background:#EEF2FF;color:#4F46E5;border:none;">🖱️ 拾取选择器</button>
-                    <button id="izRuleCancel" class="iz-btn-sm" style="background:#F1F5F9;color:#64748B;border:none;">取消</button>
+                    <button id="izRulePickBtn" class="iz-btn-sm" style="background-color:var(--iz-accent-soft);color:var(--iz-accent);border:none;">🖱️ 拾取选择器</button>
+                    <button id="izRuleCancel" class="iz-btn-sm" style="background-color:var(--iz-bg-5);color:var(--iz-tx-muted);border:none;">取消</button>
                     <button id="izRuleSave" class="iz-btn-sm primary">保存规则</button>
                 </div>
             </div>`;
@@ -2973,43 +3115,43 @@ const bilibiliVolumeModule = (function() {
                         <div class="iz-section">
                             <div class="iz-section-title">🎛️ 快捷开关</div>
                             <div class="iz-switch-grid">
-                                <div class="iz-switch-card" id="izConflictWrap">
+                                <div class="iz-switch-card" id="izConflictWrap" role="switch" tabindex="0" aria-checked="${config.avoidClickConflict ? 'true' : 'false'}">
                                     <div class="iz-toggle ${config.avoidClickConflict ? 'active' : ''}" id="izConflictToggle"><div class="iz-knob"></div></div>
                                     <div class="iz-switch-text"><div class="iz-switch-title">避免与点击放大冲突</div><div class="iz-switch-sub">自动检测点击放大，减少重复触发。</div></div>
                                 </div>
-                                <div class="iz-switch-card" id="izBlurDismissWrap">
+                                <div class="iz-switch-card" id="izBlurDismissWrap" role="switch" tabindex="0" aria-checked="${config.blurDismiss ? 'true' : 'false'}">
                                     <div class="iz-toggle ${config.blurDismiss ? 'active' : ''}" id="izBlurDismissToggle"><div class="iz-knob"></div></div>
                                     <div class="iz-switch-text"><div class="iz-switch-title">窗口失焦时自动收起</div><div class="iz-switch-sub">切换应用时收起；关闭后可保留预览。</div></div>
                                 </div>
-                                <div class="iz-switch-card" id="izWheelZoomWrap">
+                                <div class="iz-switch-card" id="izWheelZoomWrap" role="switch" tabindex="0" aria-checked="${config.wheelZoom ? 'true' : 'false'}">
                                     <div class="iz-toggle ${config.wheelZoom ? 'active' : ''}" id="izWheelZoomToggle"><div class="iz-knob"></div></div>
                                     <div class="iz-switch-text"><div class="iz-switch-title">滚轮控制放大图缩放</div><div class="iz-switch-sub">向上放大、向下缩小；关闭后恢复上下移动。</div></div>
                                 </div>
-                                <div class="iz-switch-card" id="izBiliWrap">
+                                <div class="iz-switch-card" id="izBiliWrap" role="switch" tabindex="0" aria-checked="${bilibiliVolumeModule.isEnabled ? 'true' : 'false'}">
                                     <div class="iz-toggle ${bilibiliVolumeModule.isEnabled ? 'active' : ''}" id="izBiliToggle"><div class="iz-knob"></div></div>
-                                    <div class="iz-switch-text"><div class="iz-switch-title">B站播放器辅助</div><div class="iz-switch-sub">全屏滚轮调音量，方向键防穿透。B站全屏时如发现滚轮无法调节音量，开启此辅助即可。</div></div>
+                                    <div class="iz-switch-text"><div class="iz-switch-title">B站播放器辅助</div><div class="iz-switch-sub">B站全屏时如发现滚轮无法调节音量，开启此辅助即可。</div></div>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="iz-param-sections">
                     <div class="iz-section">
-                        <div class="iz-collapse-header" id="izCommonHeader">
+                        <div class="iz-collapse-header" id="izCommonHeader" role="button" tabindex="0" aria-expanded="false">
                             <div>
-                                <div class="iz-left"><span class="iz-arrow" id="izCommonArrow">▶</span><span class="iz-header-name">通用参数</span></div>
+                                <div class="iz-left"><span class="iz-arrow" id="izCommonArrow">▶</span><span class="iz-header-name">通用参数</span><span class="iz-count">5 项</span></div>
                                 <div class="iz-collapse-description">自适应与固定模式都生效</div>
                             </div>
-                            <span style="font-size:12px;color:#94A3B8;line-height:1.45;text-align:right;max-width:150px;" id="izCommonHint">点击展开<br>悬停问号查看参数说明</span>
+                            <span style="font-size:12px;color:var(--iz-tx-muted);line-height:1.45;text-align:right;max-width:150px;" id="izCommonHint">点击展开<br>悬停问号查看参数说明</span>
                         </div>
                         <div class="iz-collapse-body" id="izCommonBody"><div class="iz-param-grid">${renderParams(COMMON_PARAM_DEFS)}</div></div>
                     </div>
                     <div class="iz-section">
-                        <div class="iz-collapse-header" id="izFixedHeader">
+                        <div class="iz-collapse-header" id="izFixedHeader" role="button" tabindex="0" aria-expanded="false">
                             <div>
-                                <div class="iz-left"><span class="iz-arrow" id="izFixedArrow">▶</span><span class="iz-header-name">固定模式专用参数</span></div>
+                                <div class="iz-left"><span class="iz-arrow" id="izFixedArrow">▶</span><span class="iz-header-name">固定模式参数</span><span class="iz-count">5 项</span></div>
                                 <div class="iz-collapse-description" id="izModeBadge">仅固定模式生效</div>
                             </div>
-                            <span style="font-size:12px;color:#94A3B8;line-height:1.45;text-align:right;max-width:150px;" id="izFixedHint">自适应模式下不可用</span>
+                            <span style="font-size:12px;color:var(--iz-tx-muted);line-height:1.45;text-align:right;max-width:150px;" id="izFixedHint">自适应模式下不可用</span>
                         </div>
                         <div class="iz-collapse-body" id="izFixedBody"><div class="iz-param-grid">${renderParams(FIXED_PARAM_DEFS)}</div></div>
                     </div>
@@ -3018,7 +3160,7 @@ const bilibiliVolumeModule = (function() {
                 <div class="iz-panel-footer">
                     <div style="display:flex;align-items:center;gap:8px;">
                         <button class="iz-btn-ghost" id="izHelpBtn">? 使用说明</button>
-                        <button class="iz-btn-ghost" id="izResetBtn">↺ 恢复默认设置</button>
+                        <button class="iz-btn-ghost iz-btn-danger-ghost" id="izResetBtn">↺ 恢复默认设置</button>
                     </div>
                     <button class="iz-btn-primary-solid" id="izSaveBtn">✓ 保存并关闭</button>
                 </div>
@@ -3040,6 +3182,28 @@ const bilibiliVolumeModule = (function() {
         const fixedHint = $('izFixedHint');
         const modeBadge = $('izModeBadge');
         const biliToggle = $('izBiliToggle');
+
+        // 快捷开关 / 折叠区：键盘可操作 + 无障碍状态同步
+        overlay.querySelectorAll('.iz-switch-card').forEach(wrap => {
+            const tg = wrap.querySelector('.iz-toggle');
+            if (!tg) return;
+            const syncSw = () => wrap.setAttribute('aria-checked', tg.classList.contains('active') ? 'true' : 'false');
+            new MutationObserver(syncSw).observe(tg, { attributes: true, attributeFilter: ['class'] });
+            syncSw();
+            wrap.addEventListener('keydown', (e) => {
+                if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); wrap.click(); }
+            });
+        });
+        const wireCollapseA11y = (header, body) => {
+            const syncExp = () => header.setAttribute('aria-expanded', body.classList.contains('open') ? 'true' : 'false');
+            new MutationObserver(syncExp).observe(body, { attributes: true, attributeFilter: ['class'] });
+            syncExp();
+            header.addEventListener('keydown', (e) => {
+                if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); header.click(); }
+            });
+        };
+        wireCollapseA11y(commonHeader, commonBody);
+        wireCollapseA11y(fixedHeader, fixedBody);
 
         // 参数说明气泡
         const oldTip = document.getElementById('izTipBubble');
@@ -3074,16 +3238,18 @@ const bilibiliVolumeModule = (function() {
 
         function updateDetailState() {
             const isFixed = config.zoomMode === 'fixed';
-            modeBadge.textContent = isFixed ? '仅固定模式生效' : '仅固定模式生效';
+            modeBadge.textContent = '仅固定模式生效';
             if (isFixed) {
                 fixedHeader.style.cursor = 'pointer';
                 fixedHeader.style.opacity = '1';
+                fixedHeader.removeAttribute('aria-disabled');
                 fixedHint.innerHTML = '点击展开<br>悬停问号查看参数说明';
             } else {
                 fixedBody.classList.remove('open');
                 fixedArrow.classList.remove('open');
                 fixedHeader.style.cursor = 'not-allowed';
                 fixedHeader.style.opacity = '0.55';
+                fixedHeader.setAttribute('aria-disabled', 'true');
                 fixedHint.textContent = '自适应模式下不可用';
             }
             overlay.querySelectorAll('.iz-param-input').forEach(input => {
@@ -3272,13 +3438,16 @@ const bilibiliVolumeModule = (function() {
             const physicalMouseMove = Number(e.movementX || 0) !== 0 || Number(e.movementY || 0) !== 0;
             const movedAfterResume = !wasResumeBlocked || physicalMouseMove;
 
-            lastMouse.x = x;
-            lastMouse.y = y;
-            lastMouse.t = Date.now();
-            if (hoverWaitIndicator && hoverWaitIndicator.classList.contains('show')) {
-                positionHoverWaitIndicator(x, y + 22);
-            }
+            // ★ 恢复保护期间，浏览器可能补发“假 mousemove”。
+            // 这类事件不仅不能解除保护，也不应污染 lastMouse 的权威坐标；
+            // 否则切回窗口时旧坐标可能被补发事件覆盖，后续停稳裁决/心跳会误判。
             if (!wasResumeBlocked || physicalMouseMove) {
+                lastMouse.x = x;
+                lastMouse.y = y;
+                lastMouse.t = Date.now();
+                if (hoverWaitIndicator && hoverWaitIndicator.classList.contains('show')) {
+                    positionHoverWaitIndicator(x, y + 22);
+                }
                 pointerInWindow = true;
                 browserWindowFocused = true;
             }
@@ -3287,18 +3456,17 @@ const bilibiliVolumeModule = (function() {
             // 防止 Alt+Tab / Finder / 文件管理器切回时自动补发事件再次触发放大。
             if (movedAfterResume) {
                 resumeBlockedUntilMouseMove = false;
-                resumeBlockX = -1;
-                resumeBlockY = -1;
             }
         }, { passive: true });
 
         window.addEventListener('resize', debounce(() => {
+            invalidateLightboxState();
             if (isEnabled) zoomFSM.dispatch('DISMISS');
         }, 250));
 
         setupLightboxObserver();
         if (isEnabled) initImages();
-        setupGlobalHoverStream(); // ★ mouseover 流 + 停稳裁决器 双保险
+        bilibiliVolumeModule.init();         setupGlobalHoverStream(); // ★ mouseover 流 + 停稳裁决器 双保险
         setupHeartbeat();         // ★ 持续复核（PENDING/ACTIVE，带失败容忍，后台页暂停）
         setupBgRuleProxy();
         setupAutoBackgroundHover();
