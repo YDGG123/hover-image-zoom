@@ -1,0 +1,81 @@
+{
+ "domain": "twitch.tv",
+ "label": "twitch.tv",
+ "adaptedFrom": "PhotoShow 4.92.2 sites/twitch.tv.js",
+ "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+ "hd": [
+  {
+   "id": "ps-twitch.tv-1",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//.+?\\\\.jtvnw\\\\.net/(?:cf_vods|previews-ttv)/.+-)\\\\d+x\\\\d+((?:jpe?g|png|webp|gif|bmp|avif))",
+     "",
+     "$11920x1080$2"
+    ]
+   ]
+  },
+  {
+   "id": "ps-twitch.tv-2",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//.+?\\\\.jtvnw\\\\.net/jtv_user_pictures/.+-)\\\\d+x\\\\d+((?:jpe?g|png|webp|gif|bmp|avif))",
+     "",
+     "$1600x600$2"
+    ]
+   ]
+  },
+  {
+   "id": "ps-twitch.tv-3",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//.+?\\\\.jtvnw\\\\.net/(?:cf_vods|ttv-boxart)/.+)-\\\\d+x\\\\d+((?:jpe?g|png|webp|gif|bmp|avif))",
+     "",
+     "$1$2"
+    ]
+   ]
+  },
+  {
+   "id": "ps-twitch.tv-4",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//.+\\\\bpreview)-\\\\d+x\\\\d+((?:jpe?g|png|webp|gif|bmp|avif))",
+     "",
+     "$1$2"
+    ]
+   ]
+  },
+  {
+   "id": "ps-twitch.tv-5",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "//(\\\\w+)\\\\.cloudfront\\\\.net/(\\\\w+)/storyboards/(\\\\w+)-strip.*((?:jpe?g|png|webp|gif|bmp|avif))",
+     "",
+     "//static-cdn.jtvnw.net/cf_vods/$1/$2/thumb/thumb$3-1920x1080$4"
+    ]
+   ]
+  },
+  {
+   "id": "ps-twitch.tv-6",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "//(\\\\w+)\\\\.cloudfront\\\\.net/(\\\\w+)/storyboards/(\\\\w+)-strip.*((?:jpe?g|png|webp|gif|bmp|avif))",
+     "",
+     "//static-cdn.jtvnw.net/cf_vods/$1/$2/thumb/thumb0-1920x1080$4"
+    ]
+   ]
+  }
+ ],
+ "clean": []
+}

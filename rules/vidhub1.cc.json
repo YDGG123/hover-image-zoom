@@ -1,0 +1,45 @@
+{
+ "domain": "vidhub1.cc",
+ "label": "vidhub1.cc",
+ "adaptedFrom": "PhotoShow 4.92.2 sites/vidhub1.cc.js",
+ "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+ "hd": [
+  {
+   "id": "ps-vidhub1.cc-1",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//img\\\\d+\\\\.doubanio\\\\.com/p?view/\\\\w+/).*(/public/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+     "",
+     "$1ul$2"
+    ]
+   ]
+  },
+  {
+   "id": "ps-vidhub1.cc-2",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//img\\\\d+\\\\.doubanio\\\\.com/p?view/\\\\w+/).*(/public/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+     "",
+     "$1l$2"
+    ]
+   ]
+  },
+  {
+   "id": "ps-vidhub1.cc-3",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//img\\\\d+\\\\.doubanio\\\\.com/icon/)up?([-\\\\d]+(?:jpe?g|png|webp|gif|bmp|avif))",
+     "",
+     "$1ul$2"
+    ]
+   ]
+  }
+ ],
+ "clean": []
+}

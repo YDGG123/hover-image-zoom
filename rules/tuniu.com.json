@@ -1,0 +1,45 @@
+{
+ "domain": "tuniu.com",
+ "label": "tuniu.com",
+ "adaptedFrom": "PhotoShow 4.92.2 sites/tuniu.com.js",
+ "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+ "hd": [
+  {
+   "id": "ps-tuniu.com-1",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(s\\\\.tuniu\\\\.net/.+(?:jpe?g|png|webp|gif|bmp|avif)).*",
+     "",
+     "$1"
+    ]
+   ]
+  },
+  {
+   "id": "ps-tuniu.com-2",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//(?:tuniupic\\\\.360buyimg|.+\\\\.tuniucdn)\\\\.com/.+?)(?:_w\\\\d+_h\\\\d+_c\\\\d+_t\\\\d+)*((?:jpe?g|png|webp|gif|bmp|avif))",
+     "",
+     "$1$2"
+    ]
+   ]
+  },
+  {
+   "id": "ps-tuniu.com-3",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//(?:tuniupic\\\\.360buyimg|.+\\\\.tuniucdn)\\\\.com/.+?)(?:_w\\\\d+_h\\\\d+_c\\\\d+_t\\\\d+)*((?:jpe?g|png|webp|gif|bmp|avif))",
+     "",
+     "$1_w800_h0_c0_t0$2"
+    ]
+   ]
+  }
+ ],
+ "clean": []
+}

@@ -1,0 +1,21 @@
+{
+ "domain": "tver.jp",
+ "label": "tver.jp",
+ "adaptedFrom": "PhotoShow 4.92.2 sites/tver.jp.js",
+ "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+ "hd": [
+  {
+   "id": "ps-tver.jp-1",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//.+?\\\\.tver\\\\.jp/images/.+/)(?:small|large)(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+     "",
+     "$1xlarge$2"
+    ]
+   ]
+  }
+ ],
+ "clean": []
+}
