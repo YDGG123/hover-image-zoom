@@ -1,0 +1,45 @@
+{
+ "domain": "douban.com",
+ "label": "douban.com",
+ "adaptedFrom": "PhotoShow 4.92.2 sites/douban.com.js",
+ "note": "第一梯队（实测真实地址写规则）；头像规则改编自 PhotoShow",
+ "hd": [
+  {
+   "id": "db-view-raw",
+   "name": "/view 尺寸段 → raw（实测）",
+   "loop": false,
+   "steps": [
+    [
+     "(/view/[a-z_]+/)(?:s_ratio_poster|s_ratio|large|small|median|big|up|s|m|l)(/)",
+     "",
+     "$1raw$2"
+    ]
+   ]
+  },
+  {
+   "id": "db-pview-raw",
+   "name": "/pview 尺寸段 → raw（实测）",
+   "loop": false,
+   "steps": [
+    [
+     "(/pview/[a-z_]+/)(?:s_ratio_poster|s_ratio|large|small|median|big|up|s|m|l)(/)",
+     "",
+     "$1raw$2"
+    ]
+   ]
+  },
+  {
+   "id": "db-icon",
+   "name": "头像 up → ul（改编自 PhotoShow）",
+   "loop": false,
+   "steps": [
+    [
+     "(//img\\d+\\.doubanio\\.com/icon/)up?([-\\d]+(?:\\.(?:jpe?g|png|webp|gif|bmp|avif)))",
+     "",
+     "$1ul$2"
+    ]
+   ]
+  }
+ ],
+ "clean": []
+}

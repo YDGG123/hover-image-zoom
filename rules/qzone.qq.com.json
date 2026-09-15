@@ -1,0 +1,57 @@
+{
+ "domain": "qzone.qq.com",
+ "label": "qzone.qq.com",
+ "adaptedFrom": "PhotoShow 4.92.2 sites/qzone.qq.com.js",
+ "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合",
+ "hd": [
+  {
+   "id": "ps-qzone.qq.com-1",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//.+\\.(?:qpic\\.cn|photo\\.store\\.qq\\.com)/.+?/)[abcilm](/[^&]+).*",
+     "",
+     "$1b$2"
+    ]
+   ]
+  },
+  {
+   "id": "ps-qzone.qq.com-2",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//.+\\.(?:qpic\\.cn|photo\\.store\\.qq\\.com)/.+?/)[abcilm]&.*",
+     "",
+     "$1b"
+    ]
+   ]
+  },
+  {
+   "id": "ps-qzone.qq.com-3",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//qlogo\\d+\\.store\\.qq\\.com/qzone/(?:\\d+/){2})\\d+.*",
+     "",
+     "$1100"
+    ]
+   ]
+  },
+  {
+   "id": "ps-qzone.qq.com-4",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//.+\\.qpic\\.cn/.+/)\\d+(?:\\?.*)?",
+     "",
+     "$1"
+    ]
+   ]
+  }
+ ],
+ "clean": []
+}

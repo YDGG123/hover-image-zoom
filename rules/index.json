@@ -1,0 +1,31 @@
+{
+ "pack": "hovervista-rules",
+ "version": 2026091502,
+ "updatedAt": "2026-09-15T13:00:00+08:00",
+ "domains": [
+  "1688.com",
+  "acfun.cn",
+  "bilibili.com",
+  "book.qq.com",
+  "chuangshi.qq.com",
+  "dgtle.com",
+  "douban.com",
+  "duitang.com",
+  "jd",
+  "mp.weixin.qq.com",
+  "pixiv.net",
+  "pixivision.net",
+  "qzone.qq.com",
+  "sinaimg.cn",
+  "taobao.com",
+  "v.qq.com",
+  "video.qq.com",
+  "weibo.cn",
+  "weibo.com",
+  "xiaohongshu.com",
+  "xiaomi.com",
+  "xiaomiyoupin.com",
+  "y.qq.com",
+  "zhihu.com"
+ ]
+}

@@ -1,0 +1,45 @@
+{
+ "domain": "xiaomi.com",
+ "label": "xiaomi.com",
+ "adaptedFrom": "PhotoShow 4.92.2 sites/xiaomi.com.js",
+ "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合",
+ "hd": [
+  {
+   "id": "ps-xiaomi.com-1",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//(?:.+\\.(?:app)?mifile\\.(?:com|cn)|static\\.home\\.mi\\.com)/.+?)(?:!\\d+x\\d+)?((?:jpe?g|png|webp|gif|bmp|avif)).*",
+     "",
+     "$1$2"
+    ]
+   ]
+  },
+  {
+   "id": "ps-xiaomi.com-2",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//.+\\.(?:(?:app)?mifile|mi-img)\\.(?:com|cn)/.+?(?:jpe?g|png|webp|gif|bmp|avif)).*",
+     "",
+     "$1"
+    ]
+   ]
+  },
+  {
+   "id": "ps-xiaomi.com-3",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//.+\\.market\\.xiaomi\\.com/thumbnail/\\w+/\\w)\\w*(?=/)",
+     "",
+     "$1"
+    ]
+   ]
+  }
+ ],
+ "clean": []
+}

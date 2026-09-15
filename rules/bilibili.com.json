@@ -1,0 +1,57 @@
+{
+ "domain": "bilibili.com",
+ "label": "bilibili.com",
+ "adaptedFrom": "PhotoShow 4.92.2 sites/bilibili.com.js",
+ "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合",
+ "hd": [
+  {
+   "id": "ps-bilibili.com-1",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(.+\\.hdslb\\.com/bfs/(?:archive|live)/.+?(?:jpe?g|png|webp|gif|bmp|avif))[^?]*(\\?.*)?",
+     "",
+     "$1$2"
+    ]
+   ]
+  },
+  {
+   "id": "ps-bilibili.com-2",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(.+\\.hdslb\\.com/.+?(?:jpe?g|png|webp|gif|bmp|avif))[^?]*(\\?.*)?",
+     "",
+     "$1$2"
+    ]
+   ]
+  },
+  {
+   "id": "ps-bilibili.com-3",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(patchwiki\\.biligame\\.com/images/.+?/)thumb/(.+?(?:jpe?g|png|webp|gif|bmp|avif)).*",
+     "",
+     "$1$2"
+    ]
+   ]
+  },
+  {
+   "id": "ps-bilibili.com-4",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(.+\\.bili(?:game|img)\\.com/.+?(?:jpe?g|png|webp|gif|bmp|avif)).*",
+     "",
+     "$1"
+    ]
+   ]
+  }
+ ],
+ "clean": []
+}

@@ -1,0 +1,32 @@
+{
+ "domain": "zhihu.com",
+ "label": "知乎",
+ "note": "第一梯队：按真实地址形态写规则（pic*.zhimg.com 的 /尺寸/ 目录 + _720w 等后缀）",
+ "hd": [
+  {
+   "id": "zh-size-dir",
+   "name": "去掉 /80/ 之类的尺寸目录",
+   "loop": false,
+   "steps": [
+    [
+     "^(https?://pic[a-z0-9]*\\.zhimg\\.com)/\\d+/",
+     "",
+     "$1/"
+    ]
+   ]
+  },
+  {
+   "id": "zh-suffix",
+   "name": "去掉 _720w 等尺寸后缀",
+   "loop": false,
+   "steps": [
+    [
+     "(_(?:b|r|l|h|hd|qhd|720w|1080w|1440w|200w|250w|400w|500w|600w))((?:\\.(?:jpe?g|png|webp|gif|bmp|avif)))$",
+     "",
+     "$2"
+    ]
+   ]
+  }
+ ],
+ "clean": []
+}

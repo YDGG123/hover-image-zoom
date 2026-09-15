@@ -1,0 +1,69 @@
+{
+ "domain": "1688.com",
+ "label": "1688.com",
+ "adaptedFrom": "PhotoShow 4.92.2 sites/1688.com.js",
+ "note": "第一梯队（实测真实地址）；其余改编自 PhotoShow",
+ "hd": [
+  {
+   "id": "1688-alicdn-suffix",
+   "name": "CDN 尺寸后缀（实测）",
+   "loop": false,
+   "steps": [
+    [
+     "_\\d+x\\d+q\\d+\\.(?:jpe?g|png|webp|gif|bmp|avif)_?\\.webp$",
+     "",
+     ""
+    ]
+   ]
+  },
+  {
+   "id": "ps-1688.com-1",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//gqrcode\\.alicdn\\.com/img\\?.*?)&w=\\d+(.*?)&h=\\d+(.*)",
+     "",
+     "$1&w=300$2&h=300$3"
+    ]
+   ]
+  },
+  {
+   "id": "ps-1688.com-2",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//.+?\\.com/avatar/get_?Avatar\\.do\\?user(?:Id(?:Str)?|Nick)=[^&]+).*",
+     "",
+     "$1&width=1280&height=1280"
+    ]
+   ]
+  },
+  {
+   "id": "ps-1688.com-3",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//.+?\\.com/.+?)\\.(?:\\d+x\\d+[a-z]*|search|summ)((?:jpe?g|png|webp|gif|bmp|avif)).*",
+     "",
+     "$1$2"
+    ]
+   ]
+  },
+  {
+   "id": "ps-1688.com-4",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//.+?\\.alicdn\\.com/.+?\\.heic_).+?((?:jpe?g|png|webp|gif|bmp|avif)).*",
+     "",
+     "$1Q100$2"
+    ]
+   ]
+  }
+ ],
+ "clean": []
+}

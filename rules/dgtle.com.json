@@ -1,0 +1,21 @@
+{
+ "domain": "dgtle.com",
+ "label": "dgtle.com",
+ "adaptedFrom": "PhotoShow 4.92.2 sites/dgtle.com.js",
+ "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合",
+ "hd": [
+  {
+   "id": "ps-dgtle.com-1",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//.+\\.dgtle\\.com/.+?)(?:_\\d+){0,2}((?:jpe?g|png|webp|gif|bmp|avif)).*",
+     "",
+     "$1$2"
+    ]
+   ]
+  }
+ ],
+ "clean": []
+}

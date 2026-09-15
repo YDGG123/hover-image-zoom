@@ -1,0 +1,33 @@
+{
+ "domain": "mp.weixin.qq.com",
+ "label": "mp.weixin.qq.com",
+ "adaptedFrom": "PhotoShow 4.92.2 sites/mp.weixin.qq.com.js",
+ "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合",
+ "hd": [
+  {
+   "id": "ps-mp.weixin.qq.com-1",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//mmbiz\\.q(?:logo|pic)\\.cn/(?:\\w*/){2}).*",
+     "",
+     "$1"
+    ]
+   ]
+  },
+  {
+   "id": "ps-mp.weixin.qq.com-2",
+   "name": "原图还原",
+   "loop": false,
+   "steps": [
+    [
+     "(//mp\\.weixin\\.qq\\.com/mp/qrcode?.*?&size=)\\d+(.*)",
+     "",
+     "$1980$2"
+    ]
+   ]
+  }
+ ],
+ "clean": []
+}
