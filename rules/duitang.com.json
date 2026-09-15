@@ -2,17 +2,17 @@
  "domain": "duitang.com",
  "label": "duitang.com",
  "adaptedFrom": "PhotoShow 4.92.2 sites/duitang.com.js",
- "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合",
+ "note": "按真实地址形态手写（.thumb.宽_高_裁剪.扩展名_webp）；竞品那条贪婪 .* 会抓错扩展名，已弃用",
  "hd": [
   {
-   "id": "ps-duitang.com-1",
-   "name": "原图还原",
+   "id": "dt-thumb",
+   "name": "堆糖缩略图后缀（实测手写）",
    "loop": false,
    "steps": [
     [
-     "(.+\\.(?:dtstatic|duitang)\\.com/uploads/[^.]+).*((?:jpe?g|png|webp|gif|bmp|avif)).*",
+     "\\.thumb\\.\\d+_\\d+(?:_[a-z0-9]+)?\\.(jpe?g|png|webp|gif|bmp|avif)(?:_webp)?$",
      "",
-     "$1$2"
+     ".$1"
     ]
    ]
   }

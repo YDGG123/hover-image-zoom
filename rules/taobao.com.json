@@ -48,7 +48,7 @@
     [
      "(//.+?\\.com/.+?)\\.(?:\\d+x\\d+[a-z]*|search|summ)((?:jpe?g|png|webp|gif|bmp|avif)).*",
      "",
-     "$1$2"
+     "$1.$2"
     ]
    ]
   },
