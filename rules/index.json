@@ -330,5 +330,1646 @@
   "zillow.com",
   "znzmo.com",
   "znztv.com"
- ]
+ ],
+ "hashes": {
+  "115.com": "8151e0e71b9ae70c2ec1b30a86f24f8bc1b9faebfc0f829056ef04873db4033d",
+  "123rf.com": "fe126555d7a75ad5440a3f59bdbf88d8a520e1dec610181457a97a7a26d43c37",
+  "1688.com": "ddfade92e311a5a5dbae84874db8379702448a8bbc8cdce0cd69c09e01bbd185",
+  "1zj.com": "1a6ca56bc39763519280ad49eba58b5f94bc7a547fded406f8d5afb42bed3dc8",
+  "2dfan.com": "5be71bcd5050c7926260ff1e36d90770dac9f12220168072a331fa038b171d3b",
+  "2dfmax.top": "3e627c46f1311b63aadee88af4547b0b0aae9e3d90774c2936cf1fef00c9e35c",
+  "3d66.com": "29e30651f7c16146b90f85ec091e3e36764cb0851ec065583865b316afdc976b",
+  "4chan.org": "fd346c89f00f1775514619868336928850572678349b9730b46ea40efcd97a13",
+  "51miz.com": "06b21a587fb5edc1c3d72ab7f64a302afff5cac876b9ed69b093545e04860435",
+  "51yuansu.com": "744841e248e0803ef741926cca94d4e2dd13ee07fb7816de35530a8588a87025",
+  "58pic.com": "490eb6ce143933049031cab1874cce553cd3e9dacc32388eab06576fb1b3bb68",
+  "699pic.com": "f09048556f4e490092f701d6a6f6e29a45e63005391977dd005a7c1313c1de0f",
+  "9gag.com": "9d128b573e5477b749b908f79bbaad686ea733b1d7d4376e5648668db448bb5b",
+  "acfun.cn": "17175206f458fcb9fb853af4cfcde7aa3cffba1d2617a7300f2ddf96e95784ef",
+  "acpjournals.org": "dc67bfac5d04ddf48be22ff76324f4e23c6b57cd0293220ba7616220295c3045",
+  "addons.mozilla.org": "5b400483aea7a61b429e253fd8ec952717c67156761c67756ad17897ef8e1bea",
+  "agoda.com": "6c097886dfe806ecd6ec5fcdf7fac58cce6744669812d908e730207711c8f73e",
+  "aixifan.com": "83da1a8c3a23986583c00772716889c8f3af9123df1c40cab0c70f265986ee34",
+  "akiba-web.com": "932c031453c2933abfe3ab78987fdd412996ff597c73680c4b11dd1496bcc4c2",
+  "alibaba-inc.com": "27c36a4cd7858ffb2a326a7e003ef8c4d5ca46da5bb0a17b80fd7d3705609fd9",
+  "alibaba.com": "bc3cd3e61842409bca1a7f0d595948962fd7ee517295ffe713ce3584560b26e4",
+  "alicdn.com": "f9c26b2437f9084a74ef2325dbc448b071be3f77dc3d17bceab08f1c4296032b",
+  "aliexpress": "81f7946288376296d88a4118ea701f06c936bf9369800bac43f5c4c7e00ec415",
+  "alimama.com": "c01dba53ba0f3b638d189ee5d1e529cfe825ab277680135661a845deb6c25809",
+  "aliwx.com.cn": "eb1f674d0e47609c69b5f49c598a549d5db1883c4a1e2054865a608de8bd1daa",
+  "allelitewrestling.com": "4e9e1032de2d1516de15aa2bfd282cbb8ae480eb48bc60b1b178b3b292c82913",
+  "allhistory.com": "5c54a0b1f1a86b9e852c892e6aca870cb139d366c2f278923cc3929fb67e1c1e",
+  "andino.shop": "00bd6edc3af620a566cb36de2e48fa3b3d98d96ce41a269be731b19901178c5a",
+  "apple.com": "19728f4713a36e3147c0908710daa772f795fb059233e1804bcce4e3dd7a431c",
+  "arca.live": "64f74f7f1ccadd7789dbc91fc5b862bdc4e8ec9c9324b79ee83520a444796776",
+  "artstation.com": "58ac9f1f26075fdff94a44f56560190acfb4a767011ff234418b5fa1d588a3aa",
+  "aucfan.com": "9e2e8a3c190a58a0f8e9307b1678d93fbf8906afaf8b5ade49289c2e1ae8eb0a",
+  "auctions.yahoo.co.jp": "32b3fbdacf1a6444a2ff519146403a4cedd5895dbd23e374d3cec611cdc9e3a2",
+  "aweidao1.com": "ee2c99069969772f7c9e62a7b905f0462258a9c6c9a4fcf900f7075a3345b323",
+  "baidu.com": "c98d0eb2cffd4ae92235640cbd9b58080e1722962536e719528dd42a1933983a",
+  "bandcamp.com": "1021a2f7cafb7b2e4fe36188adbddf05c6a9e38f6d1fe9d6e3ced2b1c9863015",
+  "bangumi.tv": "78ad830e50af01fdf394c596b9adda93a93feabece3017d8f239fda560f94024",
+  "batdongsan.com.vn": "b99b78e07c682acfb788c7869af03421d525bbb5a6dceac3b765489653234f8f",
+  "behance.net": "aa71282842e3039af8ef3a87245b493e9e5c2c96481d3beeaeb659ed9e52f4e6",
+  "bestbuy.ca": "f11cfd9a97ba21fd35b5366b7c9e720ed63f503a07dc8041fb78405fd39dc564",
+  "bestbuy.com": "d784f936a2680b4fff0fdff3661be71579c3a2596fcbd6d5ff9d00e16b952412",
+  "bgm.tv": "77e65edb9a0c978614df47eb98cb12bd69aaabb388fd033534e97268af49e7f1",
+  "bilibili.com": "d8d56d2de9bf8fcdb2a2c08091e371a72aec74517daace886ae3e936bd21f5ea",
+  "biligame.com": "5229ad2cd845619a2fbe66f0e840a1cee19cf8f1d6edc9ec3ca381ab02846e16",
+  "book.qq.com": "c53280336c964f160b01e77a599b65ee549e2f1b22846d55ed677a2e9a6020e1",
+  "booking.com": "22ef0de3b665a5c54d01a9f6bd67357f5776a790e74d8e4f7e78f03d64c9b77d",
+  "booth.pm": "21d6529254328ff9604526776d7b159446845fe0b818898a9b6fca11b80a4eac",
+  "bsky.app": "a27bc2d6576d34b7fb0f4de2a2514b06e84730147d3431bb59b6ea2920d05475",
+  "bunnings": "a750f62e6138fc8036cda7e48eb76daa69876c9df4fb8fe03abd4b028b2c1dc7",
+  "byrutgame.org": "f4deee9ff5604caf75331b9528a4d234bfaa8195bf1ccfff97a322ba0a38d568",
+  "cameo.com": "3160306c743b6529262d95cfe440d1e91d3ce3b566b7b2fdefc1e44eb06ac82f",
+  "camvideos.me": "edc175e05f7cf2deabac106abfda17e575def70ce76c281ac6a77e938123b338",
+  "carousell": "dcdb4a3ad22570dacdc95d974690a964301ca57a316b2422db29b40979ff3540",
+  "catch.co.nz": "bf14c41ef391c69b98b7ee76db8554db20fd218de448c7905c0756d5b69a8c9b",
+  "catch.com.au": "39d5e790cf417d195ac75f30c86fbbfce4877b22b22023e81d41d410c5f01c87",
+  "cellphones.com.vn": "c83d117138938de27c11b1bf9c7432b08d86a8a6d16e683785a4a1d7c3fe2768",
+  "chemistwarehouse": "08fb69fa6d5e6d131dc04bac7be84259bffdc647f622eb12301a2eb4588a4235",
+  "chii.in": "5949fb8abe65bcb557066fa200260dac31ddc8bc3e0e36dedb1ba4455e4260ce",
+  "chuangshi.qq.com": "b4a9214d744b56bae4dd2274a03e768afdefacc62fd5d76cdb992df1cf9a0aa2",
+  "civitai.com": "3e8216bef2b8142487fc7e3e78c6ba529c8f0d5508cfda1f340285b6915655b4",
+  "cnu.cc": "558ccdbe9213eda7fa62b79b34c35f08a43f0360f6b2ec1f475a07798068289f",
+  "coomer.su": "d7084010bdbe896cffed0f16de2b900e7099aa0076a7fe8679d1d6bcd733bd3f",
+  "coupang.com": "e3c4ccb7331add7bb0a30c16b3393a4e6fbb7d4e9f4e4286e03be3be6fa47e53",
+  "craigslist.org": "6471772a306ea0d5da9e0dc391d43c970500ff2c7f3da3ca8f7b302eb8d9c490",
+  "crunchyroll.com": "79e12d70654985f4c1052250db6b57968927d6782d45f8feeea6518777da8388",
+  "ctrip.com": "5973eef3d170075cea0fbe52953df6048058f70cc00246c0c5945b446989e7ca",
+  "curseforge.com": "2cb6438594d285b5170e962d18af6a6612d6028cfb33b95b91aecc276537d728",
+  "customink.com": "50978d5e97f0902211e046f9095169c336e487b84dbdaddbcedf0656921221e5",
+  "dangdang.com": "7b45a88bdc5010e4830bc0ab220b8ce005cbb2dc5a3593597ae1e3ab29c39652",
+  "ddproperty.com": "5052e151e5d82ce4a7c0b2e52eb44e68b0c67a6af2b0b6940b1e3b59fa3717ca",
+  "desuarchive.org": "b307ca315c81955730ce55df3d0375d25919dcea3a211505680214a00b12c502",
+  "deviantart.com": "dfd5ae11cb8ea608240b78e889eaaf0d252f05ec247c4555f1708eb81685f419",
+  "dgtle.com": "1583800b3052cdc1efc4178862c2fe56394e2cb9bb0fbfd3bf694543a0c64cfe",
+  "dhgate.com": "26decb721a6251c4030eb6c215c489a4950533f6a0fdc54afd880580d55852a2",
+  "dianping.com": "522f2fad11be600b9cd624ddcab058beab4fe75ceba528ab75c5cbdb53d3f3f6",
+  "discord.com": "7c13d693ebcddbfdc08d2876f60826790acd55a04fcb60ce56cc3e455d1481bc",
+  "dizilah.com": "95c6363138b199dba7a65dba7e3f41e2172331e7b8b34eee39a324c05ff2d133",
+  "dlsite.com": "1c3fe4db74f62ba7f8aad99b414787722b5303e0e1c5feedb0bb16556a12cc40",
+  "douban.com": "aa569caf9bcda89dae5f8afb6421b263eb8c4e231a8b69e7ebf2dc4cdbc3c14e",
+  "douyin.com": "0045e310c5ba5c1d0b3a00731e568bdd779fb6161eeb28908d7d86c143b52381",
+  "douyu.com": "c8eb1ce3a64784c0e987b271ae2149d88fafb9c8acafc73597c6ea748f081375",
+  "dreamina.capcut.com": "f4e16dff5ab6aa94a345cd2ae1263ba36dc70a8a208d3855795f92fb3c226195",
+  "dribbble.com": "5bbda9f634d3ff101ceae2c85a3ba8ce66a28f6300e4c45382228de015c35ee7",
+  "dt18.com": "3df668868d36b184d105371e22c7b7fdbe5cba1eef0b2cdd0fa4ac8de0b765c5",
+  "duitang.com": "265501d0f9caf07c1db032d37609ec72f016ec067f56718cee24916344664d8c",
+  "dzen.ru": "7b2f7a46a4b8b211bd0fc059e70398d4cd7a400f56effbad5a9a6475e0a4ae5e",
+  "e-talenta.eu": "57a79a4481207496881db6bf691abc0d216034176e183d526c4a9ccb80ad2f51",
+  "ebay": "443da0f62da365a22cc57d96a1d8d618a04e8d15d4cc154462d9c278d00f8160",
+  "edition.cnn.com": "451862d432429164198bda5db08dfaf2fc1134ea68f13658cd0b3d9d4fec8b78",
+  "emax.co.nz": "4720e4391f009f90d8ee3d04b075d6c7b0de8fa2ae15c2c870ebcd1e14e27bc6",
+  "entamenext.com": "1cac626b4ef0e8f913c5261fb6fc4813b00f6e06cb7dc1de909cfbbb1a5fd345",
+  "epicgames.com": "c0ed0e9367af7fc4f96f51dd31f2636354dd01ead71deb181c3fa5b45438db75",
+  "eporner.com": "4a137ae2dd0168cfa7a02366a87c44fc99336644d3ec983a098a1da3b19e3bfe",
+  "erome.com": "29c1558fb1f1d415b9223c26509962fe0bd78f43cefa76a360878165c1fe10ab",
+  "etao.com": "2be9d5fa9fae829868f31cc63bed394f106694287b646caded9035a4cfb95612",
+  "etsy.com": "2be7cfe60745ad0299d729cc312d5fad45f21ffaf6fc67cf54b2772006821ba1",
+  "f95zone.to": "f14f7cee1fe372dda6f67dcb45e5a4eff6c038b326470710fe9f49becb415162",
+  "fanart.tv": "7c91dcbcac12b19fb8d5b750036f0b32df2ee28422f60e29270fb79854175a6e",
+  "fandango.com": "70245a60a28a11be3715209c69ef254cc98cd6fc7486cb9f4c9befe3f86b3800",
+  "fapreactor.com": "cd0f0fed6c560dcf50ba7033df2a4dfb68d89c996f4e7f14e68ad857492e424f",
+  "fastimages.org": "2390337799eaf5254aeca0f5f3cf2c4cdacff486676e98aaa455b41368c2eb4b",
+  "fengniao.com": "026a57c81eefd98857560cf02a47000cc5ad38c2e7de66457fcdcfaf24dea3fd",
+  "flickr.com": "5f8278899a582bfc7c2c548f56d55b7013aa9edcb84d74408e186889bc3d9e3a",
+  "flickr.net": "18bc8eaa507f6a07477f9365b854c65d360428bd7e75b744fe40d14cb276e3a4",
+  "fliggy.com": "455c3867798b88949c050cbdccdf972cd6ca6edae6cbf2ef56f79d1903b0618f",
+  "flipkart.com": "f81d44289bdbfd9b7ce03ea071b36034ea4e613d1e4c17122c72772314b84810",
+  "flixster.com": "2792a50c99805c3d6f36319a1143948f1161f1b0e9f7d19c77247ddea1fbbab5",
+  "fortnite.com": "0578bbbf82bea8436376c9b09fba842c51fc2bd4f6233074f42228a357a1f259",
+  "fox.com": "bc033d7778db0460c105fa53104fdbcf33499a23c49d0da0528e975a71d7902a",
+  "gamebanana.com": "cecd73940d85236207f899133f5ec272cc4c3b87de1a5da64a3ff34f0cbb2466",
+  "gamer.com.tw": "95ac069f5130faf1e763100c5ddecac49115278f6b2db99a763077a2694e8914",
+  "gamer520.com": "abb4b6c79dcbd951956e74da623c4a098c1b2ab72a232c996eac3f736139deaf",
+  "gamersky.com": "a2537a9543e23d2bfda715935a2b7a43bf38f83ddaf4367e39de77c2ea978f33",
+  "gamewith.jp": "47914451b438d1d40ffad374c24820f32d58e7bdbed66938e938e5cad58ca780",
+  "genius.com": "7010826b22cfbce3d8c5db6665af9382da8d4fb5dde63b54a0b8edc8920f154c",
+  "gewara.com": "b063163f5f5050d37515fc7b0b61aa5a5abfcd76f4e2ef5085a4ed9e7bf817b5",
+  "github.com": "84df5bbd16a074a8802fcea8fbe66566200a98fd9d858c5fc37b206db9fb68b6",
+  "githubusercontent.com": "ab18718a366bb9025bb0d19c73c82279d5a198bf24a79f093fb07893098be524",
+  "gog.com": "ed3a624b44c64bb8cc2a41945a84bd507a7651a0262b0c4f084247303a437a13",
+  "goofish.com": "34bfd56e504d20cbed3b04eba267d2e106a2498f26945b0d3c76f28d557bae8b",
+  "google": "b5e0b086dc3e86905f7b873928390d1bab8c75f01e6741914a20503daf319bd8",
+  "hanime1.me": "f0f80f58ec359f4f2d794312ca04bca6443a906aa41ec54cc7d1bde9b49be634",
+  "hellorf.com": "70d0b822491a1e304a5982d13a41ac32aa2719bea3743409cbebe016f18f4de0",
+  "hiraki.co.jp": "51c6324ebc7a15243187d18f76078cda92ab24e57059562a0134e387a3c4679d",
+  "huitu.com": "578e27b2421e892c28a98d77fbd0791c8c1b6b2ad32c5f3871a12f90806960e2",
+  "ibaotu.com": "8da063aeaac9cbbb9164d5b9b5f4014bc75a9e38b2dc6a7c7557903c3a858a8c",
+  "iherb.com": "4d6082189bf0bf029c114a815cdaf7f07c75f980230286317a5dbad95c3a8621",
+  "imdb.com": "4374774314d4b7c26fa1310e936a578c800f5040e9f1cecc4e90bbdbd5ab4056",
+  "imgur.com": "2e00a4d1dc47d5c38cc5ff92480163dbd55e4613a25e8fcf27e810ddc595a03b",
+  "instacart.com": "3da835b8dc65604d1b369f02bbdedd3142a9004b5871af4820c43060d0bbb254",
+  "interpals.net": "47f6cfc5a51cbe12359b33fcfc58eeed9b35b86f5397d51733636db369abf1be",
+  "iproperty.com.my": "ac72ec1f3d9fc50b4ed18e4d6dd12694fcf3089a35de6b0f051fd432f97d40a0",
+  "iqiyi.com": "4d9c37b6fc1ff863761d1835cb1bcdae4bc019902afe22ee8446c6edde3c5321",
+  "istockphoto.com": "6c608c1b680f12630ab9e71eb2764f5f6c87305c358fc3552e9aa5934d995e2c",
+  "iview.abc.net.au": "b4f9e88c47422ce116b5263477d3e510c86704a25b0674cd2dadcab458b7c709",
+  "iwara.tv": "5b0a5b60013ff5495e070be722386465986a08a0f8b5e7e008b601b359ea5b26",
+  "ixigua.com": "6871495cbc8a11c0d004cf9a733463cb921009b02dab4e1e62cecd28a33c35a6",
+  "jandan.net": "76c342281e5dfcca185e649c9c6cfb6b0e1a9de9b5652b43d1bd4daaa8a37173",
+  "javbus.com": "753d4742d6c5b4d76a30156cc124b4e3eb333873cfaa8218c18c5c44d55d50c5",
+  "javdb.com": "14738927c367fafa1296de8653111453f88ccd7e7e47292c40d7879e6f7c7b39",
+  "javdb456.com": "417c57c63ffe17064cf8471828ba142adf47e658471506b5a7ace58592faec2d",
+  "javsee": "a4c14710a53c277201c3ab01421c10448cf771b5970494a2c9b80ee5197d51ab",
+  "jd": "ad6f2b23034bfe9e7c68cd00b5a480661891f0a7dae48e0f12f0277cf82d3575",
+  "jimeng.jianying.com": "2b39b2e73f5db42e46a1eca738bc20484800fb8bb4f46c6cb4cf8562aa4961b1",
+  "joyreactor": "8e85cb01be294b727997ad2e115ba7e1fed3aa975c715381c00d34b7864e717f",
+  "justwatch.com": "a5610ba0972883d31cfae1203a32b564a1b0e686421acff742dafd6731a179d0",
+  "kanald.com.tr": "a89824b26e18743c2095530b0d48f46f270511affdd5928543666c17ee6a5d04",
+  "kemono.su": "793406562a95e9a6d8875ddcbc1e5bde45f78804241ebd843e19be0b4331e123",
+  "kick.com": "d012f793e726e6065e5f3e2d3170e26caa0f580a8cf53f026d615cc0211b63dd",
+  "kinopoisk.ru": "46e5473ce149f2c0a7884a03c52e56ddc5a0eb56382e2a08615d47c70ec9d3a5",
+  "klingai.com": "1f25eb2943b746e85db28778fb3062491c8262e3b1c77884cbfca47f4832d4c2",
+  "kmart.co.nz": "856ffa1c44ad44cc87774a6b652bd228c5b69f3fd5bddd7f3a80fe09589b0099",
+  "kmart.com.au": "82a512cf023583111ff2f1bc156138eb3230daa9cb3fe2129ab00737c62eb8e8",
+  "krea.ai": "3d14d1ae622f522d77cefd2fba862b78c63f199fb808e742569463afe00404b0",
+  "kuaishou.com": "85373ee1a8c544b9cef294f2426019fd74295b1444df65d612ff8c19ef808cd6",
+  "leshetu.net": "6a7b0d5ed7ca9978edf4617d3dacfdf1b847982c0c5f5945ae3d009da0c31017",
+  "liangxinyao.com": "09b4cd50cd15f51e8c2635aa9e192a573520ac0074653faf03c7405de25f5c38",
+  "magnific.com": "2080015115d32d13e010e297bd3228a55fc90877d584ec5bd6c651dee51f55cc",
+  "maoyan.com": "ed6277f211f8d961df0b6775db03e31557c8686389455445cbca8abe23a50358",
+  "mashable.com": "486b930d283ea27827a00c8ba6d4945d14882f55b7691c2926000fd2a8b4cf84",
+  "mastodon.social": "f96a65178d6abb6212904979473b101b6e633681d094907c26645884e6576d59",
+  "mbok.jp": "e3dbcea22ead6096c810e284469cb3e43a0ab808d6b75a08945cba3833957d2b",
+  "mediawiki.org": "a49b10e3fa6a998d77f919565bb0120a01ccf5455a9c95eb51a6d3d0a17cfe1c",
+  "meetup.com": "0222276fd4f60e8d3f2c9b76ab972920ead1a9b5baa0da770fa0bb64eabdd065",
+  "meigongyun.com": "09b908b7e5f94a559d32d7a0d53212e0c43c57975af54d0861b5066b1743a6cb",
+  "meituan.com": "b0bfb3d9c58464b7d5041db6b74733f96d55b5b2b2c596ba4757061918aac394",
+  "meiye.art": "85f84f0d61599754a150cae1989bb1bb602033f00397690875a7e3a8aab270a2",
+  "mercari.com": "4f434ade25ec49f1e29304a2475b3501bb172429604c8def692dee1c3300435b",
+  "mi-store": "27924b4a6e5164a3312985392ae268ba3ec0e61c79f71bda83b5afd6d3eeaf7d",
+  "mi.com": "9bf92c622994759be998eb68608bd6b1d3f9bc24a14538a7555f3b4cef2f4395",
+  "midjourney.com": "09d5a8132bb14717c9320cafbc64e823f11ef58c46dc5e6b04a5f6de5bccf0c1",
+  "missav.com": "d09f06f70bfc0ac17b2fccb320b62ea985bcdbe42e36e4a94c1bce846395b7e8",
+  "mixbook.com": "91e8c1c59e6fdf2c132b2449d10cc7d323c508318cee3caa5126c7f17a334f43",
+  "moegirl.org.cn": "a8436dc74b7fbad933650e271c7d5c6c185ffe5cafc284fa12bc904902ea89ea",
+  "momoshop.com.tw": "099bf9cdcdb997a6e36c5affee188a9502712f38626bdb667f52cea9fde51b4a",
+  "motherless.com": "021914530d32fd2a34ff1de6e8cdc3154b7f758c645f525ccb6a0288607261c1",
+  "mp.weixin.qq.com": "70eb53bf868e6953c5336db6600cd790f583f0cf7fe730954e547e9c2888e567",
+  "mydrivers.com": "61105933a8ecbe5a9aed45fb4596ead4ca2cbe6c5cbe005043ed1411a64ae9a5",
+  "myfonts.com": "a41f575eadf2223891cb8ca149a5ef29a2fd5d29a645274518e835608723447e",
+  "mynet.com": "11f27c7fdb62db3ac9d3bb7e00af57d5f00e11eb428ab775c20c559034594e4a",
+  "myprotein": "54b4d03e290b01fa18c5e26262a3be2c071e56a6f2b11a30678491dd24405a10",
+  "netsea.jp": "487ae28b5a4319689fc10f8e9598c9a3aa6ef5bae3b8e0338d48757270a6275f",
+  "newegg": "597a84c7a6f7d4a10de1a9dd8b2a5261bc5c175181a29d09da43713c4dcbd632",
+  "newworld.co.nz": "700cbc59e704419cb6e198a65892a03ca990d64349698bf958e23c94f675a74b",
+  "nexusmods.com": "8aae0bc9575d427ee55872a1be422f77f7763ffa52db5aeda5077fc28ed11a50",
+  "nhentai.net": "0f33ad919165457b4b671d2699c98745fee1b585a5230c0532257b91b4273af8",
+  "nike": "5d54f167f24f9f041cf0abdeb07ecb7b3353f71daee54e1ee18bf4ad4eb4c2ad",
+  "nimo.tv": "a966a6c2ab41bbced87cc756026371bf178b73d3fa5000f0abec08fb842e91b9",
+  "nipic.com": "001bdb9a8d41a5060bf3e6505b97ef25bbba21961ee79d71ccba05f6aacebafb",
+  "njpwworld.com": "33d1eedaa217410964d87cc472ede5568367ec32f82e4e4f177c1c78a9dede7c",
+  "nmbxd1.com": "4b0d7be85467013084c89d29f2d7447daac05d3d1b46ed9a17e2c109d3d54f9d",
+  "noelleeming.co.nz": "22b06b0274b5f49ac458bb163f37530a301f92ac52e8ae7fa95cfee1d117bc9a",
+  "nohat.cc": "6c8d53b387b399eff0853d326135b4382e99e23dc26fbc1d1a7b173487e8ce67",
+  "nowtv.com.tr": "a8540f75713dc71f7a9bd811dd02e9f7a44f55c6ad4e4a79a0fb21dc70476f30",
+  "nytimes.com": "afa87b7c035fab975785edd880267a3f835a43f859f76f95fe43679b5493376d",
+  "nzsale.co.nz": "c2914ee2f7d4e153fd66ab85f14f957f4c25865edb7a2a98ccec0efa42e3f206",
+  "onlyfans.com": "18c85f2d7ad2d4e151a6c9aed1ba14306e965dd8076c37df8808def7a91beb40",
+  "op.gg": "b6bab29ab99b9c3b7df691158aacabcdf3b5805021114fc2ab69c9aae34db3a6",
+  "ozon.ru": "5a31bc859fdcf64e9fd6a4fd892b1a396ed83cf730c77b60978d6790d3c244e0",
+  "paknsave.co.nz": "ee5feefd57526037d91e450488e5fe659bc67f83369b18c882a5e3d8ffeb87b5",
+  "pbtech": "b91b42590386bbdddca0713396b98e698f789eda8fdf485792216d4521b5631f",
+  "perplexity.ai": "5b645bbe3a1212307543ee5070a23d529d5e38f4a921d5c91647593bb2155337",
+  "pexels.com": "29eb31cc9c48cbbf535b17b5a60b788ea5b3e8370b1dc7bb97b9df5efd868633",
+  "pinterest": "a4e9c637faea30cc2c6f0727e5884338a2e7803437242ce1f3de03a34fce2232",
+  "pixiv.net": "59a0aa19c06991eeba76c843900301e9978f45744aa3d7ce5b9c349417949f09",
+  "pixivision.net": "2b5adb1f3eca11fee759b14f1287d9f2bad05a2a629358a7360b638c10c3c9dc",
+  "plurk.com": "139969128c27f85624ce88396e9a17bdf946ce844125f0e2c69936683a6db3dd",
+  "poco.cn": "4bd349c8dc3d60a7b9c77b3b3f9a12c3c0f03654e9b18a7b1335305d6e4923ca",
+  "pornhub.com": "d104c258b9f469183f0b043af45daa195d777739a7e872dcef5bff88b2af791b",
+  "pornpics.com": "0b689eaa1c4583f2e0fc89a0e50c410aa552453e08cda5b5409e10d65047e673",
+  "primevideo.com": "c587ba4c7311384548cb3df833c1ebe6a05eb18106800bbda004c1f65dff67a1",
+  "propertyguru.com": "789920bcf350c2cd3dfe46b4fe1990cdcf811f70292160fb8fa7017d2c879e34",
+  "pubg.com": "c45785dc18eff68d7f6d7ab8a4696c5de9bbf31fea75dddb9a434b43090fd336",
+  "pximg.net": "c09fe7b53278bb779c5fb918413dfa6355a95a2ca61672aa8ceb755e7c8f19af",
+  "qdmm.com": "32b9dd2e6235e86d92e48290c725ad06060512114eaaa7ac2f71c54a7ac112cd",
+  "qidian.com": "ee0d45e6ad52e861ddffd29fbe083910da33333d0aef0bda10428f197313cc15",
+  "qzone.qq.com": "951dc4d66d39b282c57225cf0426d63bd40941ad4734e2e6119dac88fa0fb74c",
+  "razorsql.com": "badd2c91cf74c9a1a5e44c6e9c91fa674bed9d7c3b18fc121cae6774c040823d",
+  "reddit.com": "574f9635fe269cb4d66fbfb1ca06c6cb47de9c3a5922ca5e2a37e47c2aaaed0d",
+  "redgifs.com": "f1063384b9e5ed4afb87179384a4959b486ed9ba2bf4badae9dc31e4458f04b8",
+  "roblox.com": "578e6dfbb1d447209b4720df30b207e940e44f4b9d70143c4411095cc87f5c53",
+  "rottentomatoes.com": "e2e770ff197cbd9883b656df2bd565b4ba323a7f2be79831710a8839d2032108",
+  "ruten.com.tw": "5ad28d3a797d8e3cc5afc00472c383273cdf47ee40ca1e96cbb1e20d7d01536d",
+  "sciencedirect.com": "22d3cf8773a17fba1941022f77a203eba9de2142973d09d45e16062b85b3d38e",
+  "seejav": "2f7cded5b025ea9032fcd40e1477207a855ffcd94a662a1bf0cb229dbb23581f",
+  "sekaimon.com": "eadd4284c72d7e4b4b6a0ac2d6de5dc3389429cfabfc43ef72fe42ce25c3e087",
+  "sellpy.se": "4ff564276574fd93e10f48a98bc75ac8f28083b4d8ca1c149ece08996bef3254",
+  "sfmao.net": "2ab6b218278bc2c6fbe0fd6e67cf6fc12258d45d82d039688c8c9257c63aff4c",
+  "shopee": "218bb828dea0a969b1fd39a3ebf0d161c13d2d71c1e6ad5a09065714baa99faf",
+  "shopping.yahoo.co.jp": "55385984f4bb3354703aad8ef2145d2b7a551aa5a0efb9722b8c5560437f8bf5",
+  "shutterstock.com": "9657227424c10f83ca1d04402b886ca19025fe4c13ecb4c9b9c53f2380407059",
+  "sifangmao.me": "b247e987966a6109c661fd76c02459bc7b45adb9ecdb3a882adda796173b2bff",
+  "simpcity.su": "abeae46e8001cf42378a722680be3ba189500fde8d1fd08269b2ece4f129db69",
+  "sinaimg.cn": "647bc855b36e6b1d32e92673a9b3e7dd0197f7f78ffd120d1dafad38f0733ff5",
+  "smzdm.com": "3977cef5fdf3b3458464ccfdd8bd69ff5ca75893c18de5c53ed1f720090dc446",
+  "snapchat.com": "4d4605ea5ff0a62ecabaed288955d044d98eb7863f1ae4ccc90ec8471f39d6fd",
+  "sohu.com": "4a21bd4c698189644570fbf2752a8e4db27dacd07eaeb4e7f124e3be7f8bf632",
+  "sotwe.com": "ce687e70ea14ad379583db593e14d6fd09e7dfa290fc2aa9906efe8f46dac526",
+  "soundcloud.com": "31c56e284e8b35c8f705a8a93934b21d0007d4911da43fcab726cfa2c28bd06a",
+  "soutushenqi.com": "5f762c707ace0d4d28e02cdf721d15d4c7190a52c0779b113c4fbfa03164efcd",
+  "spankbang.com": "0bf35181b9c9bb3aee79184511ab844e5830785ec803e070249127f5548a7153",
+  "sportsdirect.com": "79d715f00e0afb2734c772e5722f65750e89df8b722c3a673daab575cba5c68a",
+  "steamcommunity.com": "8bbac3124024c99dab18125e992d6d7184e07d17904318337c34f67a85c52db9",
+  "steampowered.com": "b97e1ab0ecd1d62d28dcad167a8d0597635c2c415d02955eb7ce05df3c2b865f",
+  "steemit.com": "20a6ba16851120839e4cd188158f4a7f38af44e5c3b9ef7608bc24a3ca9414d1",
+  "stock.adobe.com": "9bd3c4a9132fc7eb60425be98b1f28391d15549775291041c078b0518b0ac908",
+  "stripchat.com": "deca13b1ecf543f064a63e8bc7315f3a3a40a17823f366506c610ccb33f33957",
+  "suning.com": "d737133cdd9ffc5f3d58cae8bf5c7c31c4ee91cdaef5606a17f72368e26ad73b",
+  "t2tea.com": "d2da7621414408557930290b8d88297c556ae5cb12730c301220cc1b1b29cbec",
+  "taobao.com": "a214a390b0372ded8b05f80355647d96646d32e04ee92c07dc489c94f962862a",
+  "target.com": "02be54966167a2f8964ad0e76ea769cdce4fdc44fc312c5bd0d5ee6abf4bc040",
+  "tbs.com": "699edb56e9b896c67a2ec1c09fd6609f269a3d8324bc28579c5316e0ede128b9",
+  "thatpervert.com": "3d287a4a259358872995b7ded7befdffa8adce3ae74d953d2f13cb36976bcf53",
+  "thewarehouse.co.nz": "bb092a7b040e6ac93fe0e556175060060cb96d82114cde69df20c02a6d0ae6fe",
+  "thinkofliving.com": "f7e4dea76b9c0efd4f3d442c25505323491804ef572079916628d16e2ee6bfcd",
+  "tiktok.com": "918df13678ede4c6a60c7a41a95f9b7088f84d7c81ce56c96871078ecff859b8",
+  "tmall": "fbd1583f4e6c9d7180e5b67624fa5c9f48aa5b8633f06ae11761901792b2fc0e",
+  "tnaflix.com": "477a6563c85c9ab215c3139f29517e2af5f9c396a482948753018c8de1efc7ff",
+  "tntdrama.com": "bbdf972bec14abe51181098099566bf2b08b644a5cde333355290eceb3f24aaf",
+  "trademe.co.nz": "e019e9d11b055577d9257fb3f9ddbcbfe515d28b4963cf8df63b0ac1df64b69d",
+  "trip.com": "adcd5a44d3aa7ba95cb8446a81b81e3bcacbd61fd2a1e9699b9f5aaa7d8ffd8d",
+  "truthsocial.com": "364f6f19951b84f0e2191d2fd0c3484b97087a1fc6901f3a54603763690ec2cb",
+  "trutv.com": "4c9f6da0811ad14db5041f754a5d43b702638f8a8b666879efb196096dc41c30",
+  "tuchong.com": "50044aafdb989c354f6b6b3d66d8e66477fc76c225987044edb3ae7d28db36c1",
+  "tumblr.com": "4538835866b52bc40de24d2c80e9d02d1f29f3f8ab75af063414a8b41402c548",
+  "tuniu.com": "6524195ea35079ee91792a5e7c1503cbdfc20f429c4d14ce1423bae3827f3bae",
+  "tver.jp": "e110c61cbfabff88727edf9ad9fc16edcf14dc95b9ac1cc9a7007552cd778f5f",
+  "twitch.tv": "ccd045738dc7ee24d95991d89ff9a18a87fc10cfef4098fa4088c16b246bb683",
+  "twitter.com": "328938f055b3109bde5f475ca33e388e506a3bdb1de3aede2567c68de5ba252d",
+  "unsplash.com": "4671be98f5f1b74c9057c33ebe98864bd0f8984a2910d266a2c0b37a6514064b",
+  "v.qq.com": "7c0ee73c748c62e6b3df07f4a8a89acc86b47cf602823681cd47e3f0c52ae70f",
+  "vcg.com": "1f37e145d58c7fa75dca384dc2728c68bf43c27d91120a8edc3984a836fc06fe",
+  "vecteezy.com": "e9d0193900903a6566b6b04f8e31e30591b006fbab8bfcfe591f6d766fa6251c",
+  "vero.co": "17037ba779b053abe52ba9f4b40c97ead4768f6535531738c5f401de43f89bf6",
+  "video.friday.tw": "5531dc1369bf5958bd7e0672bfdf7c17d2323e7f53204b920c241867fe31b59f",
+  "video.qq.com": "b771dbd3537d83f27da8ed43c31117a8623dc1338fb79918bcdeb9f0d85fc2d4",
+  "vidhub1.cc": "08de01227e401adb8f8dc1b7d47a348a87ca2916bdc085b871a5d17325ff57e5",
+  "vjshi.com": "3fd69ba7c6967816d60438d2faa5cdae0c82158ee3f1995a513702e7d6ccabe7",
+  "vroid.com": "ea3170f6e7b891a28af3a12715ced514a724779fc16cfc1c4fa032b972ea6c05",
+  "vudu.com": "0083c284d8ef3ada99001812c0ab853d621799e500b686666887cbe22d7cfed8",
+  "wallhaven.cc": "0ea73d39971ad43c415f11ef79f41b0afbe51251172e133de123de2084422c17",
+  "warehousestationery.co.nz": "bc6453db37d6420976f55886bd52191c52c08f0caeb0d611012c96695706a0fe",
+  "wattpad.com": "a02bb642fbec3ec2099c231b2a13b8b6d2a088499729284ec8992d720b690b04",
+  "webcamdownloads.org": "c1b28e07628055c0e3f858714b4ff36fc0adbfbd7101c5a7a9962b3dec7d677e",
+  "weibo.cn": "cb51e0c9aef1c3ab0e3454851b8155224232db570440d159fed60588b0fe6a05",
+  "weibo.com": "e04997333ca098c1272b0dec37e9edc678dd5c1cb4a3aadef114eea228483dc4",
+  "wikibooks.org": "50f779ac3a022ea1b9a40cc552bc5b1e6ad9173d54350b27d27a6de11f75cdb8",
+  "wikidata.org": "18509c307a301e720f41363a09247e0d26d1da72ea04add34039481b26e41593",
+  "wikifunctions.org": "1c04b83eea9a401db8c12268189282762a60edf7dced130c08d8cfc4c2e1ead5",
+  "wikimedia.org": "37c4b2cca0264b2b03b8ddc192acaba196f62e60e9d73ae8d0d60f57dc093dc3",
+  "wikinews.org": "40f4c0c0c3f8018f8b2da60261e39c9fce2030fc1cc1de9cab3fbb76a8d7f78c",
+  "wikipedia.org": "936426b90e67ec370694f6bee2c82f3435b9af2c4f6313ec0424349e065bbf11",
+  "wikiquote.org": "4424c2dc4fc42a3c1c808d4c0fcca75e68b1fbe214acc9c35a17fb1ad5f8093d",
+  "wikisource.org": "11fd6e324b212d8998d5440d2962b3f28f819079511fc0f98810821f98be4b30",
+  "wikiversity.org": "5d989d664d8a84289ab22789b734deb9804a04c5de5e8da9c938c7380beaf4b6",
+  "wikivoyage.org": "b33db5629191b9d7101789206a7bab63bbf58ad89fdd52e5ea03c4799fdcddbb",
+  "wiktionary.org": "4091b976e0bae34e098b0337d82ada0920682c7561d89cb57f72c7df13980930",
+  "wn01": "145e5588fd8eeb80f05dd15575991ae4e7f0104d92837fb7734131226327bec0",
+  "wn02": "ba3f6447e85a75aea675c2d38416b1e1c31e68aec20d2049f88b0b01e28fbc75",
+  "wn03": "71a2c946572e1ed9bf17dc726e41fe1c5ab3f8ce160b98a7d40fb5785f9738ad",
+  "wn04": "159068d163df605bb87a307721a58e184a4c95740b668cf41040a5501ac86759",
+  "wn05": "385e0024a7228127c5f7ba6734556751f85bf300168117a9ffdac1ebb5ddd768",
+  "wnacg.com": "0feb7fdaeb0b36e1de7174c3bdd854e8fe3bfc98d96874c0795594d3a67e7f72",
+  "woolworths": "1946fbe6ee5a5003bf41f3d61c25d7c65aa1881e90747543b6447af793317940",
+  "wsy.com": "b9eb956e3dc94d252e16d7dc46e2d93c208384d6288ca4b757494982209d2303",
+  "www.data18.com": "5d0fb39243b81cd463fd8394eb6fd2a78573d35ac6f9ccc6d0f053a6c7039c2a",
+  "x.com": "7eb58c70f7eb4d1ed813d33a2ea3d510eab241513ed6f2d376731f19bd53f2cf",
+  "xdaforums.com": "c1580860fe913c743cb7a8b648cf073d00ca564556ec3433ae64d875de4ee0e7",
+  "xhamsterlive.com": "91f5c0375f31091decbb7ad342137a49a28b851da00a2644f0db6d4f1f4ffb6e",
+  "xiaohongshu.com": "30371baf91dcb4939da72b229faf8bec3be53944d4787ee7989a5a6f5b3d4644",
+  "xiaomi.com": "8685ddc4a305f30e8741ab9d12a648100a1121c744af4a5f041f1ce34ec10a6c",
+  "xiaomiyoupin.com": "d5c2548db4c5a31b07ab89b27d580b2bae85ad726d803c40332059d930de3330",
+  "xnxx.com": "1dc82a4b920c9070d21634767570ae44bf85e75a7991a5b1a8f11040db924c39",
+  "xvideos.com": "c5b22683f05dc4057a0d1726d539e5e7ee5968549daa9513adcd4c0d039a7a19",
+  "xvideos.red": "b44fc580f4dbbb05401acbb5d1ed0064f75722e331ce209a42b3fa0ea2690b7c",
+  "y.qq.com": "0c276140e89488264f8aa411f59effaf01a54bb4a4d964cf6680b365850e364f",
+  "yelp": "e3537823e3870ba98f679548f5f4ea0c79b060145b71c41e88a69f07d31ec771",
+  "yiigle.com": "bcfd6fb15556a7088b7b815fefe173f298f2a0e03a6cb6bdaef7e64716c4214a",
+  "youtube.com": "603b240588bd53d795df6c27edd019d9ae12291078d7f7357d436a9faf9d6242",
+  "yuewen.com": "88b2bbdc358f8c251f6f9134a0e2e1df5e8e524aa9f32779a477f9c0b0c08425",
+  "zcool.com.cn": "3fd73b1504dcb870c6e9108241451003402a5f46ddd138779147f6f52702da62",
+  "zhihu.com": "700776df983cf80acd21c2188a082f6f40d840195718fc112237b93647970618",
+  "zhipin.com": "fa73569a88aec6c0b26a4410f7c35e106d459a81ea6bea3271f982c6951d8318",
+  "zhisheji.com": "cce24129c93a2a875fa9ac75c4cbb9c3534cc513b794a95d79dfb13b3564c28f",
+  "zillow.com": "ec2d7354e7e821dafa850aaede457fc9ad0883ea6f97d5ac1f2161f0d9d0ee60",
+  "znzmo.com": "6e207c931ad5922867be7e841918dab4f4082d684f1024b57ba69489b75075ad",
+  "znztv.com": "51f91445487a70808436af8e1f3c882ec65b95a39ef7818077af6d2618aa97e9"
+ },
+ "stats": {
+  "115.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "123rf.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "1688.com": {
+   "clean": 0,
+   "hd": 5
+  },
+  "1zj.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "2dfan.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "2dfmax.top": {
+   "clean": 0,
+   "hd": 1
+  },
+  "3d66.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "4chan.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "51miz.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "51yuansu.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "58pic.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "699pic.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "9gag.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "acfun.cn": {
+   "clean": 0,
+   "hd": 2
+  },
+  "acpjournals.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "addons.mozilla.org": {
+   "clean": 0,
+   "hd": 2
+  },
+  "agoda.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "aixifan.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "akiba-web.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "alibaba-inc.com": {
+   "clean": 0,
+   "hd": 6
+  },
+  "alibaba.com": {
+   "clean": 0,
+   "hd": 6
+  },
+  "alicdn.com": {
+   "clean": 0,
+   "hd": 6
+  },
+  "aliexpress": {
+   "clean": 0,
+   "hd": 6
+  },
+  "alimama.com": {
+   "clean": 0,
+   "hd": 6
+  },
+  "aliwx.com.cn": {
+   "clean": 0,
+   "hd": 1
+  },
+  "allelitewrestling.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "allhistory.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "andino.shop": {
+   "clean": 0,
+   "hd": 1
+  },
+  "apple.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "arca.live": {
+   "clean": 0,
+   "hd": 1
+  },
+  "artstation.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "aucfan.com": {
+   "clean": 0,
+   "hd": 9
+  },
+  "auctions.yahoo.co.jp": {
+   "clean": 0,
+   "hd": 1
+  },
+  "aweidao1.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "baidu.com": {
+   "clean": 0,
+   "hd": 4
+  },
+  "bandcamp.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "bangumi.tv": {
+   "clean": 0,
+   "hd": 4
+  },
+  "batdongsan.com.vn": {
+   "clean": 0,
+   "hd": 3
+  },
+  "behance.net": {
+   "clean": 0,
+   "hd": 3
+  },
+  "bestbuy.ca": {
+   "clean": 0,
+   "hd": 4
+  },
+  "bestbuy.com": {
+   "clean": 0,
+   "hd": 4
+  },
+  "bgm.tv": {
+   "clean": 0,
+   "hd": 4
+  },
+  "bilibili.com": {
+   "clean": 0,
+   "hd": 4
+  },
+  "biligame.com": {
+   "clean": 0,
+   "hd": 4
+  },
+  "book.qq.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "booking.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "booth.pm": {
+   "clean": 0,
+   "hd": 6
+  },
+  "bsky.app": {
+   "clean": 0,
+   "hd": 2
+  },
+  "bunnings": {
+   "clean": 0,
+   "hd": 1
+  },
+  "byrutgame.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "cameo.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "camvideos.me": {
+   "clean": 0,
+   "hd": 1
+  },
+  "carousell": {
+   "clean": 0,
+   "hd": 1
+  },
+  "catch.co.nz": {
+   "clean": 0,
+   "hd": 2
+  },
+  "catch.com.au": {
+   "clean": 0,
+   "hd": 2
+  },
+  "cellphones.com.vn": {
+   "clean": 0,
+   "hd": 1
+  },
+  "chemistwarehouse": {
+   "clean": 0,
+   "hd": 1
+  },
+  "chii.in": {
+   "clean": 0,
+   "hd": 4
+  },
+  "chuangshi.qq.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "civitai.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "cnu.cc": {
+   "clean": 0,
+   "hd": 2
+  },
+  "coomer.su": {
+   "clean": 0,
+   "hd": 1
+  },
+  "coupang.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "craigslist.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "crunchyroll.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "ctrip.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "curseforge.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "customink.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "dangdang.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "ddproperty.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "desuarchive.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "deviantart.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "dgtle.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "dhgate.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "dianping.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "discord.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "dizilah.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "dlsite.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "douban.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "douyin.com": {
+   "clean": 0,
+   "hd": 4
+  },
+  "douyu.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "dreamina.capcut.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "dribbble.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "dt18.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "duitang.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "dzen.ru": {
+   "clean": 0,
+   "hd": 2
+  },
+  "e-talenta.eu": {
+   "clean": 0,
+   "hd": 1
+  },
+  "ebay": {
+   "clean": 0,
+   "hd": 3
+  },
+  "edition.cnn.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "emax.co.nz": {
+   "clean": 0,
+   "hd": 1
+  },
+  "entamenext.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "epicgames.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "eporner.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "erome.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "etao.com": {
+   "clean": 0,
+   "hd": 6
+  },
+  "etsy.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "f95zone.to": {
+   "clean": 0,
+   "hd": 2
+  },
+  "fanart.tv": {
+   "clean": 0,
+   "hd": 1
+  },
+  "fandango.com": {
+   "clean": 0,
+   "hd": 5
+  },
+  "fapreactor.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "fastimages.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "fengniao.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "flickr.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "flickr.net": {
+   "clean": 0,
+   "hd": 3
+  },
+  "fliggy.com": {
+   "clean": 0,
+   "hd": 6
+  },
+  "flipkart.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "flixster.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "fortnite.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "fox.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "gamebanana.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "gamer.com.tw": {
+   "clean": 0,
+   "hd": 3
+  },
+  "gamer520.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "gamersky.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "gamewith.jp": {
+   "clean": 0,
+   "hd": 1
+  },
+  "genius.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "gewara.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "github.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "githubusercontent.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "gog.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "goofish.com": {
+   "clean": 0,
+   "hd": 6
+  },
+  "google": {
+   "clean": 0,
+   "hd": 1
+  },
+  "hanime1.me": {
+   "clean": 0,
+   "hd": 2
+  },
+  "hellorf.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "hiraki.co.jp": {
+   "clean": 0,
+   "hd": 2
+  },
+  "huitu.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "ibaotu.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "iherb.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "imdb.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "imgur.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "instacart.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "interpals.net": {
+   "clean": 0,
+   "hd": 1
+  },
+  "iproperty.com.my": {
+   "clean": 0,
+   "hd": 2
+  },
+  "iqiyi.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "istockphoto.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "iview.abc.net.au": {
+   "clean": 0,
+   "hd": 1
+  },
+  "iwara.tv": {
+   "clean": 0,
+   "hd": 3
+  },
+  "ixigua.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "jandan.net": {
+   "clean": 0,
+   "hd": 5
+  },
+  "javbus.com": {
+   "clean": 0,
+   "hd": 6
+  },
+  "javdb.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "javdb456.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "javsee": {
+   "clean": 0,
+   "hd": 6
+  },
+  "jd": {
+   "clean": 0,
+   "hd": 3
+  },
+  "jimeng.jianying.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "joyreactor": {
+   "clean": 0,
+   "hd": 1
+  },
+  "justwatch.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "kanald.com.tr": {
+   "clean": 0,
+   "hd": 1
+  },
+  "kemono.su": {
+   "clean": 0,
+   "hd": 1
+  },
+  "kick.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "kinopoisk.ru": {
+   "clean": 0,
+   "hd": 3
+  },
+  "klingai.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "kmart.co.nz": {
+   "clean": 0,
+   "hd": 1
+  },
+  "kmart.com.au": {
+   "clean": 0,
+   "hd": 1
+  },
+  "krea.ai": {
+   "clean": 0,
+   "hd": 1
+  },
+  "kuaishou.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "leshetu.net": {
+   "clean": 0,
+   "hd": 1
+  },
+  "liangxinyao.com": {
+   "clean": 0,
+   "hd": 6
+  },
+  "magnific.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "maoyan.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "mashable.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "mastodon.social": {
+   "clean": 0,
+   "hd": 1
+  },
+  "mbok.jp": {
+   "clean": 0,
+   "hd": 1
+  },
+  "mediawiki.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "meetup.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "meigongyun.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "meituan.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "meiye.art": {
+   "clean": 0,
+   "hd": 1
+  },
+  "mercari.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "mi-store": {
+   "clean": 0,
+   "hd": 2
+  },
+  "mi.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "midjourney.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "missav.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "mixbook.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "moegirl.org.cn": {
+   "clean": 0,
+   "hd": 2
+  },
+  "momoshop.com.tw": {
+   "clean": 0,
+   "hd": 2
+  },
+  "motherless.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "mp.weixin.qq.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "mydrivers.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "myfonts.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "mynet.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "myprotein": {
+   "clean": 0,
+   "hd": 3
+  },
+  "netsea.jp": {
+   "clean": 0,
+   "hd": 1
+  },
+  "newegg": {
+   "clean": 0,
+   "hd": 5
+  },
+  "newworld.co.nz": {
+   "clean": 0,
+   "hd": 2
+  },
+  "nexusmods.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "nhentai.net": {
+   "clean": 0,
+   "hd": 2
+  },
+  "nike": {
+   "clean": 0,
+   "hd": 1
+  },
+  "nimo.tv": {
+   "clean": 0,
+   "hd": 2
+  },
+  "nipic.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "njpwworld.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "nmbxd1.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "noelleeming.co.nz": {
+   "clean": 0,
+   "hd": 2
+  },
+  "nohat.cc": {
+   "clean": 0,
+   "hd": 3
+  },
+  "nowtv.com.tr": {
+   "clean": 0,
+   "hd": 1
+  },
+  "nytimes.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "nzsale.co.nz": {
+   "clean": 0,
+   "hd": 2
+  },
+  "onlyfans.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "op.gg": {
+   "clean": 0,
+   "hd": 1
+  },
+  "ozon.ru": {
+   "clean": 0,
+   "hd": 3
+  },
+  "paknsave.co.nz": {
+   "clean": 0,
+   "hd": 2
+  },
+  "pbtech": {
+   "clean": 0,
+   "hd": 1
+  },
+  "perplexity.ai": {
+   "clean": 0,
+   "hd": 3
+  },
+  "pexels.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "pinterest": {
+   "clean": 0,
+   "hd": 2
+  },
+  "pixiv.net": {
+   "clean": 0,
+   "hd": 6
+  },
+  "pixivision.net": {
+   "clean": 0,
+   "hd": 6
+  },
+  "plurk.com": {
+   "clean": 0,
+   "hd": 5
+  },
+  "poco.cn": {
+   "clean": 0,
+   "hd": 1
+  },
+  "pornhub.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "pornpics.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "primevideo.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "propertyguru.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "pubg.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "pximg.net": {
+   "clean": 0,
+   "hd": 6
+  },
+  "qdmm.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "qidian.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "qzone.qq.com": {
+   "clean": 0,
+   "hd": 4
+  },
+  "razorsql.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "reddit.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "redgifs.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "roblox.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "rottentomatoes.com": {
+   "clean": 0,
+   "hd": 5
+  },
+  "ruten.com.tw": {
+   "clean": 0,
+   "hd": 1
+  },
+  "sciencedirect.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "seejav": {
+   "clean": 0,
+   "hd": 6
+  },
+  "sekaimon.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "sellpy.se": {
+   "clean": 0,
+   "hd": 1
+  },
+  "sfmao.net": {
+   "clean": 0,
+   "hd": 1
+  },
+  "shopee": {
+   "clean": 0,
+   "hd": 1
+  },
+  "shopping.yahoo.co.jp": {
+   "clean": 0,
+   "hd": 2
+  },
+  "shutterstock.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "sifangmao.me": {
+   "clean": 0,
+   "hd": 1
+  },
+  "simpcity.su": {
+   "clean": 0,
+   "hd": 1
+  },
+  "sinaimg.cn": {
+   "clean": 0,
+   "hd": 2
+  },
+  "smzdm.com": {
+   "clean": 0,
+   "hd": 4
+  },
+  "snapchat.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "sohu.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "sotwe.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "soundcloud.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "soutushenqi.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "spankbang.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "sportsdirect.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "steamcommunity.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "steampowered.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "steemit.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "stock.adobe.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "stripchat.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "suning.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "t2tea.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "taobao.com": {
+   "clean": 0,
+   "hd": 5
+  },
+  "target.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "tbs.com": {
+   "clean": 0,
+   "hd": 6
+  },
+  "thatpervert.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "thewarehouse.co.nz": {
+   "clean": 0,
+   "hd": 2
+  },
+  "thinkofliving.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "tiktok.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "tmall": {
+   "clean": 0,
+   "hd": 6
+  },
+  "tnaflix.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "tntdrama.com": {
+   "clean": 0,
+   "hd": 6
+  },
+  "trademe.co.nz": {
+   "clean": 0,
+   "hd": 2
+  },
+  "trip.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "truthsocial.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "trutv.com": {
+   "clean": 0,
+   "hd": 6
+  },
+  "tuchong.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "tumblr.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "tuniu.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "tver.jp": {
+   "clean": 0,
+   "hd": 1
+  },
+  "twitch.tv": {
+   "clean": 0,
+   "hd": 6
+  },
+  "twitter.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "unsplash.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "v.qq.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "vcg.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "vecteezy.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "vero.co": {
+   "clean": 0,
+   "hd": 1
+  },
+  "video.friday.tw": {
+   "clean": 0,
+   "hd": 1
+  },
+  "video.qq.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "vidhub1.cc": {
+   "clean": 0,
+   "hd": 3
+  },
+  "vjshi.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "vroid.com": {
+   "clean": 0,
+   "hd": 6
+  },
+  "vudu.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "wallhaven.cc": {
+   "clean": 0,
+   "hd": 4
+  },
+  "warehousestationery.co.nz": {
+   "clean": 0,
+   "hd": 2
+  },
+  "wattpad.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "webcamdownloads.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "weibo.cn": {
+   "clean": 0,
+   "hd": 2
+  },
+  "weibo.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "wikibooks.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wikidata.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wikifunctions.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wikimedia.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wikinews.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wikipedia.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wikiquote.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wikisource.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wikiversity.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wikivoyage.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wiktionary.org": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wn01": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wn02": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wn03": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wn04": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wn05": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wnacg.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "woolworths": {
+   "clean": 0,
+   "hd": 1
+  },
+  "wsy.com": {
+   "clean": 0,
+   "hd": 6
+  },
+  "www.data18.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "x.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "xdaforums.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "xhamsterlive.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "xiaohongshu.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "xiaomi.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "xiaomiyoupin.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "xnxx.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "xvideos.com": {
+   "clean": 0,
+   "hd": 3
+  },
+  "xvideos.red": {
+   "clean": 0,
+   "hd": 3
+  },
+  "y.qq.com": {
+   "clean": 0,
+   "hd": 5
+  },
+  "yelp": {
+   "clean": 0,
+   "hd": 1
+  },
+  "yiigle.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "youtube.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "yuewen.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "zcool.com.cn": {
+   "clean": 0,
+   "hd": 3
+  },
+  "zhihu.com": {
+   "clean": 0,
+   "hd": 2
+  },
+  "zhipin.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "zhisheji.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "zillow.com": {
+   "clean": 0,
+   "hd": 1
+  },
+  "znzmo.com": {
+   "clean": 0,
+   "hd": 5
+  },
+  "znztv.com": {
+   "clean": 0,
+   "hd": 5
+  }
+ },
+ "alg": "ECDSA-P256-SHA256",
+ "signature": "kHZwqEPfp6a6/RseAvd8n5GlpHN7Jjuod/2Yaq4w/PhRZ6R2cXy0oyPCzbkB0rgJJzaoe5PR3r2Ca87Pm+XidA=="
 }
