@@ -1,21 +1,57 @@
 {
- "domain": "wallhaven.cc",
- "label": "wallhaven.cc",
- "adaptedFrom": "PhotoShow 4.92.2 sites/wallhaven.cc.js",
- "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
- "hd": [
-  {
-   "id": "ps-wallhaven.cc-1",
-   "name": "原图还原",
-   "loop": false,
-   "steps": [
-    [
-     "(wallhaven\\\\.cc/images/user/avatar/)\\\\d+(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
-     "",
-     "$1200$2"
-    ]
-   ]
-  }
- ],
- "clean": []
+  "domain": "wallhaven.cc",
+  "label": "wallhaven.cc",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/wallhaven.cc.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合。2026-09-16 实测补齐壁纸规则：th.wallhaven.cc/{small|lg}/{xx}/{id}.jpg → w.wallhaven.cc/full/{xx}/wallhaven-{id}.jpg。注意缩略图恒为 jpg 而少数原图为 png，故链尾落在 jpg（多数命中即停），png 作为备用候选由探测兜底；small 另可先升 lg。",
+  "hd": [
+    {
+      "id": "ps-wallhaven.cc-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(wallhaven\\.cc/images/user/avatar/)\\d+(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1200$2"
+        ]
+      ]
+    },
+    {
+      "id": "wh-thumb-lg",
+      "name": "壁纸缩略图 small → lg（实测恒有效）",
+      "loop": false,
+      "steps": [
+        [
+          "(//th\\.wallhaven\\.cc/)small/",
+          "",
+          "$1lg/"
+        ]
+      ]
+    },
+    {
+      "id": "wh-paper-png",
+      "name": "壁纸缩略图 → 原图 png（少数原图为 png）",
+      "loop": false,
+      "steps": [
+        [
+          "(//th\\.wallhaven\\.cc/(?:small|lg)/)(\\w\\w)/(\\w+)\\.jpe?g",
+          "",
+          "//w.wallhaven.cc/full/$2/wallhaven-$3.png"
+        ]
+      ]
+    },
+    {
+      "id": "wh-paper-jpg",
+      "name": "原图 png → jpg（链尾落在 jpg：多数原图为 jpg，命中即不再探其他候选）",
+      "loop": false,
+      "steps": [
+        [
+          "(//w\\.wallhaven\\.cc/full/\\w\\w/wallhaven-\\w+)\\.png",
+          "",
+          "$1.jpg"
+        ]
+      ]
+    }
+  ],
+  "clean": []
 }

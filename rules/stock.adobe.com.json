@@ -1,0 +1,21 @@
+{
+  "domain": "stock.adobe.com",
+  "label": "stock.adobe.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/stock.adobe.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-stock.adobe.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "//.+?(\\.ftcdn\\.net/)(.+/)\\d+(_.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "//as2$1v2/$21000$3"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

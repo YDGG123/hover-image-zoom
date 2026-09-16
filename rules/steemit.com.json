@@ -1,0 +1,33 @@
+{
+  "domain": "steemit.com",
+  "label": "steemit.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/steemit.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-steemit.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//steemitimages\\.com/u/[^/]+/avatar\\b).*",
+          "",
+          "$1/large"
+        ]
+      ]
+    },
+    {
+      "id": "ps-steemit.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "https?://steemitimages\\.com/\\d+x\\d+/(https?://.+?\\.steemitimages\\.com/\\w+).*",
+          "",
+          "$1"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

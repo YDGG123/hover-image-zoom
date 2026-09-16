@@ -1,33 +1,33 @@
 {
- "domain": "trademe.co.nz",
- "label": "trademe.co.nz",
- "adaptedFrom": "PhotoShow 4.92.2 sites/trademe.co.nz.js",
- "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
- "hd": [
-  {
-   "id": "ps-trademe.co.nz-1",
-   "name": "原图还原",
-   "loop": false,
-   "steps": [
-    [
-     "(//trademe\\\\.tmcdn\\\\.co\\\\.nz/photoserver/)\\\\w+(/\\\\d+(?:jpe?g|png|webp|gif|bmp|avif))",
-     "",
-     "$1plusw$2"
-    ]
-   ]
-  },
-  {
-   "id": "ps-trademe.co.nz-2",
-   "name": "原图还原",
-   "loop": false,
-   "steps": [
-    [
-     "(//trademe\\\\.tmcdn\\\\.co\\\\.nz/).+(/agent_individual_profile.+(?:jpe?g|png|webp|gif|bmp|avif))",
-     "",
-     "$1tm/property/agent_individual_profile$2"
-    ]
-   ]
-  }
- ],
- "clean": []
+  "domain": "trademe.co.nz",
+  "label": "trademe.co.nz",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/trademe.co.nz.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-trademe.co.nz-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//trademe\\.tmcdn\\.co\\.nz/photoserver/)\\w+(/\\d+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1plusw$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-trademe.co.nz-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//trademe\\.tmcdn\\.co\\.nz/).+(/agent_individual_profile.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1tm/property/agent_individual_profile$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
 }

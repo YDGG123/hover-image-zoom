@@ -1,0 +1,45 @@
+{
+  "domain": "zcool.com.cn",
+  "label": "zcool.com.cn",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/zcool.com.cn.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-zcool.com.cn-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//img\\.zcool\\.cn/.+?(?:jpe?g|png|webp|gif|bmp|avif))@(?!1280|3000|2o).*",
+          "",
+          "$1"
+        ]
+      ]
+    },
+    {
+      "id": "ps-zcool.com.cn-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//hellorfimg\\.zcool\\.cn/.*)preview\\d*/(.+(?:jpe?g|png|webp|gif|bmp|avif)).*",
+          "",
+          "$1large/$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-zcool.com.cn-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//hellorfimg\\.zcool\\.cn/.*)preview\\d*/(.+(?:jpe?g|png|webp|gif|bmp|avif)).*",
+          "",
+          "//image.shutterstock.com/z/stock-photo-$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

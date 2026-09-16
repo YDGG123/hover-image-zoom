@@ -1,0 +1,33 @@
+{
+  "domain": "youtube.com",
+  "label": "youtube.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/youtube.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-youtube.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "//(?:i\\d*\\.ytimg|img\\.youtube)\\.com(/vi.*?/.+/)movieposter.*((?:jpe?g|png|webp|gif|bmp|avif)).*",
+          "",
+          "//i.ytimg.com$1movieposter_maxres$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-youtube.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "//(?:i\\d*\\.ytimg|img\\.youtube)\\.com(/vi.*?/.+/)movieposter.*((?:jpe?g|png|webp|gif|bmp|avif)).*",
+          "",
+          "//i.ytimg.com$1maxresdefault$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}
