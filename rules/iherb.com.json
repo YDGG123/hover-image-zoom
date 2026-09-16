@@ -1,0 +1,45 @@
+{
+  "domain": "iherb.com",
+  "label": "iherb.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/iherb.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-iherb.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.images-iherb\\.com/.+?/)\\w(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1l$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-iherb.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.images-iherb\\.com/.+?-)small((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1large$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-iherb.com-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.(?:amazonaws|images-iherb)\\.com/.+?/)\\w((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1l$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

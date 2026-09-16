@@ -1,0 +1,45 @@
+{
+  "domain": "kinopoisk.ru",
+  "label": "kinopoisk.ru",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/kinopoisk.ru.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-kinopoisk.ru-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//avatars\\.mds\\.yandex\\.net/get-(?:kinopoisk-image|ott)/.+/)\\d*x?\\d*",
+          "",
+          "$13840x"
+        ]
+      ]
+    },
+    {
+      "id": "ps-kinopoisk.ru-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//avatars\\.mds\\.yandex\\.net/get-(?:kinopoisk-image|ott)/.+/)\\d*x?\\d*",
+          "",
+          "$11920x"
+        ]
+      ]
+    },
+    {
+      "id": "ps-kinopoisk.ru-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//avatars\\.mds\\.yandex\\.net/get-bunker/.+/)\\d*x?\\d*",
+          "",
+          "$1384x384"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

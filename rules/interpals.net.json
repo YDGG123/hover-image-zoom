@@ -1,0 +1,21 @@
+{
+  "domain": "interpals.net",
+  "label": "interpals.net",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/interpals.net.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-interpals.net-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//ipstatic\\.net/)thumbs/\\d+x\\d+(/.+?)(?:_\\d{1,2})?((?:jpe?g|png|webp|gif|bmp|avif)).*",
+          "",
+          "$1photos$2$3"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

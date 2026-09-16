@@ -1,0 +1,45 @@
+{
+  "domain": "iwara.tv",
+  "label": "iwara.tv",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/iwara.tv.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-iwara.tv-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.iwara\\.tv/image/)thumbnail(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1original$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-iwara.tv-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.iwara\\.tv/image/)thumbnail(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$&"
+        ]
+      ]
+    },
+    {
+      "id": "ps-iwara.tv-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//img\\.dlsite\\.jp/)resize(/.+)_\\d+x\\d+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1modpub$2$3"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

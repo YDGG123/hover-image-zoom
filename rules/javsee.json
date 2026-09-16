@@ -1,0 +1,81 @@
+{
+  "domain": "javsee",
+  "label": "javsee",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/javsee.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-javsee-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "//.+/data/attachment/forum/.+/(\\w+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "//forum.javcdn.cc/i.imgur.com/$1"
+        ]
+      ]
+    },
+    {
+      "id": "ps-javsee-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//uc\\.javbus\\d*\\.com/.+avatar_)(?:small|middle)((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1big$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-javsee-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "/thumbs?/(\\w+)((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "/cover/$1_b$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-javsee-4",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//pics\\.dmm\\.co\\.jp/digital/video/.+?)ps((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1pl$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-javsee-5",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//pics\\.dmm\\.co\\.jp/digital/video/.+?)(-\\d+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1jp$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-javsee-6",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "/sample/(\\w+?)(_\\w+)?((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "/bigsample/$1_b$2$3"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

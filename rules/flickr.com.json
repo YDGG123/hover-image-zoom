@@ -1,0 +1,45 @@
+{
+  "domain": "flickr.com",
+  "label": "flickr.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/flickr.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-flickr.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.(?:static\\.?)?flickr\\.com/\\d+/buddyicons/.+?)(?:_\\w)?((?:jpe?g|png|webp|gif|bmp|avif).*)",
+          "",
+          "$1_r$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-flickr.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.(?:static\\.?)?flickr\\.com/.*coverphoto.*?)(?:_\\w)?((?:jpe?g|png|webp|gif|bmp|avif).*)",
+          "",
+          "$1_h$2"
+        ]
+      ]
+    },
+    {
+      "id": "wh-flickr-size",
+      "name": "通用照片尺寸升级 → _b(1024)（实测）",
+      "loop": false,
+      "steps": [
+        [
+          "(//live\\.staticflickr\\.com/\\d+/\\d+_[0-9a-z]+)(?:_[stqnmwcz])?\\.jpe?g",
+          "",
+          "$1_b.jpg"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}
