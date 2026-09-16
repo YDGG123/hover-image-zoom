@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>规则中心 · 悬景 HoverVista</title>
+<meta name="description" content="悬景 HoverVista 站点规则包在线浏览：按站点检索高清图升级 / 地址清理规则，一键复制到脚本面板。">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f4ee">
+<link rel="icon" type="image/png" href="icon_256x256.png">
+<script>(function(){try{var t=localStorage.getItem("hv-theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
+<style>
+@font-face{font-family:'Sora';font-style:normal;font-weight:400 800;font-display:swap;src:url(fonts/sora-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF}
+@font-face{font-family:'Sora';font-style:normal;font-weight:400 800;font-display:swap;src:url(fonts/sora-latin.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+
+:root{
+  color-scheme:light;
+  --paper:#f6f4ee; --paper-2:#efece3; --card:#fffdf9;
+  --ink:#191821; --ink-2:#3a3745; --muted:#6b6878; --faint:#9b98a6;
+  --shade:25 24 33;
+  --line:rgb(var(--shade) / .11); --line-soft:rgb(var(--shade) / .07);
+  --accent:#2563eb; --accent-ink:#1d4ed8;
+  --grad:linear-gradient(135deg,#2563eb,#0ea5e9);
+  --ok:#0f9d6c; --warn:#b45309;
+  --code-bg:#f0ede4;
+  --r-sm:10px; --r-md:14px; --r-lg:20px;
+  --font-d:"Sora","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --font-b:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Sora",sans-serif;
+  --shadow:0 10px 30px rgb(var(--shade) / .07);
+}
+[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#17161d; --paper-2:#1e1d26; --card:#211f2a;
+  --ink:#edecf3; --ink-2:#cfccda; --muted:#a5a1b2; --faint:#868296;
+  --shade:255 255 255;
+  --line:rgba(255,255,255,.13); --line-soft:rgba(255,255,255,.09);
+  --accent:#5b9bff; --accent-ink:#8ab6ff;
+  --ok:#34c98e; --warn:#e0a54c;
+  --code-bg:#2a2836;
+  --shadow:0 10px 30px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-b);font-size:15px;line-height:1.65}
+a{color:inherit}
+.wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+code{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;background:var(--code-bg);border:1px solid var(--line-soft);border-radius:6px;padding:2px 6px;word-break:break-all;cursor:pointer;transition:border-color .15s}
+code:hover{border-color:var(--accent)}
+code.copied{border-color:var(--ok);color:var(--ok)}
+
+/* nav */
+.nav{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--paper) 84%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line-soft)}
+.nav-inner{display:flex;align-items:center;gap:16px;height:58px}
+.back{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;color:var(--muted);text-decoration:none;padding:6px 10px;border-radius:999px;transition:.15s}
+.back:hover{color:var(--ink);background:var(--paper-2)}
+.nav-title{font-family:var(--font-d);font-weight:700;font-size:16.5px;flex:1}
+.nav-title small{font-weight:400;color:var(--muted);font-size:12px;margin-left:8px}
+.theme-toggle{border:1px solid var(--line);background:var(--card);border-radius:10px;width:34px;height:34px;display:grid;place-items:center;cursor:pointer;color:var(--ink-2)}
+.theme-toggle:hover{border-color:var(--accent)}
+[data-theme="dark"] .icon-moon{display:none}
+:root:not([data-theme="dark"]) .icon-sun{display:none}
+
+/* hero */
+.hero{padding:44px 0 10px}
+.eyebrow{display:inline-block;font-family:var(--font-d);font-size:11.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-ink);background:color-mix(in srgb,var(--accent) 10%,transparent);border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);padding:4px 12px;border-radius:999px}
+h1{font-family:var(--font-d);font-size:clamp(24px,4vw,34px);line-height:1.25;margin:14px 0 8px}
+h1 .grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{color:var(--muted);max-width:640px;margin:0 0 16px}
+.stat-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:10px 16px;box-shadow:var(--shadow)}
+.stat b{font-family:var(--font-d);font-size:19px}
+.stat span{display:block;font-size:11.5px;color:var(--muted)}
+
+/* search */
+.toolbar{display:flex;gap:10px;align-items:center;margin:26px 0 14px;flex-wrap:wrap}
+.search{flex:1;min-width:240px;display:flex;align-items:center;gap:8px;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:9px 14px;transition:border-color .15s}
+.search:focus-within{border-color:var(--accent)}
+.search input{flex:1;border:0;outline:0;background:transparent;color:var(--ink);font-size:14.5px;font-family:var(--font-b)}
+.match-count{font-size:12.5px;color:var(--muted);white-space:nowrap}
+
+/* grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;padding-bottom:30px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:13px 15px;cursor:pointer;transition:.16s;text-align:left;font-family:var(--font-b)}
+.card:hover{transform:translateY(-2px);box-shadow:var(--shadow);border-color:var(--accent)}
+.card .d{font-family:var(--font-d);font-weight:600;font-size:14px;word-break:break-all}
+.card .l{font-size:11.5px;color:var(--muted);margin-top:2px}
+.card .c{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:10.5px;font-weight:600;border-radius:999px;padding:2px 9px;border:1px solid var(--line)}
+.chip.hd{color:var(--accent-ink);border-color:color-mix(in srgb,var(--accent) 30%,transparent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.chip.clean{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 30%,transparent);background:color-mix(in srgb,var(--warn) 8%,transparent)}
+.chip.none{color:var(--faint)}
+.empty{color:var(--muted);text-align:center;padding:40px 0}
+
+/* detail */
+.detail{position:fixed;inset:0;z-index:40;display:none}
+.detail.open{display:block}
+.detail-mask{position:absolute;inset:0;background:rgb(0 0 0 / .35)}
+.detail-panel{position:absolute;top:0;right:0;height:100%;width:min(680px,94vw);background:var(--paper);border-left:1px solid var(--line);box-shadow:-18px 0 50px rgb(0 0 0 / .18);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .28s cubic-bezier(.16,1,.3,1)}
+.detail.open .detail-panel{transform:translateX(0)}
+.detail-head{padding:18px 22px 12px;border-bottom:1px solid var(--line-soft);display:flex;align-items:flex-start;gap:12px}
+.detail-head h2{font-family:var(--font-d);font-size:19px;margin:0;word-break:break-all}
+.detail-head .sub{font-size:12.5px;color:var(--muted);margin-top:3px}
+.detail-body{flex:1;overflow-y:auto;padding:16px 22px 30px}
+.rule{background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:13px 15px;margin-bottom:12px}
+.rule-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.rule-head .name{font-weight:600;font-size:13.5px}
+.rule-head .id{font-size:11px;color:var(--faint);font-family:ui-monospace,Menlo,monospace}
+.badge{font-size:10.5px;font-weight:600;border-radius:999px;padding:2px 9px;color:#fff}
+.badge.hd{background:var(--accent)}
+.badge.clean{background:var(--warn)}
+.badge.loop{background:var(--faint)}
+.step{margin-top:8px;padding:9px 11px;background:var(--paper-2);border-radius:9px}
+.step .k{font-size:10.5px;color:var(--muted);letter-spacing:.06em;margin-bottom:3px;display:flex;justify-content:space-between;align-items:center}
+.step code{display:block;padding:5px 8px;margin-top:3px;white-space:pre-wrap}
+.detail-actions{display:flex;gap:8px;flex-wrap:wrap;padding:12px 22px;border-top:1px solid var(--line-soft)}
+.btn{font-family:var(--font-b);font-size:13px;font-weight:600;border-radius:10px;padding:8px 15px;cursor:pointer;border:1.5px solid var(--line);background:var(--card);color:var(--ink);transition:.15s}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--grad);border-color:transparent;color:#fff}
+.btn.primary:hover{filter:brightness(1.06)}
+.howto{font-size:12.5px;color:var(--muted);background:var(--paper-2);border:1px solid var(--line-soft);border-radius:var(--r-md);padding:12px 14px;margin:6px 0 16px;line-height:1.7}
+.howto b{color:var(--ink-2)}
+.loading,.load-err{text-align:center;color:var(--muted);padding:46px 0;font-size:13.5px}
+.load-err{color:var(--warn)}
+footer{border-top:1px solid var(--line-soft);padding:22px 0 34px;color:var(--faint);font-size:12.5px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+footer a{color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(16px);background:var(--ink);color:var(--paper);font-size:13px;padding:9px 18px;border-radius:999px;opacity:0;pointer-events:none;transition:.22s;z-index:60}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap nav-inner">
+    <a class="back" href="index.html">← 返回首页</a>
+    <div class="nav-title">规则中心<small>悬景 HoverVista</small></div>
+    <button class="theme-toggle" id="themeToggle" aria-label="切换深色 / 浅色模式">
+      <svg class="icon-sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4L17 7M7 17l-1.6 1.6"/></svg>
+      <svg class="icon-moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.3A8.4 8.4 0 019.7 3.5 8.5 8.5 0 1020.5 14.3z"/></svg>
+    </button>
+  </div>
+</nav>
+
+<header class="hero wrap">
+  <span class="eyebrow">Rule Pack · 站点规则包</span>
+  <h1><span class="grad">规则中心</span>：在线浏览全部站点规则</h1>
+  <p class="lead">这里收录悬景云端规则包覆盖的所有站点——高清图升级、地址清理规则一览无余。找到你的站点，复制规则粘进脚本面板即可；也欢迎把改进提交到 GitHub，惠及所有人。</p>
+  <div class="stat-row" id="statRow">
+    <div class="stat"><b id="stDomains">–</b><span>站点</span></div>
+    <div class="stat"><b id="stRules">–</b><span>规则条数</span></div>
+    <div class="stat"><b id="stVersion">–</b><span>规则包版本</span></div>
+    <div class="stat"><b id="stUpdated">–</b><span>更新时间</span></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="toolbar">
+    <label class="search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color:var(--faint);flex-shrink:0"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="searchIn" type="search" placeholder="搜索站点域名，如 bilibili、京东、pinterest…" autocomplete="off">
+    </label>
+    <span class="match-count" id="matchCount"></span>
+  </div>
+  <div id="content"><div class="loading">正在加载规则包…</div></div>
+</main>
+
+<div class="detail" id="detail">
+  <div class="detail-mask" id="detailMask"></div>
+  <div class="detail-panel">
+    <div class="detail-head">
+      <div style="flex:1;min-width:0">
+        <h2 id="dTitle">–</h2>
+        <div class="sub" id="dSub"></div>
+      </div>
+      <button class="btn" id="dClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="detail-body" id="dBody"></div>
+    <div class="detail-actions">
+      <button class="btn primary" id="dCopyAll">⧉ 复制整站规则 JSON</button>
+      <button class="btn" id="dCopyPanel">⧉ 复制全部步骤（面板格式）</button>
+    </div>
+  </div>
+</div>
+
+<footer class="wrap">
+  <div>悬景 HoverVista · 规则中心 —— 数据与 <a href="https://github.com/YDGG123/hover-image-zoom/tree/main/rules" target="_blank" rel="noopener">GitHub rules/</a> 实时同步</div>
+  <div><a href="index.html">产品主页</a> · MIT License</div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+var RAW_DEFAULT = "https://raw.githubusercontent.com/YDGG123/hover-image-zoom/main/rules/";
+var qs = new URLSearchParams(location.search);
+var srcOverride = qs.get("src"); // 本地调试可 ?src=http://localhost:PORT/rules/
+
+/* ---------- 主题 ---------- */
+var root = document.documentElement;
+document.getElementById("themeToggle").addEventListener("click", function(){
+  var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  root.setAttribute("data-theme", next);
+  try{ localStorage.setItem("hv-theme", next); }catch(e){}
+});
+
+var toastEl = document.getElementById("toast"), toastTimer = null;
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 1600);
+}
+
+/* ---------- 剪贴板（含降级） ---------- */
+function copyText(text, okMsg){
+  function done(){ toast(okMsg || "已复制 ✓"); }
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done, function(){ legacy(); });
+  } else legacy();
+  function legacy(){
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.cssText = "position:fixed;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); done(); } catch(e) { toast("复制失败，请手动选择"); }
+    document.body.removeChild(ta);
+  }
+}
+
+/* ---------- 数据源 ---------- */
+var indexUrl = srcOverride || (RAW_DEFAULT + "index.json");
+var isLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+var candidates = srcOverride ? [srcOverride] : [indexUrl + "?t=" + Date.now()].concat(isLocal ? ["../rules/index.json?t=" + Date.now()] : []);
+var RAW = ""; // 由实际加载成功的 index URL 推导
+
+function fetchText(url){
+  return fetch(url, {cache:"no-store"}).then(function(r){
+    if (!r.ok) throw new Error("http-" + r.status);
+    return r.text();
+  });
+}
+function tryLoad(i){
+  if (i >= candidates.length) {
+    document.getElementById("content").innerHTML =
+      '<div class="load-err">规则包加载失败（网络原因或地址不可达）。<br>可稍后刷新重试，或直接访问 GitHub 的 rules/ 目录。</div>';
+    return;
+  }
+  fetchText(candidates[i]).then(function(text){
+    RAW = candidates[i].replace(/index\.json.*$/, "");
+    render(JSON.parse(text));
+  }).catch(function(){ tryLoad(i + 1); });
+}
+
+var INDEX = null;
+function render(index){
+  INDEX = index;
+  var domains = (index.domains || []).filter(function(d){ return typeof d === "string" && d; });
+  var stats = index.stats || {};
+  var totalRules = 0;
+  domains.forEach(function(d){ var s = stats[d]; if (s) totalRules += (s.clean || 0) + (s.hd || 0); });
+
+  document.getElementById("stDomains").textContent = domains.length;
+  document.getElementById("stRules").textContent = totalRules ? totalRules.toLocaleString() : "–";
+  document.getElementById("stVersion").textContent = index.version ? ("v" + index.version) : "–";
+  document.getElementById("stUpdated").textContent = index.updatedAt ? String(index.updatedAt).slice(0, 10) : "–";
+
+  var grid = document.createElement("div");
+  grid.className = "grid";
+  grid.id = "grid";
+  domains.forEach(function(d){
+    var s = stats[d] || {};
+    var btn = document.createElement("button");
+    btn.className = "card";
+    btn.setAttribute("data-d", d);
+    btn.setAttribute("data-needle", d.toLowerCase());
+    var chips = "";
+    if (s.hd) chips += '<span class="chip hd">升级 ' + s.hd + '</span>';
+    if (s.clean) chips += '<span class="chip clean">清理 ' + s.clean + '</span>';
+    if (!chips) chips = '<span class="chip none">详情待查看</span>';
+    btn.innerHTML = '<div class="d">' + esc(d) + '</div><div class="l">' + esc(d) + '</div><div class="c">' + chips + '</div>';
+    btn.addEventListener("click", function(){ openDetail(d); });
+    grid.appendChild(btn);
+  });
+  var box = document.getElementById("content");
+  box.innerHTML = "";
+  box.appendChild(grid);
+  filter();
+}
+
+function esc(s){
+  return String(s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+
+/* ---------- 搜索 ---------- */
+var searchIn = document.getElementById("searchIn");
+searchIn.addEventListener("input", filter);
+function filter(){
+  var q = searchIn.value.trim().toLowerCase();
+  var cards = document.querySelectorAll("#grid .card");
+  var n = 0;
+  cards.forEach(function(c){
+    var hit = !q || c.getAttribute("data-needle").indexOf(q) >= 0;
+    c.style.display = hit ? "" : "none";
+    if (hit) n++;
+  });
+  document.getElementById("matchCount").textContent = q ? ("匹配 " + n + " 个站点") : "";
+}
+
+/* ---------- 详情抽屉 ---------- */
+var detail = document.getElementById("detail");
+var curDomain = null, curJson = "";
+function domainUrl(d){ return RAW + encodeURIComponent(d) + ".json?t=" + Date.now(); }
+
+function openDetail(d){
+  curDomain = d;
+  document.getElementById("dTitle").textContent = d;
+  document.getElementById("dSub").textContent = "加载中…";
+  document.getElementById("dBody").innerHTML = '<div class="loading">正在拉取 ' + esc(d) + ' 的规则…</div>';
+  detail.classList.add("open");
+  fetchText(domainUrl(d)).then(function(text){
+    curJson = text;
+    var o = JSON.parse(text);
+    var rules = [].concat((o.clean || []).map(function(r){ return {phase:"clean", r:r}; }),
+                          (o.hd || []).map(function(r){ return {phase:"hd", r:r}; }));
+    document.getElementById("dSub").textContent =
+      "清理 " + (o.clean || []).length + " 条 · 升级 " + (o.hd || []).length + " 条" +
+      (o.adaptedFrom ? " · 改编自 " + o.adaptedFrom : "");
+    var body = document.getElementById("dBody");
+    if (o.note) body.innerHTML = '<div class="howto">📝 ' + esc(o.note) + '</div>';
+    else body.innerHTML = "";
+    body.insertAdjacentHTML("beforeend",
+      '<div class="howto">💡 <b>用到面板里：</b>打开脚本面板 → 「图片规则（换大图）」→ 展开「高级：手写正则规则」，把下面的 <b>pattern</b> / <b>flags</b> / <b>替换为</b> 逐项粘进去。点代码即可复制。</div>');
+    if (!rules.length) body.insertAdjacentHTML("beforeend", '<div class="empty">该站点暂无规则</div>');
+    rules.forEach(function(item){
+      body.insertAdjacentHTML("beforeend", renderRule(item.phase, item.r));
+    });
+    body.querySelectorAll("code[data-copy]").forEach(function(codeEl){
+      codeEl.addEventListener("click", function(){
+        copyText(codeEl.getAttribute("data-copy"));
+        codeEl.classList.add("copied");
+        setTimeout(function(){ codeEl.classList.remove("copied"); }, 900);
+      });
+    });
+  }).catch(function(e){
+    document.getElementById("dBody").innerHTML = '<div class="load-err">拉取失败：' + esc(e.message || e) + '</div>';
+    document.getElementById("dSub").textContent = "";
+  });
+}
+
+function renderRule(phase, r){
+  var html = '<div class="rule"><div class="rule-head">'
+    + '<span class="badge ' + phase + '">' + (phase === "clean" ? "清理地址" : "升级原图") + '</span>'
+    + '<span class="name">' + esc(r.name || "未命名") + '</span>'
+    + (r.loop ? '<span class="badge loop">循环</span>' : '')
+    + '<span class="id">' + esc(r.id || "") + '</span></div>';
+  (r.steps || []).forEach(function(st, i){
+    var pattern = st[0] || "", flags = st[1] || "", replace = st[2] || "";
+    html += '<div class="step"><div class="k"><span>步骤 ' + (i + 1) + '</span></div>'
+      + '<div class="k"><span>pattern' + (flags ? " · flags: " + esc(flags) : "") + '</span><span style="color:var(--faint)">点击代码复制</span></div>'
+      + '<code data-copy="' + esc(pattern) + '">' + esc(pattern) + '</code>'
+      + '<div class="k" style="margin-top:6px"><span>替换为（$1 $2 反向引用）</span></div>'
+      + '<code data-copy="' + esc(replace) + '">' + (replace ? esc(replace) : "（空）") + '</code>'
+      + '</div>';
+  });
+  return html + '</div>';
+}
+
+document.getElementById("dClose").addEventListener("click", function(){ detail.classList.remove("open"); });
+document.getElementById("detailMask").addEventListener("click", function(){ detail.classList.remove("open"); });
+document.addEventListener("keydown", function(e){ if (e.key === "Escape") detail.classList.remove("open"); });
+
+document.getElementById("dCopyAll").addEventListener("click", function(){
+  if (curJson) copyText(curJson, "整站规则 JSON 已复制 ✓");
+});
+document.getElementById("dCopyPanel").addEventListener("click", function(){
+  // 面板格式：phase:pattern|flags|replace 的纯文本清单，方便逐条对照粘贴
+  if (!curJson) return;
+  var o = JSON.parse(curJson), lines = [];
+  [].concat((o.clean || []).map(function(r){ return ["clean", r]; }),
+            (o.hd || []).map(function(r){ return ["hd", r]; }))
+  .forEach(function(p){
+    (p[1].steps || []).forEach(function(st, i){
+      lines.push("[" + (p[0] === "clean" ? "清理地址" : "升级原图") + "] " + (p[1].name || "") + " #" + (i + 1));
+      lines.push("  pattern: " + st[0]);
+      lines.push("  flags:   " + (st[1] || ""));
+      lines.push("  replace: " + (st[2] || ""));
+    });
+  });
+  copyText(lines.join("\n"), "面板格式步骤已复制 ✓");
+});
+
+/* ---------- 启动 ---------- */
+tryLoad(0);
+})();
+</script>
+</body>
+</html>
