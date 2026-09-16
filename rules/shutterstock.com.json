@@ -1,0 +1,21 @@
+{
+  "domain": "shutterstock.com",
+  "label": "shutterstock.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/shutterstock.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-shutterstock.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+\\.shutterstock\\.com/.+/)(?:stock-photo-)?([-\\w]+?)(?:\\d+\\w+)(-\\d+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$21000w$3"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

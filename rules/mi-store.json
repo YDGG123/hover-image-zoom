@@ -1,0 +1,33 @@
+{
+  "domain": "mi-store",
+  "label": "mi-store",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/mi-store.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-mi-store-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+\\.mi-store(?:\\.(?:com|[a-z]{2}))+/.+/products/)thumbs(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1images$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-mi-store-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//mi-store(?:\\.(?:com|[a-z]{2}))+/.+)_.+?((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

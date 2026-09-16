@@ -1,0 +1,69 @@
+{
+  "domain": "plurk.com",
+  "label": "plurk.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/plurk.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-plurk.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//images\\.plurk\\.com/)\\w{2}_(.+)((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2$3"
+        ]
+      ]
+    },
+    {
+      "id": "ps-plurk.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//images\\.plurk\\.com/)\\w{2}_(.+)((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2.png"
+        ]
+      ]
+    },
+    {
+      "id": "ps-plurk.com-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//imgs\\.plurk\\.com/.+_)\\w{2}((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1lg$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-plurk.com-4",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//imgs\\.plurk\\.com/.+_)\\w{2}((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1lg.png"
+        ]
+      ]
+    },
+    {
+      "id": "ps-plurk.com-5",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//avatars\\.plurk\\.com/.+-)(?:medium|small)(.+)(?:jpe?g|png|webp|gif|bmp|avif)",
+          "",
+          "$1big$2.jpg"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

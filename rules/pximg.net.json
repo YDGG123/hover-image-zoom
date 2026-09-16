@@ -1,23 +1,23 @@
 {
-  "domain": "pixiv.net",
-  "label": "pixiv.net",
-  "adaptedFrom": "PhotoShow 4.92.2 sites/pixiv.net.js",
-  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合",
+  "domain": "pximg.net",
+  "label": "pximg.net",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/pximg.net.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
   "hd": [
     {
-      "id": "ps-pixiv.net-1",
+      "id": "ps-pximg.net-1",
       "name": "原图还原",
       "loop": false,
       "steps": [
         [
-          "(//.+\\.pximg\\.net/user-profile/.+)_\\d+(\\.(?:jpe?g|png|webp|gif|bmp|avif))",
+          "(//.+\\.pximg\\.net/user-profile/.+)_\\d+((?:jpe?g|png|webp|gif|bmp|avif))",
           "",
           "$1$2"
         ]
       ]
     },
     {
-      "id": "ps-pixiv.net-2",
+      "id": "ps-pximg.net-2",
       "name": "原图还原",
       "loop": false,
       "steps": [
@@ -29,7 +29,7 @@
       ]
     },
     {
-      "id": "ps-pixiv.net-3",
+      "id": "ps-pximg.net-3",
       "name": "原图还原",
       "loop": false,
       "steps": [
@@ -41,7 +41,7 @@
       ]
     },
     {
-      "id": "ps-pixiv.net-4",
+      "id": "ps-pximg.net-4",
       "name": "原图还原",
       "loop": false,
       "steps": [
@@ -53,7 +53,7 @@
       ]
     },
     {
-      "id": "ps-pixiv.net-5",
+      "id": "ps-pximg.net-5",
       "name": "原图还原",
       "loop": false,
       "steps": [
@@ -65,7 +65,7 @@
       ]
     },
     {
-      "id": "ps-pixiv.net-6",
+      "id": "ps-pximg.net-6",
       "name": "原图还原",
       "loop": false,
       "steps": [

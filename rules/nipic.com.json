@@ -1,0 +1,45 @@
+{
+  "domain": "nipic.com",
+  "label": "nipic.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/nipic.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-nipic.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//pic\\d*\\.(?:nipic\\.com|n[tx]img\\.cn)/)(?:pic|file)(/.+)_\\d((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1file$2_2$3"
+        ]
+      ]
+    },
+    {
+      "id": "ps-nipic.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//pic\\w?\\d*\\.huitu\\.com/)(?:pic|img|res)(/.+?)_\\d(?:_\\w\\d+x\\d+)?((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1res$2_1$3"
+        ]
+      ]
+    },
+    {
+      "id": "ps-nipic.com-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//show\\.huitu\\.com/avatar/)(?:\\d+/)?(\\d+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

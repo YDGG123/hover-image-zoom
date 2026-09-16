@@ -1,0 +1,57 @@
+{
+  "domain": "smzdm.com",
+  "label": "smzdm.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/smzdm.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-smzdm.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//avatarimg\\.(?:smzdm|zdmimg)\\.com/.+-)\\w+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1big$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-smzdm.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.(?:smzdm|zdmimg)\\.com/images/user_logo/.+-)\\w+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1big$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-smzdm.com-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.(?:smzdm|zdmimg)\\.com/.+(?:jpe?g|png|webp|gif|bmp|avif))_\\w+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1"
+        ]
+      ]
+    },
+    {
+      "id": "ps-smzdm.com-4",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.(?:smzdm|zdmimg)\\.com/.+(?:jpe?g|png|webp|gif|bmp|avif))_\\w+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1_orig$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

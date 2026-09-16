@@ -1,0 +1,33 @@
+{
+  "domain": "pinterest",
+  "label": "pinterest",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/pinterest.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-pinterest-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//i\\.pinimg\\.com/)(?:originals|\\d+x(?:\\d+(?:_\\w+)?)?)(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1originals$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-pinterest-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//i\\.pinimg\\.com/)(?:originals|\\d+x(?:\\d+(?:_\\w+)?)?)(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1736x$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

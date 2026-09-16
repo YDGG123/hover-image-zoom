@@ -1,0 +1,45 @@
+{
+  "domain": "sekaimon.com",
+  "label": "sekaimon.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/sekaimon.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-sekaimon.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//i\\.ebayimg\\.com/.+/s-l)\\d+(?:/p)?((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$12000$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-sekaimon.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//thumbs\\d+\\.ebaystatic\\.com/.+/l)\\d+(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$12000$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-sekaimon.com-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//i\\.ebayimg\\.com/.+/\\$_)\\d+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$110$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

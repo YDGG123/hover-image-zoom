@@ -1,0 +1,45 @@
+{
+  "domain": "pornhub.com",
+  "label": "pornhub.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/pornhub.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-pornhub.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+\\.ph(?:n|pr)cdn\\.com/images/categories/)\\d+x\\d+/(.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-pornhub.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+\\.ph(?:n|pr)cdn\\.com/.+?)\\(.+\\)(\\d+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-pornhub.com-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(.+\\.nsimg\\.net/biopic/)\\d+x\\d+(/\\d+)",
+          "",
+          "$1320x240$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

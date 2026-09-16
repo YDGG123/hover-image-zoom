@@ -1,0 +1,33 @@
+{
+  "domain": "momoshop.com.tw",
+  "label": "momoshop.com.tw",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/momoshop.com.tw.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-momoshop.com.tw-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.momoshop\\.com\\.tw/(?:\\d+/)?goodsimg/.+?_O)\\w+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-momoshop.com.tw-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.momoshop\\.com\\.tw/(?:\\d+/)?goodsimg/.+?_)\\w+?(\\d*(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1B$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

@@ -1,0 +1,45 @@
+{
+  "domain": "nohat.cc",
+  "label": "nohat.cc",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/nohat.cc.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-nohat.cc-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.nohat\\.me/\\w+?)_\\d{2,}(?:jpe?g|png|webp|gif|bmp|avif)",
+          "",
+          "$1.png"
+        ]
+      ]
+    },
+    {
+      "id": "ps-nohat.cc-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.nohat\\.cc/thumb/\\w+/)\\d+(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$11020$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-nohat.cc-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.nohat\\.cc/imgs/\\w+/)\\d+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$10$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

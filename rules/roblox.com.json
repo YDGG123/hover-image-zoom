@@ -1,0 +1,33 @@
+{
+  "domain": "roblox.com",
+  "label": "roblox.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/roblox.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-roblox.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.rbxcdn\\.com/.+/)(?:384/216|576/324)(/.+)",
+          "",
+          "$1768/432$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-roblox.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.rbxcdn\\.com/.+/)(\\d+)/\\2(/.+)",
+          "",
+          "$11024/1024$3"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

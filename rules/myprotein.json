@@ -1,0 +1,45 @@
+{
+  "domain": "myprotein",
+  "label": "myprotein",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/myprotein.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-myprotein-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+\\.thg?cdn\\.(?:com|cn)/).+(/[-\\d]+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1productimg/original$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-myprotein-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+\\.thg?cdn\\.(?:com|cn)/images/)(?:x?small|medium|large)(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1large$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-myprotein-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//uploads-cdn\\.thg?blogs\\.(?:com|cn)/.+?)(?:-150x150)?((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}
