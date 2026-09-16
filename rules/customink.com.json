@@ -1,0 +1,33 @@
+{
+  "domain": "customink.com",
+  "label": "customink.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/customink.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-customink.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.customink\\.com/.+?)_(?:large|medium|small)(?:_\\w+)?((?:jpe?g|png|webp|gif|bmp|avif)).*",
+          "",
+          "$1$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-customink.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.customink\\.com/.+?)_(?:large|medium|small)(?:_\\w+)?((?:jpe?g|png|webp|gif|bmp|avif)).*",
+          "",
+          "$1_large$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

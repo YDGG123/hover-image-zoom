@@ -1,0 +1,57 @@
+{
+  "domain": "douyin.com",
+  "label": "douyin.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/douyin.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-douyin.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.*\\.douyinpic\\.com/)(?:aweme/\\d+x\\d+/)?(aweme-avatar/[^.?]+)((?:jpe?g|png|webp|gif|bmp|avif))?.*",
+          "",
+          "$1$2~noop$3"
+        ]
+      ]
+    },
+    {
+      "id": "ps-douyin.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.*\\.douyinpic\\.com/)(?:aweme/\\d+x\\d+/)?(aweme-avatar/[^.?]+)((?:jpe?g|png|webp|gif|bmp|avif))?.*",
+          "",
+          "$1$2~noop.image"
+        ]
+      ]
+    },
+    {
+      "id": "ps-douyin.com-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.*\\.douyinpic\\.com/)(?:aweme/\\d+x\\d+/)?(aweme-avatar/[^.?]+)((?:jpe?g|png|webp|gif|bmp|avif))?.*",
+          "",
+          "$&"
+        ]
+      ]
+    },
+    {
+      "id": "ps-douyin.com-4",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.*\\.(?:douyinpic|ecombdimg)\\.com/.+?~).+((?:jpe?g|png|webp|gif|bmp|avif)).*",
+          "",
+          "$1noop$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

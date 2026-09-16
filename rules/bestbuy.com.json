@@ -1,0 +1,57 @@
+{
+  "domain": "bestbuy.com",
+  "label": "bestbuy.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/bestbuy.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-bestbuy.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//pisces\\.bbystatic\\.com/)prescaled/\\d+/\\d+/(.+(?:jpe?g|png|webp|gif|bmp|avif)).*",
+          "",
+          "$1$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-bestbuy.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//(?:pisces\\.bbystatic\\.com|merchandising-assets\\.bestbuy\\.ca)/.+(?:jpe?g|png|webp|gif|bmp|avif)).*",
+          "",
+          "$1"
+        ]
+      ]
+    },
+    {
+      "id": "ps-bestbuy.com-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//multimedia\\.bbycastatic\\.ca/.+?/)\\d+x\\d+(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$11500x1500$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-bestbuy.com-4",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//multimedia\\.bbycastatic\\.ca/.+?/)\\d+x\\d+(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1500x500$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

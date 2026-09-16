@@ -1,0 +1,57 @@
+{
+  "domain": "baidu.com",
+  "label": "baidu.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/baidu.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-baidu.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//(?:.+\\.)?(?:bdstatic|himg\\.(?:baidu|bdimg))\\.com/.+)/portrait/(.+)",
+          "",
+          "$1/portraith/$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-baidu.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "store\\.is\\.autonavi\\.com/showpic/.+",
+          "",
+          "$&"
+        ]
+      ]
+    },
+    {
+      "id": "ps-baidu.com-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.(?:baidu|bdstatic)\\.com/it/.+?&fm=\\d+).*",
+          "",
+          "$1"
+        ]
+      ]
+    },
+    {
+      "id": "ps-baidu.com-4",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(.+(?:jpe?g|png|webp|gif|bmp|avif))@(?:\\w_\\w+,?)+.*",
+          "",
+          "$1"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

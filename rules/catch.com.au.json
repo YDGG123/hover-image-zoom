@@ -1,0 +1,33 @@
+{
+  "domain": "catch.com.au",
+  "label": "catch.com.au",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/catch.com.au.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-catch.com.au-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//s\\.catch\\.com\\.au/.+)_[^/]+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-catch.com.au-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(/magazine/.+?)(?:-\\d+x\\d+)?((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

@@ -1,0 +1,117 @@
+{
+  "domain": "aucfan.com",
+  "label": "aucfan.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/aucfan.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-aucfan.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.*\\.(?:ssl-images|media)-amazon\\.(?:com|[a-z]{2})/images/.*?([-\\w]+))\\..+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$3"
+        ]
+      ]
+    },
+    {
+      "id": "ps-aucfan.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//i\\.ebayimg\\.com/.+/s-l)\\d+(?:/p)?((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$12000$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-aucfan.com-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//thumbs\\d+\\.ebaystatic\\.com/.+/l)\\d+(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$12000$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-aucfan.com-4",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//i\\.ebayimg\\.com/.+/\\$_)\\d+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$110$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-aucfan.com-5",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.mbokimg\\.mbok\\.jp/\\d+/)\\d+(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$17$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-aucfan.com-6",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(.+?\\.mercdn\\.net/)thumb/item/.+(/.+(?:jpe?g|png|webp|gif|bmp|avif)).*",
+          "",
+          "$1item/detail/orig/photos$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-aucfan.com-7",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(.+?\\.mercari-shops-static\\.com/.+/)(?:small|medium|large)(/.+(?:jpe?g|png|webp|gif|bmp|avif)).*",
+          "",
+          "$1xlarge$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-aucfan.com-8",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.c\\.yimg\\.jp/i/)\\w(/.+)",
+          "",
+          "$1f$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-aucfan.com-9",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.wear2\\.jp/.+)_\\d+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

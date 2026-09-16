@@ -1,0 +1,21 @@
+{
+  "domain": "4chan.org",
+  "label": "4chan.org",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/4chan.org.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-4chan.org-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//i\\.4cdn\\.org/.+)[a-z]((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

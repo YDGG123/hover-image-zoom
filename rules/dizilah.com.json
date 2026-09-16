@@ -1,0 +1,33 @@
+{
+  "domain": "dizilah.com",
+  "label": "dizilah.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/dizilah.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-dizilah.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//img\\.dizi\\.la/.+?/)responsive-images(/.+?)_{3}.+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1conversions$2-medium$3"
+        ]
+      ]
+    },
+    {
+      "id": "ps-dizilah.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//img\\.dizi\\.la/.+)-thumb((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1-medium$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

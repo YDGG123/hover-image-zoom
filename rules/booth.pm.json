@@ -1,0 +1,81 @@
+{
+  "domain": "booth.pm",
+  "label": "booth.pm",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/booth.pm.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-booth.pm-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+\\.pximg\\.net/user-profile/.+)_\\d+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-booth.pm-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+\\.pximg\\.net/.+/.+_thumb/.+)_\\w+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-booth.pm-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+\\.pximg\\.net)(?=/).+(/uploads/.+/)(?:.+_)?(\\d+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2$3"
+        ]
+      ]
+    },
+    {
+      "id": "ps-booth.pm-4",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+\\.pixiv\\.net/images/post/\\d+)/w/\\d+(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-booth.pm-5",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+\\.pximg\\.net/)\\w+/\\d+x\\d+[^/]*/(.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-booth.pm-6",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+\\.pximg\\.net)/c!?/[^/]+(/.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

@@ -1,0 +1,21 @@
+{
+  "domain": "bandcamp.com",
+  "label": "bandcamp.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/bandcamp.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-bandcamp.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(f\\d+\\.bcbits\\.com/img/.+_)\\d+((?:jpe?g|png|webp|gif|bmp|avif))?",
+          "",
+          "$10$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

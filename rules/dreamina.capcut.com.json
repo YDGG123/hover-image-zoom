@@ -1,0 +1,21 @@
+{
+  "domain": "dreamina.capcut.com",
+  "label": "dreamina.capcut.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/dreamina.capcut.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-dreamina.capcut.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.i?byte(?:acct)?img\\.com/img/user-avatar/.+~).+((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1noop$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

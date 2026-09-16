@@ -1,0 +1,81 @@
+{
+  "domain": "aliexpress",
+  "label": "aliexpress",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/aliexpress.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-aliexpress-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//gqrcode\\.alicdn\\.com/img\\?.*?)&w=\\d+(.*?)&h=\\d+(.*)",
+          "",
+          "$1&w=300$2&h=300$3"
+        ]
+      ]
+    },
+    {
+      "id": "ps-aliexpress-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.com/avatar/get_?Avatar\\.do\\?user(?:Id(?:Str)?|Nick)=[^&]+).*",
+          "",
+          "$1&width=1280&height=1280"
+        ]
+      ]
+    },
+    {
+      "id": "ps-aliexpress-3",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.com/.+?)\\.(?:\\d+x\\d+[a-z]*|search|summ)((?:jpe?g|png|webp|gif|bmp|avif)).*",
+          "",
+          "$1$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-aliexpress-4",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.alicdn\\.com/.+?\\.heic_).+?((?:jpe?g|png|webp|gif|bmp|avif)).*",
+          "",
+          "$1Q100$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-aliexpress-5",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.ali(?:cdn|express-media)\\.com/.+?(?:jpe?g|png|webp|gif|bmp|avif))(?:_\\w*((?:jpe?g|png|webp|gif|bmp|avif)))?.*",
+          "",
+          "$1"
+        ]
+      ]
+    },
+    {
+      "id": "ps-aliexpress-6",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//.+?\\.ali(?:cdn|express-media)\\.com/.+?(?:jpe?g|png|webp|gif|bmp|avif))(?:_\\w*((?:jpe?g|png|webp|gif|bmp|avif)))?.*",
+          "",
+          "$1_1200x1200$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

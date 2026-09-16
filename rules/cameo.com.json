@@ -1,0 +1,33 @@
+{
+  "domain": "cameo.com",
+  "label": "cameo.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/cameo.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-cameo.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "https?://.*?/(https?://cdn\\.cameo\\.com/v/)(thumb-.*(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1no-wm-$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-cameo.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "https?://.*?/(https?://cdn\\.cameo\\.com/thumbnails/.*?)(?:-wm)+(.+(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1-wm$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

@@ -1,0 +1,33 @@
+{
+  "domain": "9gag.com",
+  "label": "9gag.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/9gag.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-9gag.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//img-9gag-fun\\.9cache\\.com/photo/\\w+_)\\d+\\w*((?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1700b$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-9gag.com-2",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "(//accounts-cdn\\.9gag\\.com/media/avatar/\\d+_)\\d+(.*(?:jpe?g|png|webp|gif|bmp|avif))",
+          "",
+          "$1800$2"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}

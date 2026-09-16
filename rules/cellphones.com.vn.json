@@ -1,0 +1,21 @@
+{
+  "domain": "cellphones.com.vn",
+  "label": "cellphones.com.vn",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/cellphones.com.vn.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-cellphones.com.vn-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "//.+?\\.cellphones\\.com\\.vn/.+?https?://(.+)",
+          "",
+          "//$1"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}
