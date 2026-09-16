@@ -1,0 +1,21 @@
+{
+  "domain": "123rf.com",
+  "label": "123rf.com",
+  "adaptedFrom": "PhotoShow 4.92.2 sites/123rf.com.js",
+  "note": "改编自 PhotoShow 的 srcRegExp/processor（仅取字符串型 processor；函数型未采用）；@IMG@ 已展开为标准扩展名集合；未逐站实测",
+  "hd": [
+    {
+      "id": "ps-123rf.com-1",
+      "name": "原图还原",
+      "loop": false,
+      "steps": [
+        [
+          "//.+\\.123rf\\.com/\\d+\\w+/(.+(?:jpe?g|png|webp|gif|bmp|avif).*)",
+          "",
+          "//previews.123rf.com/images/$1"
+        ]
+      ]
+    }
+  ],
+  "clean": []
+}
