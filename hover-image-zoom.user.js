@@ -30,11 +30,8 @@
 (function() {
     'use strict';
 
-    // ★ 幂等守卫：同一文档只允许初始化一次。
-    // 实测（Violentmonkey + @run-at document-end）脚本会偶发地在**同一文档内执行两次**
-    // （example.com/example.net 可复现、example.org 不复现），导致 mainInit 跑两遍：
-    // 两个 dock、两套 hover 流、两份仲裁实例互相抢锁 → 预览时有时无 / 闪烁。
-    // 用 documentElement 上的标记做守卫：两次执行共享同一 DOM，能稳定拦住。
+    // 幂等守卫：同一文档只初始化一次，避免脚本重复执行导致两个 dock、两套 hover 流互相抢锁。
+    // 两次执行共享同一 DOM，用 documentElement 上的标记做守卫。
     if (document.documentElement.getAttribute('data-hv-inited') === '1') return;
     document.documentElement.setAttribute('data-hv-inited', '1');
 
@@ -49,9 +46,7 @@ const SCRIPT_VERSION = (function () {
 // 调试模式（URL 带 ?hvdebug=1）：把智能升级器的诊断信息显示在信息浮层里，便于端到端排查
 const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.search); } catch (e) { return false; } })();
 
-    // ================
     // 存储读写封装
-    // ================
     const storage = {
         get(key, defaultValue) {
             return GM_getValue(key, defaultValue);
@@ -64,9 +59,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     const storageGet = (key, defaultValue) => storage.get(key, defaultValue);
     const storageSet = (key, value) => storage.set(key, value);
 
-    // ================
     // 历史记录（最近悬停看过的图片；只存本机 GM 存储，不上传）
-    // ================
     const HISTORY_KEY = 'hvHistoryV1';
     const HISTORY_MAX = 60;
     function getHistory() {
@@ -154,17 +147,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         return p === '/' || p === '/index.html' || p === '/index.php' || p === '';
     }
 
-    // ================
-    // 跨 frame 仲裁（v5.8.0：iframe 支持）
-    // ================
-    // 去掉 @noframes 后，同一页面顶层 + 各 iframe 都会跑一份脚本。
-    // 预览是居中显示（不跟随鼠标坐标），所以各 frame 各自显示天然不冲突；
-    // 唯一要防的是「两个 frame 同时 ACTIVE → 两个预览叠着出现」。
-    // 方案：GM storage 广播活跃心跳（跨域 iframe 也有效），启动预览前先看有没有别人 ACTIVE。
-    //   - ACTIVE 期间每 500ms 续约，1.5s 无心跳视为退出（防 frame 崩溃/被杀后锁死）
-    //   - 准入检查通过后仍要「声明 → 复核 → 确认」两阶段提交：两帧同时通过检查时，
-    //     由确定性选举（声明时刻最早者胜，平局看 frameId）选出唯一赢家，输者回退并进入静默期
-    //   - 非顶层 frame 的 dock 按钮不创建（UI 入口只留顶层，避免 iframe 里也浮一个控制球）
+    // 跨 frame 仲裁：每个 frame 各跑一份脚本，用 GM storage 心跳（ACTIVE 期间续约、超时视为退出）
+    // 选举出唯一活跃预览，避免多个预览叠加；非顶层 frame 不创建 dock 按钮。
     const IS_TOP = (function () {
         try { return window.top === window.self; } catch (e) { return false; }  // 跨域访问 window.top 会抛
     })();
@@ -177,10 +161,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     const ARBITER_SETTLE = 140;
     // 输掉仲裁后的静默期：期间不再发起新预览，避免两帧反复互抢（乒乓）
     const ARBITER_COOLDOWN = 800;
-    // ★ 空闲上限：本 frame 多久没收到 mousemove 就放弃仲裁锁。
-    // 光标同一时刻只可能落在一个 frame 里，所以"本 frame 长时间没有鼠标事件"＝光标已不在这里。
-    // 没有这道闸，一个卡住的 frame（最典型：光标移出 iframe 后 iframe 收不到事件、
-    // 预览永不收起）会无限续约，把全局其他标签页/frame 全部锁死。
+    // 空闲上限：本 frame 多久没收到 mousemove 就放弃仲裁锁，防卡住的 frame 无限续约锁死全局。
     const ARBITER_IDLE = 5000;
     // frameId 必须高熵：两帧若碰撞成同一个 key，心跳会互相覆盖，仲裁直接失效。
     // （原实现只有毫秒时间戳 + 5 位 base36 随机，同毫秒创建的兄弟 frame 存在碰撞面）
@@ -198,10 +179,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     let arbiterLastMoveAt = 0;
     window.addEventListener('mousemove', () => { arbiterLastMoveAt = Date.now(); }, { capture: true, passive: true });
 
-    // ★ 图集翻页保持：翻页后显示的是「不在光标下」的另一张图，
-    // 而心跳会校验「光标必须落在当前图内」，否则会立刻取消预览。
-    // 这里在翻页时记下光标位置，保持期内让心跳跳过几何校验；
-    // 光标一旦移动超过阈值（用户真的要去看别处）立即解除，恢复正常裁决。
+    // 图集翻页保持：翻页后显示的是光标外的另一张图，保持期内让心跳跳过几何校验，光标移动超阈值即恢复。
     let galleryHoldAt = null;
     window.addEventListener('mousemove', (e) => {
         if (!galleryHoldAt) return;
@@ -248,9 +226,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         arbiterTouch(true);
         if (arbiterTimer) clearInterval(arbiterTimer);
         arbiterTimer = setInterval(() => {
-            // ★ 后台页必须停止续约。心跳在 document.hidden 时会暂停（预览一直不被收起），
-            // 若续约照跑，这个 frame 就会永远占着仲裁锁，导致**其他标签页 / 其他 frame
-            // 全部无法触发预览**。实测：一个后台标签页带着活跃预览 → 全站失效。
+            // 后台页必须停止续约：document.hidden 时心跳暂停，若续约照跑该 frame 会永远占着仲裁锁，
+            // 导致其他标签页/frame 无法触发预览。
             try {
                 if (document.hidden) { arbiterStopRenew(); return; }
                 // 光标已不在本 frame（长时间无鼠标事件）→ 让出仲裁锁，避免永久占用拖垮全局
@@ -280,13 +257,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         } catch (e) { }
     });
 
-    // 确定性选举：声明时刻 c 最早者胜；c 相同时按 frameId 字典序打破平局。
-    // 各帧各自计算结果一致，因此不会出现「两边都以为自己是赢家」。
-    //
-    // ★ 关键：只有【明确看到别的帧更早的声明】才算输。
-    // 自己条目读不到 ≠ 输 —— 多 frame 并发读写 GM 存储存在延迟（尤其 Violentmonkey 下
-    // 同一页面有 iframe 时），条目会短暂读不到。若据此判负就会「收起 → 重新悬停 → 再判负」死循环，
-    // 表现为预览反复闪烁、且旧容器来不及移除（一次悬停出现 2 个容器）。
+    // 确定性选举：声明时刻最早者胜（平局按 frameId）。只有明确看到别人更早的声明才算输 ——
+    // 自己条目读不到不算输（多 frame 并发读写 GM 存储有延迟）。
     function arbiterElectionLost() {
         try {
             const map = readActiveMap();
@@ -379,10 +351,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     let urlPickMode = false;
 
 
-    // ★ 统一提示组件（重做样式）
-    //   旧版是「黑底白字 + ✅」，在浅色页面上突兀且层级不清。
-    //   新版：白底（暗色环境自动切深底）+ 品牌蓝圆形图标 + 细边框 + 柔和投影，
-    //   进入用「淡入 + 轻微放大 + 上移」，三个入口共用同一套视觉，只换定位。
+    // 统一提示组件：白底 + 品牌蓝圆形图标 + 细边框 + 柔和投影（暗色自动切深底），三个入口共用同一套视觉。
     function hvToast(message, opt) {
         opt = opt || {};
         const variant = opt.variant || 'mid';       // mid=屏幕中央 / center=面板中央 / bottom=底部
@@ -424,15 +393,9 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     }
 
 
-    // ================
     // 1. 配置模块
-    // ================
 
-    // ================
-    // 1. 配置
-    // ================
-    // 键位表默认值：动作名 → 按键列表。按键用 event.key 归一化后的形式（单字符小写）。
-    // 后续新增动作（保存/复制/翻页/旋转/全屏）只需在这里加一项 + 在键位系统里注册实现。
+    // 键位表默认值：动作名 → 按键列表（event.key 归一化后的小写形式）。新增动作在此加一项并注册实现。
     const KEYMAP_DEFAULTS = Object.freeze({
         close: ['Escape'],
         zoomIn: ['+', '='],
@@ -489,10 +452,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         return out;
     }
 
-    // ★ 键位表是「全局」配置：按键是肌肉记忆，不应该随网站变化。
-    //   它独立于按站点存储的 config（image_zoom_config_<域名>），只用这一个全局键。
-    //   迁移：旧版本把 keymap 写在各站 config 里 —— 首次加载时把当前站的值搬到全局键，
-    //   之后一律以全局键为准（站点 config 里的 keymap 仅作导出兼容镜像，不参与读取）。
+    // 键位表是全局配置（按键是肌肉记忆，不随网站变化），只用 image_zoom_keymap_global 一个键。
     const KEYMAP_GLOBAL_KEY = 'image_zoom_keymap_global';
     function loadGlobalKeymap() {
         try {
@@ -505,10 +465,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         try { storageSet(KEYMAP_GLOBAL_KEY, normalizeKeymap(km)); } catch (e) { }
     }
 
-    // 用户自定义的「图片地址变换规则」：归一化 + 合法性校验（正则必须能编译）
-    // 结构：{ id, label, phase:'hd'|'clean', pattern, flags, replace, enabled, scope:'site'|'global', domain }
-    // ★ scope='site' 时只在 domain 匹配的站点生效（面板里叫「仅本站」）；'global' 则所有站点生效。
-    // ★ 迁移兼容：旧数据没有 domain 字段 → 视为 global（保持原全局行为），避免升级后已有规则静默失效。
+    // 用户自定义「图片地址变换规则」：{ id, label, phase:'hd'|'clean', pattern, flags, replace, enabled, scope, domain }
+    // scope='site' 只在本站生效，'global' 全站生效；旧数据无 domain 字段视为 global。
     function normalizeUserUrlRules(raw) {
         const out = [];
         if (!Array.isArray(raw)) return out;
@@ -627,11 +585,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     }
 
 
-    // ================
-    // 配置备份 / 恢复（导出 · 导入）
-    // ================
-    // 备份文件格式：{ app, format, scriptVersion, exportedAt, keys: { <存储键>: <值> } }
-    // 只搬运本脚本自己的键：以 image_zoom_ 开头（含各站点独立配置），外加 B 站音量开关。
+    // 配置备份 / 恢复：文件格式 { app, format, scriptVersion, exportedAt, keys: { 键: 值 } }，
+    // 只搬运 image_zoom_ 开头的键（含各站配置）+ B 站音量开关。
     const BACKUP_FORMAT_VERSION = 1;
     const BACKUP_KEY_PREFIX = 'image_zoom_';
     const BACKUP_EXTRA_KEYS = ['bilibili_volume_enabled'];
@@ -733,10 +688,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     }
 
 
-    // ================
-    // 2. ★★★ 触发资格判定（轮播 BUG 的根治点）★★★
-    // ================
-    // 此刻是否样式可见：fade 型轮播的 opacity:0 待播帧在这里被拒
+    // 2. 触发资格判定：此刻是否样式可见（fade 型轮播的 opacity:0 待播帧在此被拒）。
     function isImgVisibleNow(img) {
         if (!img || !img.isConnected) return false;
         try {
@@ -775,19 +727,11 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         return !!r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
     }
 
-    // =================================================================
-    // ★ 覆盖物性质判定（只服务触发资格，不碰状态机）
-    // isMenuOverlay = 网站自己弹出的菜单/浮层 → 拦截
-    // isBlankCover  = 无内容无样式的空白占位层 → 拦截
-    // 半透明哑遮罩（淘宝类盖图场景）→ 明确放行，不误杀
-    // canPierceBlocker = 装饰性空覆盖层（无文字、无媒体/交互子元素，且不在"覆盖式"语义浮层内）
-    //                    → 允许穿透继续找下层图片，避免"图片被一层空 div 盖住就无法放大"
-    // =================================================================
+    // 覆盖物性质判定（只服务触发资格）：
+    //   isMenuOverlay = 网站菜单/浮层 → 拦截；isBlankCover = 空白占位层 → 拦截；半透明哑遮罩 → 放行；
+    //   canPierceBlocker = 装饰性空覆盖层 → 允许穿透继续找下层图片。
 
-    // =============================
-    // 🟡 COMPATIBILITY ZONE
-    // 网站浮层/菜单兼容规则，谨慎修改
-    // =============================
+    // 🟡 兼容区：网站浮层/菜单兼容规则，改动需重点测试站点。
     function isMenuOverlay(el) {
         if (!el || el === document.body || el === document.documentElement) return false;
 
@@ -878,10 +822,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         return isMenuOverlay(el) || isBlankCover(el);
     }
 
-    // ★ 装饰性空覆盖层：无文字、无媒体/交互子元素。
-    // 典型：盖在图片上的点击层 / 渐变浮层 / 空占位 div。
-    // 例：Unsplash Discover 卡片 <figure><a><img></a><div class="overlay ..."></div></figure>
-    // —— overlay 是 <a> 的兄弟节点，盖在图片上，会被判定为 blocker 而挡住放大。
+    // 装饰性空覆盖层判定：无文字、无媒体/交互子元素（典型：盖在图片上的点击层 / 渐变浮层 / 空占位 div）。
     function isDecorativeCover(el) {
         if (!el || !el.querySelector) return false;
         try {
@@ -965,48 +906,27 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         // 而 src 可能是个从未被加载、甚至根本不是图片的兜底地址（用 src 会误判为无效图）。
         const src = img.currentSrc || img.src;
         if (!src || src.trim() === '') return false;
-        // ★ data: URI：允许真实内联图片（data:image/*，含 SVG），仅拦截非图片 data: 与 1×1 占位/跟踪像素。
-        //   旧版一刀切 `src.startsWith('data:')` 排除所有内联图，导致 data:image/svg+xml 等
-        //   真实内联图永远不触发预览（2026-09-19 全功能实机测试问题 1）。
+        // data: URI：允许真实内联图片（data:image/*，含 SVG），仅拦截非图片 data: 与 1×1 占位/跟踪像素。
         if (src.startsWith('data:')) {
             if (!/^data:image\//i.test(src)) return false;                                     // 非图片 data: 一律拦截
             if (img.complete && img.naturalWidth <= 1 && img.naturalHeight <= 1) return false; // 1×1 占位/跟踪像素
         } else if (src.includes('placeholder')) {
             return false;
         }
-        // ★ 文件型 1×1 占位/跟踪像素（2026-09-20 全覆盖实测 GAP-1）：
-        //   原判据只写在 data: 分支，于是 `<img src="p1x1.png" width="280" height="200">`
-        //   这类「1×1 被 CSS 撑大」的图能通过准入 → 预览弹出一个被拉伸到整屏的空白/纯色块，
-        //   而且与 404 不同、它不会自动关闭（源图 complete 且 natural=1×1，走不到 ERROR）。
-        //   这里把判据提升为通用分支：真实像素 ≤1×1 一律拦截。
-        //   ⚠ 必须 naturalWidth > 0 —— naturalWidth===0 是「未加载/加载失败」，
-        //   仍要留给后面的 GM 抓取救回逻辑，不能在此误拦（防盗链场景）。
+        // 真实像素 ≤1×1 一律拦截（1×1 占位/跟踪像素被 CSS 撑大会渲染成空白/纯色块）。
+        // ⚠ 必须 naturalWidth > 0：naturalWidth===0 是未加载/失败，要留给后面的 GM 抓取救回逻辑。
         if (img.complete && img.naturalWidth > 0 && img.naturalWidth <= 1 && img.naturalHeight <= 1) return false;
-        // 现代图片站可能给真实 <img> 设置 background-image 作为模糊/占位底图。
-        // 只要 <img> 自身有真实 src、已加载且尺寸有效，就仍视为有效图片。
-        // ★ 不再因「页面缩略图自身加载失败（防盗链 403 / 死链 / 仍在加载）」就判为无效图：
-        //   这类图的 naturalWidth 为 0，但脚本会用 GM 身份重新抓取尝试救回（onerror 兜底）。
-        //   真正无法预览的情况（无 src / data: / 占位图 / 不可见 / 尺寸过小）已在前面拦截。
+        // 真实 <img> 带 background-image 作模糊/占位底图时，只要自身有真实 src、已加载且尺寸有效仍视为有效图片。
+        // 缩略图自身加载失败（防盗链/死链/加载中）不在此拦截，交给 onerror 的 GM 抓取救回。
         if (/^(?:javascript:|#)/i.test(src)) return false;
         const rect = img.getBoundingClientRect();
         return !(rect.width < 10 || rect.height < 10);
     }
 
 
-    // 2. ★★★ 触发资格判定
-    // ================
     // 3. 图片处理工具
-    // ================
-    // ================
-    // URL 变换规则表（表驱动）
-    // ================
-    // 5.8.0 起把原先散在 upgradeImgUrl / cleanBgUrl / 高清升级内联链里的正则收编到此。
-    // 目的：规则与执行分离，后续「阶段 2 规则包生态」可直接把这张表换成远程下发的 JSON。
-    //
-    // 规则格式：{ id, name, match, loop, steps: [[正则, 替换串], ...] }
-    //   match  —— 命中条件；null 表示兜底（总是命中）
-    //   loop   —— 为真时反复执行整组 steps，直到结果不再变化（处理多重叠加后缀）
-    //   steps  —— 按序执行的 [正则, 替换]；正则自带 /g 时即全局替换
+    // URL 变换规则表（表驱动）：{ id, name, match, loop, steps: [[正则, 替换串], ...] }
+    //   match —— 命中条件（null 表示兜底）；loop —— 反复执行整组直到不再变化；steps —— 按序执行。
     const URL_RULES = [
         {
             id: 'alicdn',
@@ -1055,10 +975,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             steps: [[/\/remote\/thumb\/\d+x\d+\//, '/']]
         },
         {
-            // ★ 京东：请求与预览框上限一致的 CDN 高质量缩放档（s1200x1200，无水印）。
-            //   s9999x9999 实测与 s1200 在同尺寸显示下锐度无差（拉普拉斯方差 9.02 vs 8.82），
-            //   但 9999 图体积 20 倍、下载慢 → 两阶段显示的「源图拉伸糊窗」持续数秒（用户感知的模糊）。
-            //   CDN 不放大超原图：小图请求 s1200 仍返回原尺寸。
+            // 京东：请求与预览框上限一致的 CDN 缩放档（s1200x1200，无水印）；CDN 不会放大超原图。
             id: 'jd-s9999',
             name: '京东原图 s1200',
             match: /360buyimg\.com/,
@@ -1067,10 +984,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         }
     ];
 
-    // 执行单条规则（含 loop 收敛）
-    // ★ 最近一次「规则真的改写了地址」的记录。
-    //   用途：回答"规则在当前网站到底生效了吗"——面板会展示它。
-    //   只在真实解析图片地址时记录；面板里的测试框不带 record，不会污染这里。
+    // 执行单条规则（含 loop 收敛）。lastRewrite 记录最近一次「规则真的改写了地址」，供面板展示是否生效。
     let lastRuleHit = null;
 
     function applyUrlRule(url, rule, record) {
@@ -1116,12 +1030,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         return applyUrlPipeline(url, activeHdRules, true);   // record=true：真实解析才记「最近命中」
     }
 
-    // ============================================================
-    // 防盗链绕过（浮图秀没有的能力）
-    //   有些图床校验 Referer，页面上能显示的缩略图换了大图直连就 403/404。
-    //   策略：直连失败时，用 GM_xmlhttpRequest 以「脚本身份」抓取（不受页面 Referer 限制），
-    //        转成 blob URL 再交给 <img> 显示。带 LRU 缓存与静默回退（失败就保持源图，不影响主流程）。
-    // ============================================================
+    // 防盗链绕过：直连失败时用 GM_xmlhttpRequest 以脚本身份抓取（不受页面 Referer 限制），
+    // 转 blob URL 交给 <img> 显示；带 LRU 缓存与静默回退（失败保持源图）。
     const BLOB_URL_CACHE = new Map();      // 原始 URL → blob URL
     const BLOB_CACHE_MAX = 24;
 
@@ -1162,12 +1072,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         });
     }
 
-    // ============================================================
-    // 智能高清升级器 v1（浮图秀没有的能力）
-    //   单次「正则变换」只能赌一个地址；这里改为：生成多个候选 → 并行探测真实像素 →
-    //   选「够用且最小」的那张（≥ 预览所需像素里最小的），都够不上就用最大的。
-    //   好处：既不会因规则猜错而拿到小图，也不会为了清晰去抓一张巨图（省流量、加载快）。
-    // ============================================================
+    // 智能高清升级器：生成多个候选 → 并行探测真实像素 → 选「够用且最小」的那张（都够不上用最大）。
     const HD_MAX_CANDIDATES = 4;
 
     function sizeHintOf(url) {
@@ -1260,17 +1165,9 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         return applyFirstMatchedRule(u, activeCleanRules);
     }
 
-    // ============================================================
-    // 规则包（阶段 2）
-    //   远端：raw.githubusercontent.com/<repo>/main/rules/index.json
-    //         + rules/<domain>.json（按域名一文件，方便 PR 贡献小 diff）
-    //   作用：把「站点专属的图片地址变换规则」做成可更新的数据包，
-    //         与内置规则合并后参与 cleanBgUrl / upgradeImgUrl。
-    //   安全：远端只提供「正则 → 替换」的**数据**，不执行任何代码；
-    //         拉取失败 / JSON 非法 / 正则编译失败一律保留现状，绝不影响基本功能。
-    //   供应链加固：index.json 携带逐域 SHA-256 哈希 + 整包 ECDSA 签名（公钥内嵌本脚本），
-    //         验签 / 哈希任一失败 → 整包拒绝并沿用旧缓存（见下方 HVSIGN 区块）。
-    // ============================================================
+    // 规则包：远端 raw.githubusercontent.com/<repo>/main/rules/index.json + rules/<domain>.json。
+    // 只提供「正则 → 替换」数据、不执行代码；拉取/JSON/正则失败一律保留现状。
+    // 供应链加固：index.json 带逐域 SHA-256 + 整包 ECDSA 签名（公钥内嵌），任一失败整包拒绝并沿用旧缓存。
     const RULE_PACK_URL = 'https://raw.githubusercontent.com/YDGG123/hover-image-zoom/main/rules/index.json';
     const RULE_PACK_URL_PREFIX = 'https://raw.githubusercontent.com/YDGG123/hover-image-zoom/main/rules/';
     const RULE_PACK_KEY = 'image_zoom_rule_pack_current';
@@ -1285,11 +1182,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     const RULE_PACK_MAX_PER_DOMAIN = 50; // 单域 clean / hd 各自最多条数
 
     /* HVSIGN-BEGIN */
-    // ===== 供应链加固：规则包签名校验（ECDSA P-256 + SHA-256，WebCrypto 原生） =====
-    // 规则包发布流程：HoverVista-测试/rulepack-sign.js 对 rules/index.json 做两件事——
-    //   ① 逐域文件算 SHA-256 写进 index.hashes；② 对「去掉 signature 后的规范化 JSON」整体签名。
-    // 脚本端：先验签（index 整体），再逐文件比对哈希；任一步失败 → 整包拒绝、沿用旧缓存
-    //（与拉取失败同等对待），面板会显示失败原因。私钥只在维护者本地，仓库里只有公钥能验的数据。
+    // 规则包签名校验（ECDSA P-256 + SHA-256，WebCrypto）：先验整包签名，再逐文件比对哈希，
+    // 任一步失败 → 整包拒绝并沿用旧缓存。私钥只在维护者本地，仓库里只有公钥。
     const RULE_PACK_PUBKEY_SPKI = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEMQjaMjNcAdjyvuhVpOzd4n6cyfKpuufMh+aMiAVN2m0MC/Z7072Hh0RIXcgzPZ4rAVm9bn+Cg9dN9nIdIq8wHQ==';
 
     function rulePackSha256Hex(str) {
@@ -1548,8 +1442,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     }
 
 
-// 修复记录：本函数此前在文件内被重复定义两次（旧的一份带滚轮保护分支、被后一份整体覆盖），
-// 现已合并为唯一实现——两份的行为分支都保留在这里，不会再出现“改了不生效”的副本。
+// 本函数为唯一实现（含滚轮保护分支）。
     function cropBlackBars(imgEl) {
         try {
             if (imgEl.dataset.zoomCropped) return;
@@ -1564,10 +1457,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             try {
                 data = ctx.getImageData(0, 0, w, h).data;
             } catch (e) {
-                // ★ 跨域污染：无 crossOrigin 的跨域图 drawImage 后 canvas 被 taint，
-                //   getImageData 抛 SecurityError（真实网站图基本都跨域 → 此前黑边永远裁不掉，
-                //   竖图带黑边比例直接撑高容器超页；这是 test.98 用本地同源图测不出的盲区）。
-                //   改用 GM_xmlhttpRequest 抓成同源 blob 再读像素裁剪（用户脚本特权，绕过 CORS）。
+                // 跨域图 drawImage 后 canvas 被 taint（getImageData 抛 SecurityError），
+                // 改用 GM_xmlhttpRequest 抓成同源 blob 再读像素裁剪（用户脚本特权，绕过 CORS）。
                 cropBlackBarsViaGm(imgEl, w, h);
                 return;
             }
@@ -1575,10 +1466,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         } catch (e) { }
     }
 
-    // ★ 黑边裁剪主体：拿到「可读像素 data」后执行扫描 + 裁剪 + 布局。
-    //   同源图由 cropBlackBars 直读调用；跨域图由 cropBlackBarsViaGm 用 GM 抓的 proxy 图调用。
-    //   srcImg = 用来 drawImage 出裁剪结果的「同源」图源（同源时是 imgEl，跨域时是 proxy）——
-    //   必须同源，否则 out.drawImage 会再次污染 canvas、toBlob 失败。
+    // 黑边裁剪主体：srcImg 必须是「同源」图源（同源时是 imgEl，跨域时是 GM proxy），
+    // 否则 out.drawImage 会再次污染 canvas、toBlob 失败。
     function performBlackCrop(imgEl, srcImg, w, h, data) {
         try {
             let transparentCount = 0;
@@ -1589,14 +1478,11 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 sampled++;
             }
             if (transparentCount / sampled > 0.05) return;
-            // ★ 阈值放宽（test.105）：原 24 会把「不纯黑的黑边」（JPEG 压缩 / 深灰边框，RGB 25~40）
-            //   判成内容 → 该侧黑边裁不掉（表现为「上面裁了下面没裁」）。提到 36 容忍常见不纯黑边。
+            // 黑边亮度阈值 36：容忍「不纯黑的黑边」（JPEG 压缩 / 深灰边框，RGB 25~40），避免该侧裁不掉。
             const threshold = 36;
             const isContent = (i) => data[i + 3] > 10 &&
                 (data[i] > threshold || data[i + 1] > threshold || data[i + 2] > threshold);
-            // ★ 判「整行/整列是否为黑边」：内容像素占比 < 15%（BAR_RATIO）
-            //   或 整行/整列平均亮度 < 42（BAR_LUMA，覆盖「宽但整体很暗的不纯黑边」）即算黑边。
-            //   （旧写法「是否含任一内容像素」只要 1 个亮点就判内容 → 该侧永远裁不掉。）
+            // 判「整行/整列是否为黑边」：内容像素占比 < 15%（BAR_RATIO）或平均亮度 < 42（BAR_LUMA）即算黑边。
             const BAR_RATIO = 0.15;
             const BAR_LUMA = 42;   // 平均亮度(0~255)低于此值 → 直接判为黑边
             const rowIsBar = (y0) => {
@@ -1608,11 +1494,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 }
                 return cnt < w * BAR_RATIO || (sum / (w * 3)) < BAR_LUMA;
             };
-            // ★ 桥接扫描（test.106）：允许跳过黑边内部「孤立的内容行/列」（水印 / 文字 / 噪点带），
-            //   只要跳过后仍能回到黑边行。真实案例：683×1500 论坛图，底部黑边 927~1499 共 573 行，
-            //   但在 1480~1484 有一条 5 行的水印 → 旧「逐行连续」扫描在此停下，
-            //   只裁了最底 15 行，整段下半黑边全留下（表现为「只裁上半」）。
-            //   规则：连续非黑边行数 ≤ maxGap 时可跳过；超过则判定进入真实内容区、回退到最后一个黑边行。
+            // 桥接扫描：允许跳过黑边内部孤立的内容行/列（水印·文字·噪点），连续非黑边行 ≤ maxGap 时可跳过，
+            // 超过则判定进入内容区、回退到最后一个黑边行。
             const MAX_GAP_R = Math.max(3, Math.round(h * 0.03));
             const MAX_GAP_C = Math.max(3, Math.round(w * 0.03));
             const scanEdge = (start, dir, len, isBarFn, maxGap) => {
@@ -1629,9 +1512,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             if (top >= h) return;
             let bottom = scanEdge(h - 1, -1, h, rowIsBar, MAX_GAP_R) - 1;
             if (bottom < top) return;
-            // 阶段②：再裁左右黑边（列）—— ★ 只在已确定的 [top,bottom] 内容行范围内判定。
-            //   否则「上下各占大半黑边」的图（本案例 74% 是黑边）会把**每一列**的内容占比与
-            //   平均亮度都拉到黑边水平 → 整幅图所有列被判成黑边（实测宽 683 → 94，图被裁成一条）。
+            // 阶段②：再裁左右黑边（列）——只在已确定的 [top,bottom] 内容行范围内判定，
+            // 否则上下各占大半黑边的图会把每一列都拉到黑边水平、整幅被判成黑边。
             const innerH = bottom - top + 1;
             const colIsBar = (x0) => {
                 let cnt = 0, sum = 0;
@@ -1664,22 +1546,14 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 if (imgEl.__zoomBlobUrl) URL.revokeObjectURL(imgEl.__zoomBlobUrl);
                 imgEl.__zoomBlobUrl = url;
                 imgEl.src = url;
-                // ★ 滚轮缩放模式：裁剪完成后绝不能重新按容器 contain 重排。
-                // 否则异步 toBlob 回调会把用户刚刚滚轮放大的尺寸重置，表现为
-                // “第一滚轮先缩小一点”，竖图甚至会直接跳回最小尺寸。
-                // 同时让容器始终与实际图片尺寸一致，避免出现透明的大框。
-                // 注：当前唯一调用点是 !inst.wheelZoom 分支，所以下面这段滚轮保护
-                // 目前不会进入；保留它是为了保证将来放开“滚轮 + 裁剪”时尺寸语义仍然正确。
+                // 裁剪完成后不能按容器重新 contain 重排，否则异步 toBlob 回调会重置用户刚滚轮放大的尺寸（竖图跳回最小）。
+                // 同时让容器始终与实际图片尺寸一致，避免透明大框。
                 const box = imgEl.parentNode;
                 const activeInst = box && box.__zoomInstance;
                 if (box && box.classList.contains('image-zoom-container') && activeInst && activeInst.wheelZoom) {
                     const currentZoom = Number.isFinite(activeInst.currentZoom) ? activeInst.currentZoom : 1;
                     const visualW = parseFloat(imgEl.style.width) || box.clientWidth || w;
-                    // ★ 必须按「裁剪后」的比例 cw/ch 重算容器与图片尺寸。
-                    //   旧写法沿用裁剪前的 visualW/visualH（带黑边的比例）再配 object-fit:fill
-                    //   → 裁剪后的图被拉伸回旧比例，且容器仍按「含黑边的高度」占位 → 依旧超出页面。
-                    //   这里保持当前显示尺度、改用裁剪后比例，并等比收进可用空间
-                    //   （自适应语义：自动尺寸不超视口；信息栏高度一并预留）。
+                    // 必须按「裁剪后」比例 cw/ch 重算容器与图片尺寸，并等比收进可用空间（不超视口，信息栏高度一并预留）。
                     const scale = Math.max(0.01, visualW / Math.max(1, w));
                     const availW = Math.max(160, window.innerWidth - 60);
                     const availH = Math.max(160, window.innerHeight - 60 - capbarReserve());
@@ -1744,9 +1618,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     }
 
 
-    // ================
     // 7. 站点规则（背景图模式）
-    // ================
     const SITE_HOVER_PROXY_RULES = [
         {
             domains: ['taobao.com', 'tmall.com'],
@@ -1763,18 +1635,13 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         storageSet('image_zoom_custom_rules', rules);
     }
 
-    // ★ 空字符串选择器不能直接丢给 closest()/querySelectorAll()：
-    // closest('') 会抛 SyntaxError（"The provided selector is empty"）。
-    // 规则里的卡片选择器允许留空（拾取器找不到卡片祖先时正是存空串），
-    // 统一在这里归一为「非空字符串 或 null」，使用处再按 null 跳过。
+    // 空字符串选择器不能丢给 closest()/querySelectorAll()（closest('') 抛 SyntaxError），统一归一为「非空串 或 null」。
     function toSelector(v) {
         return (typeof v === 'string' && v.trim()) ? v.trim() : null;
     }
 
 
-    // ================
     // 背景图悬停模块
-    // ================
 
     function setupBgRuleProxy() {
         const customRules = getCustomRules()
@@ -1847,9 +1714,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         }, rule.pollInterval);
     }
 
-    // ================
     // 8. 背景图自动识别兜底
-    // ================
     const bgZoomLayer = (function() {
         let container = null, url = null;
 
@@ -2002,12 +1867,9 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         }, true);
     }
 
-// 5.6.38 - 图片登记处理器
-// 不改 processImage 行为。
+// 图片登记处理器（不改 processImage 行为）
 
-    // ================
     // 4. 图片登记
-    // ================
     function processImage(img) {
         if (!isEnabled || !img || !img.parentNode) return;
         // ★ 自有 UI 隔离：放大层自身的 <img> 也是 document.body 子树里的 IMG，
@@ -2028,14 +1890,9 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     }
 
 
-    // ================
     // 4. 图片登记
-    // ================
-    // ================
-    // 图片信息浮层（尺寸 · 格式 · 来源域名 · 是否已升级到原图）
-    // ================
-    // 只从 inst.infoSrc 取 URL，不取 imgEl.src —— 后者在黑边裁剪后会被换成 blob:，
-    // 那样域名和格式都会丢失。
+    // 图片信息浮层（尺寸 · 格式 · 来源域名 · 是否已升级到原图）：只从 inst.infoSrc 取 URL，
+    // 不取 imgEl.src（黑边裁剪后会换成 blob:，域名与格式会丢失）。
     function parseImageInfo(url) {
         try {
             const u = new URL(url, window.location.href);
@@ -2172,15 +2029,9 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         } catch (e) { }
     }
 
-    // ================
     // 5. ★ 核心：单实例状态机 zoomFSM
-    // ================
 
-    // 6. ★ 全局事件流 + 停稳裁决器
-    // =============================
-    // 🔴 CORE PROTECTION ZONE
-    // target resolve / zoom self filtering
-    // =============================
+    // 6. ★ 全局事件流 + 停稳裁决器（🔴 核心保护区：target resolve / zoom self filtering）
     function pickVisibleImgUnderPoint(x, y) {
         let stack = [];
         try { stack = document.elementsFromPoint(x, y) || []; } catch (e) { }
@@ -2321,12 +2172,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     }
 
 
-    // ================
-    // 5. ★ 核心：单实例状态机 zoomFSM
-    // ================
-    // ============================================================
+    // 5. 核心：单实例状态机 zoomFSM
     // 保存图片：文件名模板 {标题}_{宽}x{高}.{扩展名}
-    // ============================================================
     const SAFE_NAME_MAX = 100;
 
     // 去掉文件系统不接受的字符、压缩空白、限制长度
@@ -2583,15 +2430,10 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         });
     }
 
-    // ============================================================
-    // 图集识别
-    //   从当前图往上找祖先，第一个包含 ≥2 张「可见且够大」图片的层就当图集容器。
-    //   限制上溯 GALLERY_MAX_DEPTH 层，避免误把整页图片都算成一个图集。
-    // ============================================================
+    // 图集识别：从当前图往上找祖先，第一个包含 ≥2 张「可见且够大」图片的层即图集容器（上溯上限 GALLERY_MAX_DEPTH 层）。
     const GALLERY_MAX = 80;
     const GALLERY_MIN_PX = 60;
-    // 上溯层数上限：表格化 / 深嵌套布局（如 Wikimedia Commons）的图集容器常在第 6~7 层祖先，
-    // 原值 5 会漏识别（test.114 定位）；提到 8 覆盖常见深嵌套，同时仍能避免把整页图片算成一个图集。
+    // 上溯层数上限 8：覆盖表格化/深嵌套布局（图集容器常在第 6~7 层祖先），同时避免把整页图片算成一个图集。
     const GALLERY_MAX_DEPTH = 8;
 
     function isGalleryCandidate(el) {
@@ -2626,14 +2468,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         } catch (e) { }
     });
 
-    // ★ 单次出现位置覆盖（test.86）：若用户设的是「屏幕居中」，则**下一次**图片预览改用
-    //   「原图周围」——居中的放大图会挡住宅自带的视频预览，贴到原图旁边就不会挡。
-    //   两个装载点：
-    //     ① 视频预览**被关掉**（Esc / 移开 / 滚动）时 —— videoPreviewModule.hide()；
-    //     ② 「视频悬停预览」**开关本身是关闭**、且光标落在视频卡片上 —— 此时不会产生视频预览，
-    //        图片放大直接接管，同样需要避让 —— videoPreviewModule.handleHover() 的关闭分支。
-    //   规则：① 只在「刚触发」的短窗口内有效（PLACE_ONCE_WINDOW）；② 只作用于**一次**预览；
-    //        ③ **不写回** config.previewPlacement，用户设置不变（面板里显示的还是原设置）。
+    // 单次出现位置覆盖：若用户设「屏幕居中」，下一次图片预览临时改用「原图周围」（避免挡住站点自带视频预览），
+    // 仅生效一次、不写回 config。装载点：视频预览关闭时 / 视频预览开关关闭且悬停卡片时。
     const PLACE_ONCE_WINDOW = 5000;   // 触发后多久内有效（够用户重新移到图上；过期自动作废）
     let placeOnce = null;          // 'around' | null
     let placeOnceAt = 0;
@@ -2659,19 +2495,11 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             pendingGraceUsed = false;
         }
 
-        // ============================================================================
-        // ★ 预览过渡动画（入场 / 收起）—— 引擎 + 四种方案，面板可切换
-        //   约束：容器 transform 由 applyZoom 独占（旋转/滚轮/平移），动画只作用于图片元素与
-        //   装饰层（外壳/信息栏）；动画结束一律「先写内联终态 → 再释放动画」，不依赖 commitStyles
-        //   （动画时间轴被节流时 commitStyles 会提交起始值）。
-        //   方案：dock 从原图弹出（FLIP 滑行）/ spotlight 从原图绽开（光圈扩散）/ fade 直接淡入
-        // ============================================================================
+        // 预览过渡动画（入场 / 收起）：容器 transform 由 applyZoom 独占，动画只作用于图片与装饰层；
+        // 动画结束一律「先写内联终态 → 再释放动画」，不用 commitStyles。方案：dock / spotlight / fade。
         const PT_EASE = 'cubic-bezier(.16,1,.3,1)';
         const PT_SP_EASE = 'cubic-bezier(.3,1.25,.3,1)'; // spotlight 用爆感缓动：快速冲进 + 轻微回弹过冲（区别于 dock 的顺滑滑行）
-        // ★ 两套方案的“性格参数”：dock = 整体位移（慢而长），spotlight = 光圈收敛（快而收）
-        //   可调范围：dock 320~560（越小越干脆）；spotlight 220~360（越小越像“啪”一下聚焦）
-        // 参考方案文档：dock 420（滑行，慢而长） / spotlight 380（光圈绽开，干脆收住）
-        // 可调：dock 320~560；spotlight 280~420（光圈太快会看不清"收敛"的路径）
+        // 两套方案的性格参数：dock = 整体位移（慢而长，320~560）；spotlight = 光圈收敛（快而收，220~380）。
         const PT_DUR = { dock: 420, spotlight: 380 };
         // 聚焦专用缓动：先快后稳地收住（与 dock 的顺滑滑行明显区分）
         // 可调：cubic-bezier(.2,.7,.3,1)=干脆收敛；(.34,1.2,.64,1)=带一点过冲的“聚拢”
@@ -2710,12 +2538,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             } catch (e) { return null; }
         }
         function ptTf(dx, dy, s) { return 'translate(' + Math.round(dx) + 'px,' + Math.round(dy) + 'px) scale(' + s.toFixed(4) + ')'; }
-        // ★ spotlight 光圈半径（px）。圆心 (lx,ly) 与 clip-path 同一参考系（图片元素自身坐标，
-        //   容器与图片同原点 → 容器内坐标即元素内坐标）。取圆心到四角的「最远距离」作完整半径，
-        //   与圆心是否落在元素内无关（源图中心常在预览框外），确保绽开后完全覆盖图片不露边；
-        //   起始半径取一个很小的值 → 形成「从源点向外绽开」的收束感。
-        //   ⚠ 此函数曾被漏定义：ptEnter/ptLeave 调用时抛 ReferenceError 被外层 try/catch 吞掉 →
-        //   spotlight 静默退化成纯淡入（方案 C 的光圈效果完全不出现）。此处补回。
+        // spotlight 光圈半径：圆心到四角的最远距离作完整半径，确保绽开后完全覆盖图片不露边；起始半径取极小值。
         function ptSpotRadius(im, lx, ly) {
             try {
                 const elW = im.offsetWidth || im.clientWidth || 0;
@@ -2949,23 +2772,17 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             im.style.top = Math.round((bh - nh) / 2) + 'px';
         }
 
-        // ★ 信息栏（capbar）是 position:absolute; top:calc(100% + 12px) —— 挂在容器**下方**、
-        //   不占容器高度。自适应尺寸若只给容器留 60px 视口余量，加上信息栏（约 34~54px）
-        //   与 12px 间距，整体就会超出视口底部（表现为「大图下半部分 / 信息栏跑到页面下面」）。
-        //   这里把这部分从「图片可用高度」里预留出去，保证【图片 + 间距 + 信息栏】整体不超视口。
+        // 信息栏（capbar）挂在容器下方不占高度：自适应尺寸须把它 + 12px 间距一并从「图片可用高度」里预留，保证整体不超视口。
         function capbarReserve() {
             try {
                 if (!config.showImageInfo) return 0;
                 const bar = document.querySelector('.image-zoom-container .hv-capbar');
-                // 量不到时（建实例/换图早期信息栏尚未构建）按「两行图说」的实测高度 56px 兜底，宁可多留不可少留
+                // 量不到时（建实例/换图早期信息栏尚未构建）按两行图说的兜底高度 56px 预留。
                 const bh = (bar && bar.offsetHeight) ? bar.offsetHeight : 56;
                 return bh + 12;                                                // 12 = 容器与信息栏的间距
             } catch (e) { return 0; }
         }
-        // ★ 浏览器窗口底边可能延伸到屏幕「可用区」之下 —— macOS Dock 自动隐藏时窗口可贴到屏幕最底，
-        //   Dock 弹出就会盖住浏览器底部（Windows 任务栏一般不自动隐藏，故不常见）。
-        //   此状态下 window.innerHeight 仍**包含被遮挡的部分** → 贴底的图说会被挡掉一半。
-        //   这里用「窗口在屏幕上的底边」与「屏幕可用区底边」之差估算遮挡高度，并从可用高度中扣除。
+        // 窗口底边可能被 Dock/任务栏遮挡（innerHeight 仍含被遮挡部分）：用「窗口底边」与「屏幕可用区底边」之差扣除。
         function visualInnerH() {
             try {
                 if (typeof screen === 'undefined' || typeof screen.availHeight !== 'number') return window.innerHeight;
@@ -2976,10 +2793,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 return Math.max(160, window.innerHeight - occluded);
             } catch (e) { return window.innerHeight; }
         }
-        // ★ 档位 → 预览可用空间上限（computeAdaptiveSize / fixed / smallImg 三处共用，避免不一致）。
-        //   跟随视口（si=3）：以【页面高度】为最大高度等比放大，宽度基本不设限（哥哥口径），
-        //     只保留信息栏（capbar）纵向空间；极端横图由 onload 的 kFit 兜底防止横向超出视口。
-        //   小/中/大：用「宽 × 高」框 + 档位比例分档（小视口下四档才有区分，见 STEP_VIEWPORT_SCALE）。
+        // 档位 → 预览可用空间上限（computeAdaptiveSize/fixed/smallImg 共用）：跟随视口以页面高度为最大高度、
+        // 只保留信息栏纵向空间；小/中/大按档位比例分档（见 STEP_VIEWPORT_SCALE）。
         function stepCaps() {
             const capRes = capbarReserve();
             if (sizeStepIndex() === 3) {
@@ -3009,12 +2824,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             return { w, h, rawW, rawH };
         }
 
-        // ===== 显示位置（placement） =====
-        // center=屏幕居中（默认，原有行为）；around=原图周围（PhotoShow/易看图式：在缩略图剩余
-        // 空间最大的一侧显示，不遮挡缩略图，放不下回退居中）。
-        // 实现要点：容器始终保留 translate(-50%,-50%) 变换（旋转/滚轮缩放/图集路径都依赖它），
-        // 只把 left/top 锚点从「50%」换成目标矩形的中心点像素——对既有几何体系零侵入。
-        // ===== around（原图周围）专用：参考浮图秀——显示在原图周围，绝不覆盖原图 =====
+        // 显示位置 placement：center=屏幕居中（默认）；around=原图周围（在缩略图剩余空间最大的一侧显示，放不下回退居中）。
+        // 实现：容器保留 translate(-50%,-50%)，只把 left/top 锚点换成目标矩形中心像素。
         const PL_GAP = 24;   // 与缩略图/光标的间距
         const PL_EDGE = 8;   // 与视口边缘的最小间隙
         // 选「剩余空间最大」的一侧（不做能否放下的判断——放不下时是缩小尺寸，而不是回退覆盖）
@@ -3054,10 +2865,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             const capRes = capbarReserve();   // 信息栏在容器下方，下边界要为它留出空间
             let lo = boxH / 2 + PL_EDGE;
             let hi = vh - boxH / 2 - PL_EDGE - capRes;
-            // ★ 盒子比视口还高时上下界会交叉（lo > hi）。旧式 clamp 此时会取 lo = boxH/2 + EDGE，
-            //   于是「盒子越高 → 中心点越往下」，最终中心点跑到视口下方（页面之外）——
-            //   竖图高倍放大时必现。交叉时改为把中心钉在视口纵向中部：
-            //   保证【中心点永远在页面内】，上下两端各自溢出、可平移查看。
+            // 盒子比视口还高时上下界交叉（lo>hi）：改为把中心钉在视口纵向中部，保证中心点永远在页面内、两端溢出可平移。
             if (lo > hi) { lo = hi = Math.max(PL_EDGE * 2, (vh - capRes) / 2); }
             return {
                 cx: Math.max(boxW / 2 + PL_EDGE, Math.min(cx, vw - boxW / 2 - PL_EDGE)),
@@ -3148,20 +2956,15 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 let wheelBaseH = Math.max(1, Math.round(wheelBaseW / naturalRatio));
                 let wheelInitialZoom = 1;
                 if (config.wheelZoom) {
-                    // ★ 保留上面算好的首次放大尺寸（自适应/固定倍数结果），反推出倍率；
-                    //   第一次滚轮在这个尺寸上继续放大。zoom 基准 = 源缩略图渲染尺寸。
-                    //   ⚠ 曾误改为「min(原图像素, 视口) × 0.92」的适配模型——原图 1200px 时只显示
-                    //   1104px，比原图还小 8%，比 5.8.0 的悬停放大观感小一大截（用户实测反馈）。
+                    // 保留首次放大尺寸（自适应/固定倍数结果）反推倍率；zoom 基准 = 源缩略图渲染尺寸。
                     wheelInitialZoom = Math.max(1, boxW / wheelBaseW);
                     boxW = Math.max(1, Math.round(wheelBaseW * wheelInitialZoom));
                     boxH = Math.max(1, Math.round(wheelBaseH * wheelInitialZoom));
                 }
-                // ★ 显示位置锚点：center → 50%/50%（默认）；around → 先按周围可用空间
-                //   收缩预览尺寸，再贴到该侧（浮图秀同款：绝不覆盖原图；周围空间不够就按空间缩放）
+                // 显示位置锚点：center → 50%/50%（默认）；around → 先按周围可用空间收缩预览尺寸、再贴到该侧（绝不覆盖原图）。
                 let anchorX = '50%', anchorY = '50%';
                 let placementMode = 'center';
-                // ★ 单次覆盖（test.86）：刚关视频预览时的「避让」——见顶部 placeOnce 注释。
-                //   读到即消耗（无论最终是否真的用上 around），保证只影响这一次预览。
+                // 单次覆盖：刚关视频预览时的「避让」（见顶部 placeOnce）。读到即消耗，只影响这一次预览。
                 let effPlacement = config.previewPlacement;
                 if (placeOnce && (Date.now() - placeOnceAt) <= PLACE_ONCE_WINDOW) effPlacement = placeOnce;
                 placeOnce = null;
@@ -3198,9 +3001,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                         }
                     }
                 }
-                // ★ center 模式：让「图片 + 信息栏」整体在视口内居中（test.113）。
-                //   图片若严格居中（锚点 50%），下方还要挂信息栏 → 整体底部超出视口
-                //   （实测 capbarOutVp = 33px = 视口高与图高之差的一半）。把锚点上移 capRes/2 即可。
+                // center 模式：让「图片 + 信息栏」整体在视口内居中——锚点上移 capRes/2 抵消信息栏高度。
                 if (placementMode === 'center') {
                     const capResC = capbarReserve();
                     if (capResC > 0) anchorY = Math.round((visualInnerH() - capResC) / 2) + 'px';
@@ -3232,10 +3033,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                     box-shadow:0 6px 18px rgba(0,0,0,.22);
                     display:block;border-radius:10px;opacity:0;`;
 
-                // ★ 必须优先 currentSrc。图片同时带 srcset 时，浏览器只加载 currentSrc，
-                // 而 src 可能是个从未被请求、甚至不是图片的兜底地址（如页面路由）。
-                // 实测：若取 src，放大图会加载失败 → 永远到不了 ACTIVE → 悬停预览不出现、
-                // 滚轮缩放自然失效（表现为"滚轮没反应、页面跟着滚"）。
+                // 必须优先 currentSrc：带 srcset 时浏览器只加载 currentSrc，src 可能是从未请求、甚至不是图片的兜底地址。
                 const rawSrc = img.currentSrc || img.src;
                 // ★ 源图自身加载失败时 currentSrc 为空，会退回相对路径的 src；
                 // 相对地址直连易受 referer 策略影响，且 GM_xmlhttpRequest 无法抓取相对地址
@@ -3284,11 +3082,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
 
                 zoomedImg.onload = () => {
                     if (inst.generation !== generation || instance !== inst) return; // 过期代际/实例回调直接丢弃
-                    // ★ 「软 404」防护：服务器对不存在路径返回 200 + 空/非图响应时，图片会「加载成功」
-                    //   但无有效像素（naturalWidth=0）→ 会渲染成一个空白框 + 空信息栏
-                    //   （2026-09-19 全功能实机测试问题 2）。按加载失败处理，不进预览。
-                    // ★ 同一条兜底也覆盖「1×1 占位/跟踪像素」：真实像素 ≤1×1 的图无论来自
-                    //   文件还是 data:，都不该渲染成被撑大的空白块（GAP-1，与 data: 分支同判据）。
+                    // 「软 404」防护：服务器对不存在路径返回 200 + 空/非图响应时 naturalWidth=0，按加载失败处理；
+                    // 同判据也覆盖真实像素 ≤1×1 的占位/跟踪像素。
                     if (!(zoomedImg.naturalWidth > 0 && zoomedImg.naturalHeight > 0) ||
                         (zoomedImg.naturalWidth <= 1 && zoomedImg.naturalHeight <= 1)) {
                         FSM.dispatch('ERROR', inst);
@@ -3336,9 +3131,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                                 inst.zoomBaseH = Math.max(1, h / cz);
                             }
                         }
-                        // ★ 重采样分级策略：缩小 / ≈1:1 → auto（平滑）；放大超原图且 ≤3 倍 →
-                        //   crisp-edges（Nearest，锐利，浮图秀观感）；>3 倍 → auto（Nearest 高倍
-                        //   放大是马赛克，dlsjs.com 230px→1300px 实例）。
+                        // 重采样分级：缩小 / ≈1:1 → auto（平滑）；放大超原图且 ≤3 倍 → crisp-edges（锐利）；>3 倍 → auto（防马赛克）。
                         try {
                             const dispW = parseFloat(zoomedImg.style.width) || 0;
                             const natW = zoomedImg.naturalWidth || 0;
@@ -3356,12 +3149,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                             c.style.left = fitAxis(parseFloat(c.style.left) || window.innerWidth / 2, w / 2, window.innerWidth) + 'px';
                             c.style.top = fitAxis(parseFloat(c.style.top) || window.innerHeight / 2, h / 2, window.innerHeight) + 'px';
                         } else if (inst.placementMode === 'around' && inst.aroundSide && inst.aroundRect) {
-                            // ★ around 绝不能走上面的视口 clamp：那个 fitAxis 在「盒子宽于视口−16」时
-                            //   直接返回 total/2（屏幕居中），会把 createInstance 算好的 around 锚点抹掉
-                            //   → 预览退化为居中并盖住原图，与「原图周围·不遮挡」语义直接冲突
-                            //   （wheelZoom 开＝默认值，稳定必现；管用闭合条件下 wheelZoom 关才正常）。
-                            //   around 的定位语义是「贴在原图某一侧」，所以这里必须按当时的选侧与原图矩形
-                            //   重算锚点；computeAroundAnchor 只在盒子实在放不下时才做边缘兜底。
+                            // around 不能走上面的视口 clamp（会把 createInstance 算好的锚点抹掉 → 退化为居中盖住原图）；
+                            // 这里按当时的选侧与原图矩形重算锚点。
                             const c = inst.container;
                             const curW = c.offsetWidth || w;
                             const curH = c.offsetHeight || h;
@@ -3372,27 +3161,16 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                             }
                         }
                     }
-                    // ★ 非滚轮模式：容器尺寸在 createInstance 里定好后不再变化（尺寸语义固定）。
-                    // 但这里加载成功的图未必就是建实例时那张——最典型的是后台探活通过后
-                    // 替换成的高清图，宽高比可能与缩略图不同。此时若不按新比例重做一次
-                    // contain 适配，内联的 object-fit:fill 会把图片拉伸变形
-                    //（cropBlackBars 在“几乎无黑边”时会提前 return，兜不住这种情况）。
-                    // 比例一致时计算结果与建实例时完全相同，不会产生任何视觉变化。
+                    // 加载成功的图未必是建实例时的图（如后台探活替换的高清图），比例不同时需按新比例重做 contain 适配，
+                    // 否则内联 object-fit:fill 会把图片拉伸变形。
                     if (!inst.wheelZoom && zoomedImg.naturalWidth > 0 && zoomedImg.naturalHeight > 0) {
                         refitInstanceImage(inst);
                     }
-                    // 滚轮缩放模式不参与异步黑边裁剪：裁剪会改变图片天然比例并在 toBlob 回调中重新布局，
-                    // 从而造成首个滚轮“先缩小一下”以及竖图跳回最小尺寸/出现透明框。
-                    // ★ 黑边裁剪对「滚轮缩放模式」同样启用（此前被 !inst.wheelZoom 挡掉，
-                    //   导致换高清图后若带黑边就永远不裁：竖图上下长黑边把天然比例撑高，
-                    //   预览随之变大 → 超出页面）。
-                    //   cropBlackBars 内部的滚轮保护分支（反推 zoom=1 基准、保持当前视觉尺寸
-                    //   不跳变）早已就位，放开调用点即为其预设用途。
+                    // 黑边裁剪对「滚轮缩放模式」同样启用（否则换高清图后带黑边会撑大预览超页）；
+                    // cropBlackBars 内部已有滚轮保护分支。
                     cropBlackBars(zoomedImg);
                     updateImageInfo(inst);
-                    // ★ 信息栏构建完成后再校正一次尺寸（test.110）：早期 capbarReserve() 只能拿到兜底值
-                    //   （56px），若实际信息栏更矮，会白少留纵向空间 → 跟随档图偏小（哥哥反馈「跟随视口不够大」）。
-                    //   这里用【实际】信息栏高度重算可用高度并等比校正；仅「初始未缩放」时生效，不干扰滚轮。
+                    // 信息栏构建完成后再校正一次尺寸：用实际信息栏高度重算可用高度并等比校正；仅「初始未缩放」时生效，不干扰滚轮。
                     try {
                         if (inst.wheelZoom && Math.abs(Number(inst.currentZoom) - Number(inst.initialZoom)) < 0.001) {
                             // ★ 必须用 stepCaps() 按档位取框（此时 capbarReserve() 已能拿到实际信息栏高度）；
@@ -3602,8 +3380,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 instance = null;
                 state = S.IDLE;
                 wheelManager.sync();
-                // ★ 源图直连、高清候选、GM 兜底抓取全部失败：给出明确提示，
-                //   避免用户「悬停后空白框一闪 / 无任何反应」却不知为何（2026-09-19 全功能实机测试问题 2）。
+                // 源图直连、高清候选、GM 兜底抓取全部失败：给出明确提示，避免用户「悬停后空白框一闪 / 无反应」却不知为何。
                 try { showToast('图片加载失败，已跳过'); } catch (e) { }
             },
             beginFade() {
@@ -3685,9 +3462,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                     const bar = c.querySelector('.hv-capbar');
                     if (bar) bar.style.opacity = hideCap ? '0' : '1';
                 } catch (e) { }
-                // ⚠ 不在这里 clamp 锚点：滚轮放大后预览超出视口 + 平移查看是 5.8.0 以来的设计行为，
-                //   收拢只发生在「初始显示」（createInstance）与「高清换图重算尺寸后」（zoomedImg.onload）。
-                // ⚠ 维持既有设计（5.8.0 起）：缩放时不 clamp 锚点，手动滚轮放大允许超出视口 + 平移查看。
+                // 不在这里 clamp 锚点：滚轮放大后允许超出视口 + 平移查看；收拢只发生在 createInstance 与高清换图重算尺寸后。
                 inst.panY = 0;
 
                 im.style.setProperty('width', iw + 'px', 'important');
@@ -3697,9 +3472,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 im.style.setProperty('min-width', '0', 'important');
                 im.style.setProperty('min-height', '0', 'important');
                 im.style.setProperty('object-fit', 'contain', 'important');
-                // ★ 重采样分级策略：缩小 / ≈1:1 → auto（平滑）；放大超原图时分倍率——
-                //   ≤3 倍用 crisp-edges（Nearest，锐利，浮图秀观感）；>3 倍用 auto（Nearest
-                //   高倍放大会出马赛克，dlsjs.com 230px→1300px 实例）。
+                // 重采样分级：缩小 / ≈1:1 → auto（平滑）；放大超原图时 ≤3 倍用 crisp-edges（锐利）、>3 倍用 auto（防马赛克）。
                 try {
                     const nw2 = im.naturalWidth || 0, nh2 = im.naturalHeight || 0;
                     if (nw2 > 0 && nh2 > 0) {
@@ -3720,13 +3493,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                     im.style.setProperty('top', '0px', 'important');
                     im.style.setProperty('transform', 'none', 'important');
                 }
-                // ★ 外壳（hull）必须跟着「图片」定盒，而不是跟着容器盒（2026-09-20 实测）：
-                //   hull 原本是 CSS `inset:-10px`（= 容器盒 + 10px），而旋转 90/270 时
-                //   容器盒被互换（762×1016）但图片仍保持自身宽高（1016×762，靠父级旋转换向）
-                //   → 旋转后 hull 仍是「旋转前的横向框」、图片却是竖向 → 图上下伸出框外，
-                //   视觉上就是「框留在原地不跟着转」。
-                //   这里按图片实际尺寸显式给 hull 定盒并居中；hull 是容器子元素，会随容器一起旋转，
-                //   所以换向自然跟着走。未旋转时该式退化为原来的 inset:-10px（数值完全一致）。
+                // 外壳 hull 必须跟「图片」定盒而非容器盒（旋转 90/270 时容器盒与图片宽高互换，按容器定盒会导致框不跟转）。
                 try {
                     const hull = c.querySelector('.hv-hull');
                     if (hull) {
@@ -3747,10 +3514,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 const current = Number.isFinite(instance.currentZoom) ? instance.currentZoom : 1;
                 return actions.applyZoom(instance, current * factor);
             },
-            // 回到「进入预览时的尺寸」（即撤销所有缩放）。
-            // 注意不能写成 applyZoom(instance, 1)：currentZoom 是相对源缩略图尺寸的倍数，
-            // 初始倍率通常远大于 1（例如缩略图 220px、预览 1158px → 初始 5.26×），
-            // 硬写成 1 会把预览缩回缩略图大小。
+            // 回到「进入预览时的尺寸」（撤销所有缩放）：不能写成 applyZoom(instance, 1)——currentZoom 是相对缩略图尺寸的倍数。
             resetZoom() {
                 if (!instance) return false;
                 const base = Number.isFinite(instance.initialZoom) && instance.initialZoom > 0
@@ -4191,11 +3955,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         function sync() {
             const need = zoomFSM.hasActiveZoom() || bilibiliVolumeModule.isFullscreenActive();
             if (need && !attached) {
-                // ★ 必须挂 window（不能挂 document）：部分站点（如 Unsplash）在 window 级的
-                // capture 阶段就调用了 stopPropagation()，事件根本传不到 document —— 挂在 document
-                // 上会永远收不到滚轮，表现为「悬停能出预览，但滚轮不缩放、页面跟着滚」。
-                // 同一 target 上的多个监听器不受 stopPropagation 影响（那是 stopImmediatePropagation），
-                // 因此挂 window 可确保我们收到事件并能 preventDefault。
+                // 必须挂 window（不能挂 document）：部分站点在 window 级 capture 就 stopPropagation，挂 document 收不到滚轮。
                 window.addEventListener('wheel', handler, { capture: true, passive: false });
                 attached = true;
             } else if (!need && attached) {
@@ -4208,17 +3968,9 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         return { sync };
     })();
 
-    // ============================================================
-    // 键位系统（骨架）
-    //   默认键表见 KEYMAP_DEFAULTS，可在配置里覆盖（后续在面板中可视化编辑）。
-    //   新增一个动作 = 在 ACTIONS 里注册实现 + 在 KEYMAP_DEFAULTS 里给默认键。
-    //
-    //   接管原则（避免与站点/浏览器抢键）：
-    //     1. 只在预览处于显示状态时接管；
-    //     2. 输入框/可编辑区域内不接管；
-    //     3. 带 Ctrl/Cmd/Alt 的组合键不接管（把浏览器快捷键让给浏览器）；
-    //     4. 只有动作**确实消费了这个键**才 preventDefault —— 否则站点快捷键照常工作。
-    // ============================================================
+    // 键位系统：默认键表见 KEYMAP_DEFAULTS，可在配置里覆盖；新增动作 = ACTIONS 注册实现 + KEYMAP_DEFAULTS 给默认键。
+    // 接管原则：① 只在预览显示时接管；② 输入框/可编辑区不接管；③ 带 Ctrl/Cmd/Alt 的组合键不接管；
+    // ④ 只有动作确实消费了该键才 preventDefault。
     const keymapModule = (function () {
         // 动作注册表：返回 true 表示已消费该按键
         const ACTIONS = {
@@ -4313,25 +4065,11 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         return { init: init, resolveAction: resolveAction };
     })();
 
-    // ============================================================
-    // 视频悬停预览（浮图秀没有的能力）
-    //   ① 悬停页面里的 <video>（小尺寸内嵌视频）→ 浮出放大播放器（克隆同一地址、静音播放，不动原视频）
-    //   ② 悬停视频卡片（YouTube / B站 链接）→ 优先「借用」卡片内站点自备的真实 <video>,
-    //      没有才退回站点官方 player 的 iframe 嵌入
-    //   守卫：悬停意图延迟（450ms）→ 卡片矩形离开判定（220ms 宽限）→ Esc / 失焦 / 滚动立即关闭；
-    //   交互（2026-09-19 新增）：预览期间拦截滚轮（防页面滚动把光标带离 → 误关）；←/→ 控播放进度
-    //         （对 <video> 生效，跨域 iframe 无法控制则放行）。
-    //   交互（test.86）：**滚轮音量已撤除** —— 站点播放器（B站）的 <video> 常是纯视频轨 MediaSource，
-    //         解除静音也听不到声音；滚轮只保留「锁定页面滚动」。关闭视频预览时会**单次**把图片预览的
-    //         出现位置从「屏幕居中」临时改为「原图周围」（见 placeOnce，避免挡住宅自带的视频预览）。
-    //         ★ B站/YouTube 卡片若走 iframe 路径，其播放器在**跨域 iframe 内**,父页面无法 seek /
-    //           调音量（站外播放器只有 URL 参数、无公开控制 API）。B站 卡片内其实有站点自备的
-    //           MediaSource <video>（隐藏、未播放），但其 `blob:` 地址**无法克隆**（同一 MediaSource
-    //           不能挂两个元素）→ 唯一可行路径是「借用真节点」：临时把该 <video> 移进预览容器，
-    //           关预览时原位归还（含原 inline style）。借用期间用 500ms 看门狗兜底站点自己的暂停；
-    //           一旦节点被站点抢回（parentElement 变化）即收工关闭预览。
-    //         同一时刻只存在一个播放器；关闭时立即销毁（iframe/video 不再占资源）。
-    // ============================================================
+    // 视频悬停预览：① 悬停页面内 <video> → 浮出放大播放器（克隆地址、静音，不动原视频）；
+    // ② 悬停视频卡片（YouTube/B站）→ 优先借用卡片内站点自备的真实 <video>，没有才退回站点 iframe 嵌入。
+    // 守卫：悬停意图延迟 450ms → 卡片矩形离开 220ms 宽限 → Esc/失焦/滚动立即关闭。
+    // 交互：预览期间拦截滚轮（防页面滚动带走光标误关）；←/→ 控播放进度（对 <video> 生效）。
+    // 借用路径：站点 MediaSource 的 blob: 地址无法克隆 → 临时把真节点移进预览容器，关闭时原位归还。
     const VIDEO_SITES = [
         { name: 'YouTube', test: /^https?:\/\/(?:www\.)?youtube\.com\/watch\?[^#]*v=([\w-]{6,})/i, embed: (m) => 'https://www.youtube.com/embed/' + m[1] + '?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1' },
         { name: 'YouTube', test: /^https?:\/\/youtu\.be\/([\w-]{6,})/i, embed: (m) => 'https://www.youtube.com/embed/' + m[1] + '?autoplay=1&mute=1&playsinline=1&rel=0' },
@@ -4353,13 +4091,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             return v.currentSrc || v.src || (v.querySelector('source') || {}).src || '';
         }
 
-        // 卡片范围内找站点自备的真实 <video>（B站 悬停预览这类）。
-        // 站点播放器多为 MediaSource（`blob:` 地址）——**克隆无效**（同一 MediaSource 不能挂两个元素），
-        // 只有借用真节点才能拿到 seek / 音量能力。找不到则由调用方退回跨域 iframe 嵌入。
-        //   ⚠️ 搜索范围必须严格「不越卡片」：曾用「向上 3 层 querySelectorAll」实现，
-        //      结果把**隔壁卡片**的 video 当成自己的（列表里多张卡片时必现）。现在的规则：
-        //      ① 只在 anchor 子树内找（B站 实测 video 就在 a.bili-video-card__image--link 内）；
-        //      ② 才允许放宽到「anchor 的父节点里、同样包含 anchor 的那个包裹层」——不会跨到兄弟卡片。
+        // 卡片范围内找站点自备的真实 <video>：只在该卡片子树内找（含「同样包含 anchor 的包裹层」），不越卡片以免抓到隔壁卡片的 video。
         function pickUsableVideo(root) {
             const vs = root.querySelectorAll ? root.querySelectorAll('video') : [];
             for (let j = 0; j < vs.length; j++) {
@@ -4404,8 +4136,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 const src = videoSrc(v);
                 if (!src) return null;
                 const isBlob = /^blob:/i.test(src);                                  // MediaSource：克隆无效 → 借真节点
-                // ★ 借用路径必须记住「原悬停位置」：节点被借走后该处不再有 <video>，
-                //   再走一遍 pickCard 会返回 null → 预览被自己关掉（2026-09-19 test.85 实测）。
+                // 借用路径必须记住「原悬停位置」：节点被借走后该处不再有 <video>，再走 pickCard 会返回 null → 预览被自己关掉。
                 return { kind: 'video', src: src, clone: !isBlob, el: isBlob ? v : undefined,
                          originCard: isBlob ? v.parentElement : undefined,
                          title: (v.getAttribute('title') || '').trim().slice(0, 80), rect: r };
@@ -4455,8 +4186,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             } catch (e) { }
         }
 
-        // 看门狗：站点播放器的内部状态机可能自己把借走的视频暂停（实测健康情况下 0 次介入，
-        //   属兜底）。一旦节点被站点抢回（parentElement 变了）→ 认输关闭预览，不硬抢。
+        // 看门狗：站点播放器可能自己把借走的视频暂停（兜底）。一旦节点被站点抢回（parentElement 变了）→ 关闭预览，不硬抢。
         let watchdog = null;
         function stopWatchdog() { if (watchdog) { clearInterval(watchdog); watchdog = null; } }
         function startWatchdog() {
@@ -4491,10 +4221,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             clearTimeout(leaveTimer); leaveTimer = null;
             if (!cur) return false;
             destroy();
-            // ★ 单次避让（test.86）：刚关掉视频预览 → 若用户设的是「屏幕居中」，把**下一次**图片预览
-            //   临时改成「原图周围」。原因：关掉视频预览后继续悬停同一处会走图片放大，居中的大图会
-            //   挡住站点自带的视频预览（B站 卡片会自己弹预览）。
-            //   注意：只在这里（用户可见的「关闭」路径）装载，`show()` 内部的 destroy() 不装载。
+            // 单次避让：刚关掉视频预览后，若用户设「屏幕居中」，把下一次图片预览临时改成「原图周围」（避免挡住站点自带视频预览）。
             if (config.previewPlacement === 'center') { placeOnce = 'around'; placeOnceAt = Date.now(); }
             return true;
         }
@@ -4585,9 +4312,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         function handleHover(x, y, t) {
             if (!config.videoHoverPreview) {
                 if (cur) hide();
-                // ★ 单次避让（test.86 补）：**功能开关本身被关掉**时，悬停视频卡片不会产生视频预览，
-                //   而会落到「图片放大」上；用户设为居中时，居中的大图同样会挡住站点自带的视频预览。
-                //   这里用同一套 placeOnce 机制装载避让（读一次即消耗，不写回用户设置）。
+                // 单次避让（补）：视频预览开关关闭时，悬停卡片落到「图片放大」上；用户设为居中时同样会挡住站点自带视频预览。
+                // 这里用同一套 placeOnce 机制（读一次即消耗，不写回设置）。
                 if (config.previewPlacement === 'center' && pickCard(t)) {
                     placeOnce = 'around';
                     placeOnceAt = Date.now();
@@ -4617,11 +4343,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         }
 
         function init() {
-            // ★ 视频预览激活时拦截滚轮：容器是 pointer-events:none，滚轮会**穿透**作用于页面 →
-            //   页面滚动 → 触发下面的 scroll 监听 → 误关预览（2026-09-19 反馈 bug）。
-            //   必须 capture + passive:false 才能阻止默认滚动，使预览期间页面不动。
-            //   注：test.85 曾把滚轮改成调音量，但站点播放器（B站）的 <video> 常是**纯视频轨**
-            //   的 MediaSource，解除静音也听不到声音 → 该功能已撤除（test.86），滚轮只保留「锁定页面」。
+            // 视频预览激活时拦截滚轮：容器 pointer-events:none，滚轮会穿透作用于页面 → 触发滚动 → 误关预览。
+            // 必须 capture + passive:false 才能阻止默认滚动。
             window.addEventListener('wheel', function (e) {
                 if (!cur) return;
                 try { e.preventDefault(); e.stopPropagation(); } catch (err) { }
@@ -4657,29 +4380,22 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         }, 120);
         document.addEventListener('mousemove', () => { stopResolve(); }, { passive: true });
 
-        // ★ 鼠标真正离开浏览器窗口。
-        // 原生窗口（文件管理器等）覆盖浏览器时，mouseout 可能和 blur 一起出现。
-        // 关闭“窗口失焦时收起”后，先短暂等待 blur 事件完成；如果确认浏览器已失焦，
-        // 则把这次 mouseout 视为“窗口切换”，保留当前预览。
+        // 鼠标真正离开浏览器窗口：原生窗口(文件管理器等)覆盖时 mouseout 可能与 blur 同时出现，
+        // 关闭「失焦收起」后先等 blur 完成，确认已失焦则视为窗口切换、保留预览。
         document.addEventListener('mouseout', (e) => {
             if (!e.relatedTarget) {
                 pointerInWindow = false;
                 resumeBlockedUntilMouseMove = true;
 
-                // ★ 关闭“窗口失焦时收起”后，mouseout 绝不能单独收起当前预览。
-                // 浏览器/原生窗口切换时，mouseout 与 blur 的先后顺序并不固定；
-                // 如果这里立即或异步执行 HOVER_NONE，就会把“切换应用”误判成“离开原图”。
-                // 此模式下只记录窗口外状态，等真正的物理 mousemove 回来后再恢复裁决。
+                // 关闭「失焦收起」后 mouseout 不能单独收起：窗口切换时 mouseout 与 blur 顺序不定，
+                // 立即 HOVER_NONE 会把「切换应用」误判为「离开原图」。此模式只记录窗口外状态。
                 if (!config.blurDismiss) return;
 
                 zoomFSM.dispatch('HOVER_NONE', { x: lastMouse.x, y: lastMouse.y, force: true });
             }
         }, true);
 
-        // ★ 浏览器窗口失去焦点。
-        // 开启：失焦时收起预览。
-        // 关闭：仅记录失焦，不主动收起；这样 Alt+Tab、点击其他应用、文件管理器覆盖等
-        // 场景都可以保留当前预览，切回浏览器后继续查看。
+        // 窗口失焦：开启 → 失焦时收起预览；关闭 → 仅记录不收起（Alt+Tab / 切应用 / 文件管理器覆盖后仍保留预览）。
         window.addEventListener('blur', () => {
             browserWindowFocused = false;
             resumeBlockedUntilMouseMove = true;
@@ -4710,10 +4426,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     }
 
     function setupHeartbeat() {
-        //后台标签页跳过心跳。
-        // heartbeat/orphanCheck 每 150ms/1500ms 都做 getBoundingClientRect（强制 layout），
-        // 之前在后台标签页持续空转，耗电并干扰主线程；
-        // 后台布局变化（SPA 预渲染、轮播定时器）还可能触发错误的 beginFade 决策。
+        // 后台标签页跳过心跳：heartbeat/orphanCheck 每次都 getBoundingClientRect（强制 layout），后台空转耗电且可能触发错误决策。
         setInterval(() => {
             if (!document.hidden) zoomFSM.heartbeat();
         }, HEARTBEAT_MS);
@@ -4725,19 +4438,11 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
 
     // 6. ★ 全局事件流 + 停稳裁决器
 
-    // ================
     // 7/8. ★ 背景图悬停模块
-    // ================
 
-    // ================
-    // 9. 动态图片观察器
-    // ================
-// 5.6.25 - 动态图片观察器
-// 不改观察/MutationObserver 行为。
+    // 9. 动态图片观察器（不改观察/MutationObserver 行为）
 
-    // ================
     // 9. 动态图片观察器
-    // ================
     let lazyImageObserver = null;
 
     function observeImage(img) {
@@ -4828,14 +4533,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
 
 
 
-    // ============================================================================
-    // Lightbox observer
-    // 处理网页自己的点击放大 / Lightbox：
-    // 1. 灯箱打开时收起已有 hover 放大实例；
-    // 2. 灯箱内部图片不再触发 hover 放大；
-    // 3. 兼容“仅插入灯箱 DOM、不修改 body class”的网站实现。
-    // 4. 兼容没有固定 class 的通用全屏图片浮层。
-    // ============================================================================
+    // Lightbox observer：灯箱打开时收起已有实例、灯箱内图片不再触发 hover、
+    // 兼容「仅插入灯箱 DOM 不改 body class」及通用全屏图片浮层。
 
     const LIGHTBOX_CLASSES = ['lightbox-open', 'fancybox-open', 'modal-open', 'zoom-overlay-open'];
     // 某些站点的灯箱结构为 #imgzoom > #imgzoom_zoomlayer > #imgzoom_zoom。
@@ -4880,10 +4579,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             const dialog = target.closest('[role="dialog"],[aria-modal="true"]');
             if (dialog) {
                 if (hasLightboxKeyword(dialog)) return true;
-                // ★ 仅"覆盖式"对话框 + 可见大图才算灯箱。
-                // role="dialog"/aria-modal 常被 SPA 当作普通内容包裹层；若只看"里面有没有大图"，
-                // 会把包住整页卡片的 dialog 误判为灯箱，从而在找图之前截断流程。
-                // 另外遍历全部媒体，避免只看到第一个（可能是隐藏小图标）就下结论。
+                // 仅「覆盖式」对话框（position:fixed/absolute）+ 可见大图才算灯箱；role=dialog/aria-modal 常被 SPA 当普通包裹层。
+                // 遍历全部媒体，避免只看到第一个（可能是隐藏小图标）。
                 let overlayLike = false;
                 try {
                     const dcs = getComputedStyle(dialog);
@@ -4972,8 +4669,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             }
 
             if (mutation.type === 'childList') {
-                // 新增和移除都可能改变灯箱状态；旧版只检查 addedNodes，
-                // 导致灯箱被移除后缓存/检测可能继续保留旧状态。
+                // 新增和移除都可能改变灯箱状态，两处都要检查（只查 addedNodes 会在灯箱移除后保留旧状态）。
                 const nodes = [...mutation.addedNodes, ...mutation.removedNodes];
                 for (const node of nodes) {
                     if (node.nodeType !== Node.ELEMENT_NODE) continue;
@@ -5013,10 +4709,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         const dismissZoomBeforeOpen = (e) => {
             if (!zoomFSM.hasActiveZoom()) return;
 
-            // 当前已有放大预览时，只要按下位置仍在“原始图片区域”内，
-            // 就把这次操作视为用户正在点击原图/原图所在链接。
-            // 不再依赖 event.target 必须是 img；部分网站的点击层、链接层、
-            // 图片包装器或事件代理会让 target 变成 div/a/span，导致旧版漏掉。
+            // 已有预览时，只要按下位置仍在「原图区域」内就视为点击原图/其链接（不依赖 event.target 必须是 img）。
             const t = e.target;
             if (t && t.closest && t.closest('.image-zoom-container')) return;
 
@@ -5059,11 +4752,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
 
     // setupLightboxObserver（灯箱观察）
 
-    // ================
     // 10. 滚轮管理器
-    // ================
-    // ================
-// Bilibili player helper. Behavior kept identical to 5.6.26.
+    // Bilibili player helper：仅负责全屏滚轮音量辅助与音量提示。
 const bilibiliVolumeModule = (function() {
         let enabled = storageGet('bilibili_volume_enabled', true);
         let toast = null;
@@ -5156,11 +4846,7 @@ const bilibiliVolumeModule = (function() {
 
         function init() {
             if (!isBilibiliHost()) return;
-            // ★ 不再接管方向键：方向键完全交给 B 站播放器原生处理。
-            // 本模块仅负责全屏滚轮音量辅助与音量提示。
-            // 方向键由 B 站原生播放器处理。不要监听 volumechange 显示自定义提示，
-            // 否则 ↑/↓ 会同时出现 B 站原生音量提示和 HoverVista 提示。
-            // HoverVista 自定义提示仅用于本模块实际接管的全屏滚轮调音量。
+            // 不接管方向键（交给 B 站原生播放器）；本模块仅负责全屏滚轮音量辅助与音量提示。
         }
 
         return {
@@ -5175,14 +4861,11 @@ const bilibiliVolumeModule = (function() {
 
 
     // 10. Bilibili 播放器辅助
-    // ================
 
     // wheelManager（滚轮调度）
 
 
-    // ================
     // 11. 样式 / 悬浮按钮 / 配置面板 / 自定义规则
-    // ================
     let styleElement = null, dockStyleElement = null;
 
     function injectStyles() {
@@ -5574,19 +5257,14 @@ const bilibiliVolumeModule = (function() {
                   24%,66%{opacity:1;transform:translateY(0) scale(1)}
                   80%,100%{opacity:0;transform:translateY(5px) scale(.95)}
                 }
-                /* 放大模式：刻意不做动画。
-                   实测两种模式的入场动效看起来几乎一样（都是「预览框出现」），
-                   用动画反而分不清差异。改成静态对比：三个方块宽度「渐变 vs 等宽」，
-                   直接表达「尺寸会随图片变」vs「尺寸永远一样」。 */
+                /* 放大模式：刻意不做动画，改为静态对比（三个方块宽度「渐变 vs 等宽」），直接表达「尺寸随图变」vs「永远一样」。 */
                 .izn-mode-vis{display:flex;align-items:center;gap:5px;height:60px;padding:0 5px;margin-bottom:8px;
                   border-radius:9px;background:linear-gradient(160deg,var(--iz-bg-5),var(--iz-bg-4));border:1px solid var(--iz-bd-1)}
                 .izn-mode-vis .mv-frame{height:68%;flex:var(--g,1) 1 0;min-width:0;border-radius:4px;
                   background:linear-gradient(135deg,#9dbfe6,#c6d8ee);box-shadow:0 2px 6px -3px rgba(15,23,42,.35)}
                 .izn-mode .izn-mode-tagline{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.02em;
                   color:var(--iz-accent-deep);background:var(--iz-blue-tint-2);border-radius:5px;padding:1px 7px;margin-top:5px}
-                /* 从原图弹出：预览框从「缩略图所在位置」（缩小状态）滑行放大到预览位置。
-                   —— 对应脚本 dock 动效（FLIP：实测起始帧 translate(-322px,-180px) scale(0.3226)，
-                      即从原图 rect 滑到预览 rect，不是「从下方升起」） */
+                /* 从原图弹出：预览框从缩略图位置（缩小态）滑行放大到预览位置，对应脚本 dock 动效（FLIP：从原图 rect 滑到预览 rect）。 */
                 .izn-demo[data-demo="fx-dock"] .d-preview{left:44px;top:8px;width:48px;height:34px;
                   animation:demoDock 3.8s cubic-bezier(.16,1,.3,1) infinite}
                 @keyframes demoDock{
@@ -5594,9 +5272,7 @@ const bilibiliVolumeModule = (function() {
                   26%,66%{opacity:1;transform:none}
                   80%,100%{opacity:0;transform:translate(-40px,-3px) scale(.6)}
                 }
-                /* 从原图绽开：预览框就落在缩略图位置，用圆形从缩略图中心向外绽开。
-                   —— 对应脚本 spotlight 动效（实测 clipPath circle(25px at 源图中心) → circle(932px)，
-                      图片几乎不位移、原地聚焦，另有白光爆闪） */
+                /* 从原图绽开：预览框落在缩略图位置，用圆形从缩略图中心向外绽开，对应脚本 spotlight 动效（clip-path circle 扩散 + 白光爆闪）。 */
                 .izn-demo[data-demo="fx-spotlight"] .d-preview{left:16px;top:10px;width:52px;height:38px;
                   animation:demoSpot 3.8s cubic-bezier(.2,.7,.3,1) infinite}
                 @keyframes demoSpot{
@@ -5703,15 +5379,11 @@ const bilibiliVolumeModule = (function() {
                   #izConfigPanel,#izIntroPanel,#izUpdateNotice,#izModalOverlay,#izIntroOverlay,.iz-toggle,.iz-toggle .iz-knob,.iz-collapse-body,.iz-collapse-header .iz-arrow,.iz-switch-card,.iz-btn-sm,.iz-btn-primary-solid{animation:none!important;transition:none!important}
                   .iz-panel-scroll{scroll-behavior:auto}
                 }
-                /* ==========================================================================
-                   ★ 兼容性修复：定制浏览器给 <button> 注入高特异性默认背景
-                   实测 ego lite 0.5.0.33 把裸 <button> 的 background-color 设成 #1a73e8，
-                   且该规则特异性高于单类选择器（如 .izn-place），会盖掉面板里所有按钮
-                   底色 —— 表现为导航项、图示卡、尺寸块、底部按钮全被刷成蓝色
-                   （只有 .xxx.on 这类双类选择器侥幸存活，所以现象是「全蓝」）。
-                   对策：① 先用 #izConfigPanel button 清空默认底色（特异性 1,0,1）；
-                        ② 需要底色的规则再加一层类前缀重新声明（1,x,0 稳赢）。
-                   ========================================================================== */
+                /*
+                   兼容性修复：定制浏览器会给裸 <button> 注入高特异性默认背景，盖掉面板按钮底色。
+                   对策：① 用 #izConfigPanel button 清空默认底色（特异性 1,0,1）；
+                        ② 需要底色的规则加一层类前缀重新声明（1,x,0）。
+                   */
                 #izConfigPanel button{background-color:transparent;background-image:none}
                 #izConfigPanel .izn-nav-item{background:none}
                 #izConfigPanel .izn-nav-item:hover{background:var(--iz-blue-tint-2)}
@@ -5737,15 +5409,11 @@ const bilibiliVolumeModule = (function() {
                 #izConfigPanel .iz-btn-danger-ghost{background:none}
                 #izConfigPanel .iz-btn-danger-ghost:hover{background:var(--iz-danger-soft)}
                 #izConfigPanel .iz-btn-primary-solid{background:var(--iz-grad);color:#fff}
-                /* ==========================================================================
-                   ★ 防「站点样式泄漏」：面板是挂在宿主页面 body 里的，站点给裸语义元素写的
-                   背景/边框/阴影会直接命中面板里的 <b>/<summary> 等 —— 面板自己没声明这些属性，
-                   所以站点一条特异性仅 0,0,1 的规则（如 b{background:#f59e0b}）就能赢，
-                   表现为「面板里的标题/小节名被刷上一层底色」（2026-09-19 反馈：橙色底）。
-                   对策：用 :is(#id…) 前缀把特异性提到 1,0,1，稳定压过站点规则。
-                   注意：只覆盖面板「从不设底色」的元素；<kbd>（要品牌色底）、<p class="izn-hnew">、
-                   <summary>（有自己的 hover 底色）都不放进这个通配重置里。
-                   ========================================================================== */
+                /*
+                   防站点样式泄漏：面板挂在宿主页 body 里，站点给裸语义元素（b/summary…）写的
+                   背景/边框/阴影会直接命中面板。对策：用 :is(#id…) 前缀把特异性提到 1,0,1 压过站点规则。
+                   只覆盖面板「从不设底色」的元素（<kbd>、<p class="izn-hnew">、<summary> 等除外）。
+                   */
                 :is(#izModalOverlay,#izHelpModal,#izIntroPanel,#izUpdateNotice) :is(
                   b,strong,em,i,u,s,small,mark,code,time,cite,q,abbr,sub,sup,hr,
                   h1,h2,h3,h4,h5,h6,ul,ol,li,dl,dt,dd,blockquote,pre,figure,figcaption){
@@ -5753,23 +5421,14 @@ const bilibiliVolumeModule = (function() {
                   box-shadow:none!important;text-shadow:none!important;
                   border-top:0!important;border-right:0!important;border-bottom:0!important;border-left:0!important
                 }
-                /* ② 自身有底色（或需要 hover 底色）的元素：只补一句 transparent。
-                      必须同时加 !important —— 站点若写 summary{background:…!important}，
-                      不加 important 的话普通规则会被直接压掉（实测踩到）。
-                      特异性仍保持较低（0,1,x）：站点裸元素规则（0,0,1）压得住，
-                      而 .iz-adv>summary:hover（0,2,1，同样 !important）比特异性赢 → hover 反馈存活。 */
+                /* ② 自身有底色（或需 hover 底色）的元素：只补 transparent + !important，压过站点的 …!important。
+                      特异性保持较低（0,1,x），让 .iz-adv>summary:hover（0,2,1）赢 → hover 反馈存活。 */
                 .izn-vsub,.izn-content summary,.iz-adv>summary{background-color:transparent!important;background-image:none!important}
-                /* ③ 短类名撞车防御（2026-09-20 dlsjs.net 实机定位，这才是哥哥报的「橙色底」真凶）
-                      面板用了 .pn/.pd/.q/.a/.v/.d/.t/.flex/.note/.ver 这类「无命名空间短类名」，
-                      站点只要有一条同名 class 规则就会给面板元素刷底色：
-                      实例 dlsjs.net 有 .pn{background:rgb(243,154,7)}（橙 #f39a07），
-                      命中 7 个 <span class="pn"> —— 正是「放大模式 / 大图出现在哪 / 出现方式」
-                      三组图示卡的标题块。这些元素我们从不声明 background → 无竞争 → 站点直接生效。
-                      对策：复用「原规则同款选择器」+ !important —— 特异性 (0,2,0)!important 压过
-                      站点的 .pn 与 .pn{…!important}（0,1,0）；**刻意不扩大选择器**，
-                      否则会误伤同族里有背景的规则（例：给 .iz-btn-sm 加透明会连 .iz-btn-sm.primary
-                      的背景一起压掉）。
-                      维护：面板新增元素若用「无前缀短类名」且不给背景，须追加到下面这行。 */
+                /* ③ 短类名撞车防御：面板用了 .pn/.pd/.q/.a/.v/.d/.flex/.note/.ver 这类「无命名空间短类名」，
+                      站点若有同名 class 规则就会给面板元素刷底色。
+                      对策：复用原规则同款选择器 + !important（(0,2,0)!important 压过站点 .pn 与 .pn{…!important}）；
+                      刻意不扩大选择器，否则会误伤同族里有背景的规则。
+                      维护：面板新增「无前缀短类名且不给背景」的元素，须追加到下一行的选择器列表。 */
                 .izn-place .pn,.izn-place .pd,.izn-mode .pn,.izn-mode .pd,
                 .izn-diag .q,.izn-diag .a,.izn-row .t,.izn-row .d,
                 .izn-hverline .v,.izn-hverline .d,
@@ -5953,7 +5612,6 @@ const bilibiliVolumeModule = (function() {
     // ★ Dock 悬浮控制区
 
     // ----- 配置面板 -----
-    // ================
     function updateButtonState() {
         if (!toggleButton) return;
         if (isHomepageZoomDisabled()) {
@@ -6011,12 +5669,8 @@ const bilibiliVolumeModule = (function() {
     }
 
 
-    // ================
-    // ★ 弹层滚轮陷阱：面板 / 弹窗打开时，滚轮只在弹层内部的可滚动区域生效。
-    //   —— 落在非滚动区域、或内部已滚到上/下边界时一律丢弃，
-    //   避免「滚轮穿透」把背后的网页一起滚走（2026-09-19 反馈 bug）。
-    //   —— 预览激活（图片缩放 / 视频预览）时直接放行，交给预览自己的滚轮逻辑。
-    // ================
+    // 弹层滚轮陷阱：面板/弹窗打开时滚轮只在弹层内可滚动区域生效，非滚动区或已达边界一律丢弃（防滚轮穿透滚走背后页面）；
+    // 预览激活时直接放行。
     function bindWheelTrap(el) {
         if (!el || el.__izWheelTrap) return;
         el.__izWheelTrap = true;
@@ -6042,9 +5696,7 @@ const bilibiliVolumeModule = (function() {
         }, { passive: false });
     }
 
-    // ================
     // ★ 首次使用说明（全局仅显示一次，不按域名保存）
-    // ================
     const INTRO_SEEN_KEY = 'image_zoom_intro_seen';
 
     function showIntroPanel(force = false) {
@@ -6112,9 +5764,7 @@ const bilibiliVolumeModule = (function() {
         setTimeout(() => overlay.classList.remove('anim-in'), 400);
     }
 
-    // ================
     // ★ 更新说明（全局按版本仅显示一次，不按域名保存）
-    // ================
     const UPDATE_VERSION = (typeof SCRIPT_VERSION !== 'undefined' && SCRIPT_VERSION) ? SCRIPT_VERSION : '5.6.26';
     const UPDATE_SEEN_KEY = `image_zoom_update_seen_${UPDATE_VERSION}`;
 
@@ -6259,12 +5909,8 @@ const bilibiliVolumeModule = (function() {
 
 
     // 配置面板 UI
-    // ================
 
-    // ============================================================================
-    // Config Panel UI module
-    // 保留原有配置面板代码；不改运行行为。
-    // ============================================================================
+    // Config Panel UI module（保留原有配置面板代码，不改运行行为）
 
     const COMMON_PARAM_DEFS = [
         { key: 'delay', label: '停留多久才弹出', unit: 'ms', min: 0, max: 2000, step: 100, tip: '越小越灵敏，越大越不容易误触发。', zeroText: '立刻弹出' },
@@ -6282,13 +5928,7 @@ const bilibiliVolumeModule = (function() {
         { key: 'smallImgHeight', label: '小图预览高度', unit: 'px', min: 300, max: 1000, step: 10, tip: '小图放大后的高度基准。' }
     ];
 
-    // ★ 「预览尺寸」四档：把原本要分别调的 maxWidth / maxHeight 合并成一个直观选择。
-    //   仍写回原字段（不新增 config 键），所以导出格式与已有配置完全兼容。
-    //   精确宽高仍在下方「高级」里以滑块保留，供需要单独控制的用户使用。
-    //   ★ 2026-09-19：档位数值下调，拉开梯度。旧值「小=1000×800」在小视口下，
-    //     高度上限（800）与「跟随视口」档（受视口高度限制）算出相近结果 —— 1280 视口
-    //     实测「小」1000px vs「跟随视口」1037px 只差 37px，四档无可感知梯度（实机测试问题 4）。
-    //     下调后「小」档高度上限 600 明显低于视口，梯度清晰。
+    // 「预览尺寸」四档：把 maxWidth/maxHeight 合并成一个直观选择，仍写回原字段（导出格式兼容）；精确宽高在「高级」保留。
     const SIZE_STEPS = [
         { w: 800, h: 600, name: '小' },
         { w: 1400, h: 1050, name: '中' },
@@ -6301,10 +5941,7 @@ const bilibiliVolumeModule = (function() {
         }
         return -1;   // 已用精确滑块自定义
     }
-    // ★ 档位 → 占「视口可用空间」的比例。视口小于档位绝对尺寸时（小窗 / 竖屏 / 视口矮），
-    //   若仍按 min(视口, 档位绝对尺寸) 取上限，中/大/跟随三档的目标高度（1050/1650/3000）
-    //   会一起撞上同一个视口上限（如 694）→ 显示一样大、档位失去区分（横图尤其明显）。
-    //   改为按档位比例分配视口空间：四档在任何视口下都有区分，且都受视口约束不超页。
+    // 档位 → 占「视口可用空间」的比例：小视口下若按 min(视口, 档位绝对尺寸) 取上限，中/大/跟随会撞同一上限失去区分。
     const STEP_VIEWPORT_SCALE = [0.55, 0.72, 0.88, 1.0];   // 小 / 中 / 大 / 跟随视口
     function stepViewportScale() {
         const i = sizeStepIndex();
@@ -7044,10 +6681,7 @@ const bilibiliVolumeModule = (function() {
             });
         };
 
-        // ===== 规则包 =====
-        // 注：原「规则包」独立折叠区块已合并进「图片规则（换大图）」区的 ② 云端规则包，
-        // 元素 id（izPackBadge/izPackStatus/izPackAutoToggle/izPackUpdateBtn/izPackRollbackBtn）保持不变，
-        // 因此下面的状态渲染与按钮绑定无需改动，只是不再有独立的折叠头。
+        // 规则包：原独立折叠区块已并入「图片规则」区的 ② 云端规则包，元素 id 保持不变，状态渲染与按钮绑定无需改动。
         function renderPackStatus() {
             const badge = $('izPackBadge'), st = $('izPackStatus'), note = $('izPackNote');
             if (!badge || !st || !note) return;
@@ -7590,9 +7224,8 @@ const bilibiliVolumeModule = (function() {
         function commitParam(key, val) {
             const def = COMMON_PARAM_DEFS.concat(FIXED_PARAM_DEFS).find(p => p.key === key);
             if (isNaN(val)) val = defaultConfig[key];
-            // ★ BUG-2 修复：把值对齐到「滑块步进」网格，保证数字框与滑块取值完全一致。
-            //   滑块步进取 min(定义步进, 1)：整数参数可用任意整数、小数参数保持 0.1 精度。
-            //   此前数字框可留 830，而 step=100 的滑块只能吸附 800，二者错位误导用户。
+            // 把值对齐到「滑块步进」网格，保证数字框与滑块取值一致：步进取 min(定义步进, 1)，
+            // 整数参数可用任意整数、小数参数保持 0.1 精度。
             if (def && def.step) {
                 const step = Math.min(Number(def.step) || 1, 1);
                 const base = (typeof def.min === 'number') ? def.min : 0;
@@ -7753,10 +7386,8 @@ const bilibiliVolumeModule = (function() {
         }
         overlay.__iznGo = iznGo; overlay.__iznSync = iznSync;
 
-        // ★ 面板控件「单一同步入口」：把每个控件校正为「当前 config + isEnabled + 哔哩开关」的真实状态。
-        //   「打开面板」与「恢复默认设置」都走这里 —— 此前两处各写一份，reset 那份漏了
-        //   入场动效 / 视频悬停 / 总开关 / 显示位置，导致恢复默认后 UI 残留旧值；
-        //   最严重的是总开关关掉后 reset 不恢复为开（config 里没有 isEnabled，它独立持久化）。
+        // 面板控件「单一同步入口」：把每个控件校正为「当前 config + isEnabled + 哔哩开关」的真实状态；
+        // 「打开面板」与「恢复默认」都走这里。
         function syncPanelFromState() {
             try { syncZoomModes(); } catch (e) { }
             try { conflictToggle.classList.toggle('active', config.avoidClickConflict); } catch (e) { }
@@ -7914,8 +7545,7 @@ const bilibiliVolumeModule = (function() {
                 }
             });
             config.keymap[keyRecording] = [k];
-            // ★ 让出后若原动作变空（「未设置」），回退到它的默认键（前提：该默认键当前未被任何动作占用）。
-            //   旧版让出后原动作永久「未设置」、功能失去快捷键（2026-09-19 全功能实机测试问题 3）。
+            // 让出后若原动作变空（「未设置」），回退到它的默认键（前提：该默认键未被任何动作占用）。
             const usedKeys = new Set();
             Object.keys(config.keymap).forEach(function (a) {
                 (config.keymap[a] || []).forEach(function (x) { usedKeys.add(x); });
@@ -7984,10 +7614,8 @@ const bilibiliVolumeModule = (function() {
             config = { ...defaultConfig };
             config.keymap = keepKeymap;
             saveConfig();
-            // ★ 总开关（isEnabled / image_zoom_enabled_<域名>）是独立持久化的，不在 defaultConfig 里。
-            //   只重置 config 不重置它，就会出现「点了恢复默认，脚本仍被静默禁用、hover 无反应」，
-            //   而且用户从面板 UI 上看不出已被禁用 —— 必须四处一起同步（存储 / 内存变量 /
-            //   面板开关 / dock 球），漏任何一处都表现为「状态不一致」。
+            // 总开关（isEnabled / image_zoom_enabled_<域名>）独立持久化、不在 defaultConfig 里：
+            // 恢复默认时须四处一起同步（存储 / 内存变量 / 面板开关 / dock 球），漏一处就状态不一致。
             isEnabled = true;
             storageSet('image_zoom_enabled_' + currentDomain, true);
             try { updateButtonState(); } catch (e) { }   // 同步 dock 球的颜色/状态点
@@ -8015,10 +7643,7 @@ const bilibiliVolumeModule = (function() {
                 // 「站点规则自定义」区也会按导入后的规则重新渲染。
                 const msg = '已导入 ' + res.ok + ' 项配置' + (res.skipped ? '，跳过 ' + res.skipped + ' 项' : '') + ' ✅';
                 closePanel();
-                // ★ 提示必须等面板重建完成后再显示。showToast 在「面板开着」时会走
-                //   showPanelCenterToast，把提示节点挂进 #izConfigPanel 内部；而这里紧接着就把
-                //   整个 overlay remove() 掉了 → 提示随父节点一起消失（实测只活了 ~11ms→306ms），
-                //   用户根本读不到。放到重建之后再调，提示就会挂到新面板上。
+                // 提示必须等面板重建完成后再显示：showToast 在面板开着时会挂进 #izConfigPanel，而这里紧接着 remove 整个 overlay → 提示会随之消失。
                 setTimeout(() => { overlay.remove(); toggleConfigPanel(); showToast(msg); }, 320);
             });
             e.target.value = '';  // 清空以便连续导入同一个文件
@@ -8103,8 +7728,7 @@ const bilibiliVolumeModule = (function() {
             overlay.style.display = 'none';
             return;
         }
-        // ★ 每次打开面板都把「总览」与「全部控件」校正为真实状态（统一入口见 syncPanelFromState）
-        //   （此前这几行被误插进了欢迎弹窗，导致面板一直显示陈旧的「已关闭」）
+        // 每次打开面板都把「总览」与「全部控件」校正为真实状态（统一入口见 syncPanelFromState）。
         if (overlay.__iznGo) overlay.__iznGo('overview');
         const syncAll = () => { if (overlay.__izSyncAll) overlay.__izSyncAll(); else if (overlay.__iznSync) overlay.__iznSync(); };
         syncAll();
@@ -8116,13 +7740,8 @@ const bilibiliVolumeModule = (function() {
     }
 
 
-    // ================
     // 12. 主初始化
-    // ================
-    // ===== 颜色标记说明 =====
-    // 🟢 绿区：性能/结构优化区域，可优先修改
-    // 🟡 黄区：兼容性相关区域，修改后需重点测试网站
-    // 🔴 红区：hover放大核心链路，避免直接重构
+    // 颜色标记：🟢 性能/结构优化区 · 🟡 兼容性相关区（改动需重点测试）· 🔴 hover 放大核心链路（避免直接重构）。
     function mainInit() {
         loadConfig();
         loadState();
