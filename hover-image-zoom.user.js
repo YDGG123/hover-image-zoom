@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         悬景 · HoverVista｜鼠标悬停图片自动放大预览
 // @namespace    https://github.com/YDGG123
-// @version      5.9.0
+// @version      5.9.1
 // @description  网页图片鼠标悬停自动放大工具：智能自适应、高清图后台升级、滚轮边界控制、配置备份与恢复
 // @author       益达哥哥
 // @match        *://*/*
@@ -13,6 +13,8 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM_openInTab
 // @connect      raw.githubusercontent.com
+// @connect      cdn.jsdelivr.net
+// @connect      fastly.jsdelivr.net
 // @connect      *
 // @run-at       document-end
 // @license      GPL-3.0
@@ -41,7 +43,7 @@ const SCRIPT_VERSION = (function () {
     try {
         if (typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) return GM_info.script.version;
     } catch (e) { }
-    return '5.9.0';
+    return '5.9.1';
 })();
 // 调试模式（URL 带 ?hvdebug=1）：把智能升级器的诊断信息显示在信息浮层里，便于端到端排查
 const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.search); } catch (e) { return false; } })();
@@ -58,6 +60,20 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
 
     const storageGet = (key, defaultValue) => storage.get(key, defaultValue);
     const storageSet = (key, value) => storage.set(key, value);
+
+    // 全局偏好（跨网站共享）：界面语言、历史视图这类「不随站点变化」的选择。
+    // 与面板里按域名保存的配置分开存，改一次到处生效。
+    const GLOBAL_PREFS_KEY = 'image_zoom_global_prefs';
+    let globalPrefs = (function () {
+        try {
+            const raw = storageGet(GLOBAL_PREFS_KEY, null);
+            if (raw && typeof raw === 'object' && !Array.isArray(raw)) return Object.assign({}, raw);
+        } catch (e) { }
+        return {};
+    })();
+    function saveGlobalPrefs() {
+        try { storageSet(GLOBAL_PREFS_KEY, Object.assign({}, globalPrefs)); } catch (e) { }
+    }
 
     // 历史记录（最近悬停看过的图片；只存本机 GM 存储，不上传）
     const HISTORY_KEY = 'hvHistoryV1';
@@ -140,6 +156,521 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
 
     function escapeHtml(s) {
         return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // ===== 界面语言 =====
+    // auto 跟随浏览器语言；只替换「显示文案」，不参与任何功能逻辑。
+    function getLang() {
+        if (globalPrefs.lang === 'zh') return 'zh';
+        if (globalPrefs.lang === 'en') return 'en';
+        try { return /^zh\b/i.test(navigator.language || '') ? 'zh' : 'en'; } catch (e) { return 'zh'; }
+    }
+    function isEnUI() { return getLang() === 'en'; }
+
+    // 文案字典：键是「渲染后的完整文本」，值是英文。未收录的文案保持中文原样（可随时增补）。
+    const I18N_EN = {
+        // —— 品牌与框架 ——
+        '悬景': '',                       // 品牌区「悬景 + HoverVista」在英文下只保留 HoverVista
+        '改动已自动保存': 'Saved automatically',
+        '关闭 (ESC)': 'Close (ESC)',
+        '关闭（Esc）': 'Close (Esc)',
+        '关闭': 'Close',
+        '完成': 'Done',
+        '取消': 'Cancel',
+        '备注': 'Note',
+        '选填': 'Optional',
+        '打开配置面板': 'Open settings panel',
+        '点击：切换图片放大': 'Click: toggle image zoom',
+        // —— 导航 ——
+        '概览': 'Overview',
+        '总览与诊断': 'Overview',
+        '外观': 'Appearance',
+        '显示与样式': 'Display',
+        '行为': 'Behavior',
+        '触发与交互': 'Triggering',
+        '固定模式参数': 'Fixed-mode params',
+        '键位': 'Keys',
+        '规则与数据': 'Rules & data',
+        '图片规则': 'Image rules',
+        '站点适配': 'Site fit',
+        '历史记录': 'History',
+        // —— 总览区 ——
+        '当前网站': 'This site',
+        '当前网站状态': 'Site status',
+        '仅主页': 'Homepage only',
+        '启用图片放大': 'Enable image zoom',
+        '关闭后本网站的悬停放大与视频预览全部停用（其它网站不受影响）。等效于点击页面上的控制球。': 'Turns off hover zoom and video preview on this site (other sites unaffected). Same as clicking the floating ball.',
+        '当前主页已启用图片放大': 'Image zoom is enabled on the homepage',
+        '当前主页已禁用图片放大': 'Image zoom is disabled on the homepage',
+        '禁用主页图片放大功能': 'Disable zoom on the homepage',
+        '启用主页图片放大功能': 'Enable zoom on the homepage',
+        '站首页通常图片密集、容易误触发；开启后只关首页，内容子页面照常生效。': 'Homepages are image-dense and easy to trigger by accident. This only disables the homepage; inner pages keep working.',
+        '规则与数据概况': 'Rules & data overview',
+        '我的规则': 'My rules',
+        '云端规则包': 'Cloud rule pack',
+        '云端规则包与本站命中情况见「图片规则」': 'See “Image rules” for the cloud pack and this site’s matches',
+        '🔒 签名校验状态与更新入口在「图片规则」': '🔒 Signature status and the update entry live under “Image rules”',
+        '管理': 'Manage',
+        '更新': 'Update',
+        '界面语言': 'Interface language',
+        '只影响显示文案': 'Display text only',
+        '跟随浏览器': 'Auto',
+        '属全局设置，所有网站共用。': 'A global setting shared by all sites.',
+        '遇到问题？': 'Troubleshooting',
+        '点一下直达对应设置': 'One click to the right setting',
+        '图悬停没反应': 'No response on hover',
+        '页面遮罩挡住了鼠标 →': 'An overlay blocks the cursor →',
+        '大图太小 / 太大': 'Preview too small / too big',
+        '换放大模式或调最大宽高 →': 'Change the zoom mode or max width/height →',
+        '图片不够清晰': 'Image not sharp enough',
+        '本站有没有更大的图？→ 在': 'Is there a larger version? → open',
+        '里「点图选图」试试': 'and try “Pick from page”',
+        // —— 显示与样式 ——
+        '决定大图「多大、出现在哪、长什么样」。': 'Controls how big the preview is, where it appears and how it looks.',
+        '放大模式': 'Zoom mode',
+        '方块宽度 = 大图宽度': 'Block width = preview width',
+        '推荐': 'Recommended',
+        '智能自适应': 'Adaptive',
+        '尺寸按每张图自动算，尽量用满屏幕': 'Size is computed per image to fill the screen',
+        '每张图不一样': 'Varies per image',
+        '固定倍数': 'Fixed scale',
+        '始终按你设的倍率，每次大小都一样': 'Always uses your fixed scale — same size every time',
+        '每张图都一样': 'Same for every image',
+        '大图能有多大': 'How big it can get',
+        '方块大小就是大图大小': 'Block size = preview size',
+        '高级：分别设置宽高': 'Advanced: set width and height separately',
+        '大图出现在哪': 'Where it appears',
+        '看动画对比': 'Compare with animations',
+        '屏幕居中': 'Screen center',
+        '位置稳定，每次都一样': 'Stable position, always the same',
+        '原图周围': 'Around the image',
+        '不挡住你正在看的那张图': 'Won’t cover the image you are viewing',
+        '出现方式': 'Entrance animation',
+        '从原图弹出': 'Unfold from image',
+        '整块从原图位置长出来，滑到预览位置': 'The whole block grows out of the image and slides into place',
+        '从原图绽开': 'Bloom from image',
+        '在原图位置用光圈向外扩散': 'A ring expands outward from the image position',
+        '直接淡入': 'Fade in',
+        '最快，没有任何位移': 'Fastest, no movement',
+        '系统开启「减少动态效果」时会自动降级为直接淡入。': 'Falls back to fade-in when the system requests reduced motion.',
+        '显示图片信息栏': 'Show image info bar',
+        '在大图下方显示尺寸、格式、来源和图说。': 'Show size, format, source and caption below the preview.',
+        '小': 'S',
+        '中': 'M',
+        '大': 'L',
+        '跟随视口': 'Fit viewport',
+        // —— 触发与交互 ——
+        '什么时候弹出、怎么操作它，以及和页面点击放大的相处方式。': 'When the preview appears, how to control it, and how it coexists with click-to-zoom.',
+        '触发时机': 'Trigger',
+        '停留多久才弹出': 'Hover delay',
+        '立刻弹出': 'Instant',
+        '太小的图不放大': 'Skip tiny images',
+        '多大的图算小图': 'Small-image threshold',
+        '小图预览宽度': 'Small-image width',
+        '小图预览高度': 'Small-image height',
+        '最小不小于': 'Never smaller than',
+        '匹配选项（一般不用改）': 'Flags (usually unchanged)',
+        '让页面上的图片都能悬停放大': 'Zoom any image on hover',
+        '滚轮放大缩放': 'Zoom with the wheel',
+        '滚轮放大缩小': 'Zoom with the wheel',
+        '只在预览显示时生效。': 'Only while the preview is shown.',
+        '滚轮平移距离': 'Wheel scroll distance',
+        '滚轮与视频': 'Wheel & video',
+        '避免与点击放大功能冲突': 'Avoid sites that zoom on click',
+        '避开「点一下才放大」的网站': 'Avoid sites that zoom on click',
+        '窗口失焦时收起放大图': 'Hide the preview when the window loses focus',
+        '切到别的应用时自动收起': 'Auto-hide when you switch apps',
+        '关掉后，切换应用时预览会保留。': 'When off, the preview stays when you switch apps.',
+        '悬停视频时预览播放': 'Preview videos on hover',
+        '悬停视频卡片时静音浮出播放，按 Esc 关闭。': 'Hover a video card to play it muted; press Esc to close.',
+        '图集邻图预加载': 'Preload gallery neighbours',
+        '翻页前先预热前后张，翻起来更顺；省流量模式与 2G 网络会自动跳过。': 'Warms up the next and previous images before you page, so flipping feels instant. Skipped on data-saver mode and 2G networks.',
+        'B站全屏音量修正': 'Bilibili fullscreen volume fix',
+        'B站全屏时如果滚轮调不了音量，开启这项即可。': 'Enable this if the wheel cannot change volume in Bilibili fullscreen.',
+        // —— 固定模式参数 / 数值参数 ——
+        '这些设置只在「固定倍数」模式下生效': 'These settings only apply in fixed-scale mode',
+        '模式，下面 5 项不生效。': 'mode, so the 5 settings below are inactive.',
+        '放大倍数': 'Zoom factor',
+        '大图最大宽度': 'Max width',
+        '大图最大高度': 'Max height',
+        // —— 键位 ——
+        '动作快捷键': 'Action shortcuts',
+        '键位对所有网站通用': 'Keys apply to all sites',
+        '点右侧键帽再按新键即可改绑；按到已占用的键时，原动作自动让出': 'Click a key cap and press a new key. If the key is taken, the previous action yields automatically.',
+        '↩ 恢复默认键位': '↩ Reset keys',
+        '关闭预览': 'Close preview',
+        '放大': 'Zoom in',
+        '缩小': 'Zoom out',
+        '重置缩放': 'Reset zoom',
+        '保存高清图': 'Save full-res',
+        '复制图片地址': 'Copy image URL',
+        '复制图片': 'Copy image',
+        '旋转 90°': 'Rotate 90°',
+        '水平翻转': 'Flip horizontally',
+        '上一张': 'Previous',
+        '下一张': 'Next',
+        '全屏': 'Fullscreen',
+        '打包下载图集': 'Download gallery as ZIP',
+        '收起当前放大图': 'Collapse the current preview',
+        '按步进放大约 8%': 'Zooms in about 8% per press',
+        '按步进缩小约 7.4%': 'Zooms out about 7.4% per press',
+        '回到进入预览时的大小': 'Back to the size when the preview opened',
+        '优先保存高清原图': 'Prefer saving the full-resolution original',
+        '复制真实来源地址': 'Copy the real source URL',
+        '复制图片本体（跨域可能失败）': 'Copy image data (may fail cross-origin)',
+        '顺时针；转四次回原状': 'Clockwise; four presses restore the original',
+        '再按一次还原': 'Press again to restore',
+        '图集内往前翻': 'Previous in gallery',
+        '图集内往后翻': 'Next in gallery',
+        '再按一次退出': 'Press again to exit',
+        '图集模式下按 Z，把整组图打成 ZIP 下载': 'In gallery mode press Z to download the whole set as a ZIP',
+        // —— 图片规则 ——
+        '从上到下依次生效：① 我的规则 → ② 云端规则包 → ③ 内置兜底。': 'Applied top-down: ① My rules → ② Cloud pack → ③ Built-in.',
+        '① 我的规则（优先）→ ② 云端规则包 → ③ 内置兜底': '① My rules (priority) → ② Cloud pack → ③ Built-in',
+        '优先': 'Priority',
+        '这里加的规则会盖过云端和内置规则。': 'Rules added here override the cloud pack and built-ins.',
+        '生效范围': 'Scope',
+        '只在当前网站': 'This site only',
+        '所有网站': 'All sites',
+        '还没有。用上面的「帮我找大图」就能加一条，不用懂任何技术。': 'Nothing yet. Use “Find a larger image” above to add one — no technical knowledge needed.',
+        '高级：手写匹配规则 / 导出': 'Advanced: hand-written rules / export',
+        '规则名称': 'Rule name',
+        '处理时机': 'Phase',
+        '清理图片地址': 'Clean up image URL',
+        '换图规则': 'Image-swap rules',
+        '匹配规则': 'Match pattern',
+        '替换成': 'Replace with',
+        '保存规则': 'Save rule',
+        '＋ 为当前网站添加规则': '＋ Add a rule for this site',
+        '🔍 分析这个地址': '🔍 Analyze this URL',
+        '🔍 帮我找大图': '🔍 Find a larger image',
+        '🖱 点图选图': '🖱 Pick from page',
+        '🖱️ 拾取选择器': '🖱️ Pick selector',
+        '卡片选择器': 'Card selector',
+        '图片容器选择器（背景图元素的 CSS 选择器）': 'Image container selector (CSS selector of the background element)',
+        '域名（逗号分隔，留空为当前网站）': 'Domains (comma-separated; empty = current site)',
+        '图片看不清？点「点图选图」后，直接在网页上点那张图就行。': 'Image blurry? Click “Pick from page”, then click the image on the page.',
+        '💡 不会写选择器？点「🖱️ 拾取选择器」后直接在页面上点一下图片即可自动填写。': '💡 No selector? Click “🖱️ Pick selector”, then click the image on the page.',
+        '📤 导出为可提交的规则包片段': '📤 Export as a submittable snippet',
+        '🐛 提交给官方（自动填好内容）': '🐛 Submit to the project (form pre-filled)',
+        '🎯 高级：站点规则自定义': '🎯 Advanced: custom site rules',
+        '规则明细': 'Rule details',
+        '规则包只提供「正则 → 替换」的数据，不执行任何代码。': 'The rule pack only supplies regex → replacement data; no code is executed.',
+        '下载后固定在本地；只有没取到本站规则、或超过一周未校验时才后台重探。': 'Pinned locally once downloaded; only rechecked when this site has no rules yet or they are over a week old.',
+        '自动更新': 'Auto-update',
+        '↻ 立即更新': '↻ Update now',
+        '↩ 回滚上一版': '↩ Revert to previous',
+        '我的规则（优先）': 'My rules (priority)',
+        '按站点下发，不能直接改；某个站不合适，就用上面的「我的规则」盖住它。': 'Shipped per site and not editable here. If a site misbehaves, override it with “My rules” above.',
+        '内置兜底规则': 'Built-in fallback rules',
+        '脚本自带的通用规则，始终生效。': 'Generic rules bundled with the script — always active.',
+        '暂无自定义规则。': 'No custom rules yet.',
+        // —— 站点适配 ——
+        '页面用遮罩挡住鼠标、或图片是背景图时，在这里把真正的图片容器告诉脚本。': 'When an overlay blocks the cursor or images are CSS backgrounds, tell the script the real image container here.',
+        '为当前网站添加悬停放大规则，解决遮罩层挡住鼠标、背景图无法放大等问题。保存后刷新页面生效。': 'Add a hover-zoom rule for this site — fixes overlays blocking the cursor and non-zoomable background images. Refresh the page to apply.',
+        '加一条容器规则': 'Add a container rule',
+        '自动识别这类站点，避免重复触发。': 'Detects these sites automatically to avoid repeated triggers.',
+        // —— 历史记录 ——
+        '最近悬停看过的图片，最多 60 条，只保存在本机。': 'Recently previewed images — up to 60, stored locally only.',
+        '最近看过': 'Recently viewed',
+        '可回看 / 打开原图 / 复制地址；只保存在本机': 'Revisit / open original / copy URL — stored locally only',
+        '点击收起': 'Click to collapse',
+        '点开查看': 'Click to expand',
+        '列表': 'List',
+        '画廊': 'Gallery',
+        '🗑 清空历史': '🗑 Clear history',
+        '打开': 'Open',
+        '复制': 'Copy',
+        '删除这条': 'Delete this entry',
+        '还没有。悬停放大过的图片会自动记在这里（只保存在本机，最多 60 条）。': 'Nothing yet. Images you preview will be recorded here automatically (locally only, up to 60).',
+        '仅本地保存': 'Stored locally only',
+        // —— 底部 ——
+        '📘 使用说明': '📘 Guide',
+        '📋 更新说明': '📋 Changelog',
+        '🐞 反馈问题': '🐞 Report a problem',
+        '🩺 复制诊断信息': '🩺 Copy diagnostics',
+        '💾 导出': '💾 Export',
+        '📥 导入': '📥 Import',
+        '↺ 恢复本站默认': '↺ Reset this site',
+        '把全部站点配置与自定义规则导出为 JSON 文件': 'Export all site settings and custom rules as JSON',
+        '从之前导出的 JSON 文件恢复配置': 'Restore settings from a previously exported JSON file',
+        '只重置当前网站的设置，其它网站不受影响': 'Only resets this site; other sites are unaffected',
+        '面板中除标注「所有网站」的项外，全部只作用于当前网站': 'Everything here applies to this site only, except items marked “All sites”',
+        // —— 表单属性 ——
+        'i 或 g，留空即可': 'i or g; leave empty if unsure',
+        '例：本站缩略图后缀': 'e.g. this site’s thumbnail suffix',
+        '如：.$1 （$1 $2 代表匹配到的内容）': 'e.g. .$1 ($1 and $2 are captured groups)',
+        '如：.image-container-top 或 .dt-carousel-img': 'e.g. .image-container-top or .dt-carousel-img',
+        '如：.qtd-theme-card': 'e.g. .qtd-theme-card',
+        '如：_d+xd+.(jpg|png)': 'e.g. _d+xd+.(jpg|png)',
+        '（可选）粘贴图片地址…': '(optional) paste an image URL…',
+        '搜索规则 / 域名…': 'Search rules / domains…',
+        // —— 首次介绍面板 / 使用说明 / 更新说明 ——
+        'HoverVista · 设置只保存在本机': 'HoverVista · settings are stored locally only',
+        '欢迎使用': 'Welcome',
+        '知道了': 'Got it',
+        '知道了，开始使用': 'Got it, let’s go',
+        '装好就能用：把鼠标停在网页图片上，稍停一下，大图自动弹出。不用点击，也不用离开当前页面。': 'Ready to use: rest the cursor on an image and the preview pops up. No clicking, no leaving the page.',
+        '想换放大后的观感与位置：去「显示与样式」调放大模式与显示位置。': 'To change how the preview looks or sits: open “Display” and adjust zoom mode and placement.',
+        '站首页不想启用：在「总览」开「主页不启用」，内容页不受影响。': 'Do not want it on homepages? Turn on “Homepage only” exclusion in “Overview”; inner pages keep working.',
+        '❓ 图没反应？三步排查': '❓ No response? Three checks',
+        '① 看右下角悬浮球是否已开启；② 太小的图（图标、按钮）会被自动跳过，属正常；③ 只有个别网站不行？打开设置用「帮我找大图」点一下那张图，按提示加条规则，再刷新页面即可。': '① Check the floating ball at the bottom-right; ② tiny images (icons, buttons) are skipped by design; ③ if only one site fails, open settings, use “Find a larger image”, click that image and add a rule, then refresh.',
+        '⌨️ 常用快捷键（预览显示时按）': '⌨️ Common shortcuts (while the preview is shown)',
+        '悬停图片 → 自动放大；移开鼠标即收起。预览时滚轮可缩放，图集页面用 ← → 翻页，按 z 可把整组图打包下载。右下角悬浮球随时开关本站功能。': 'Hover an image → it zooms; move away → it collapses. Use the wheel to zoom, ← → to flip through a gallery, and z to download the whole set as a ZIP. The floating ball toggles this site anytime.',
+        '本次更新：': 'What’s new:',
+        '全新配置面板': 'All-new settings panel',
+        '视频悬停预览': 'Video hover preview',
+        '三层换图规则': 'Three-tier image rules',
+        '图集翻页与打包': 'Gallery paging & ZIP export',
+        '历史记录 / 键位自定义': 'History & custom keymap',
+        '配置备份与恢复': 'Config backup & restore',
+        '规则与安全': 'Rules & security',
+        '修复与优化': 'Fixes & polish',
+        '网页版规则中心': 'Web rule center',
+        '规则包签名校验': 'Rule pack signature check',
+        '新功能': 'New',
+        '：左侧 8 分区导航，图示化选择（放大模式 / 尺寸 / 位置 / 动画一眼对比），改动自动保存。': ': 8-section navigation with visual choices (zoom mode / size / placement / animation). Changes are saved automatically.',
+        '：悬停页面视频或 B站 / YouTube 卡片即静音浮出播放，': ': hover a video or a Bilibili / YouTube card to play it muted,',
+        '（重采样按倍率分级）。': ' (resampling scales with magnification).',
+        '：我的规则 → 云端规则包 → 内置兜底，命中即停；「点图选图」自动生成规则，遮罩层 / 背景图也能放大。': ': My rules → cloud pack → built-ins, first match wins. “Pick from page” generates rules automatically, so overlays and background images zoom too.',
+        '：屏幕居中 / 原图周围不遮挡（「显示与样式」里切换）。': ': screen center / around the image without covering it (switch in “Display”).',
+        '：最近看过的图可回看、打开原图、复制地址（只存本机）。': ': revisit recent images, open the original, or copy the URL (local only).',
+        '：点键帽改绑，冲突自动让出；一键恢复默认。': ': click a key cap to rebind; conflicts yield automatically; one click restores defaults.',
+        '：导出 / 导入 JSON，换设备或重装后一键还原。': ': export / import JSON to restore everything on a new device or after reinstalling.',
+        '：云端规则带签名与逐站哈希校验，被篡改即拒用。': ': cloud rules are signed and hash-checked per site; tampered packs are rejected.',
+        '：ydgg123.github.io/hover-image-zoom/rules.html 可在线浏览全部站点规则。': ': browse all site rules at ydgg123.github.io/hover-image-zoom/rules.html.',
+        '；另含显示位置两模式与重采样分级。': '; also includes two placement modes and graded resampling.',
+        '（默认上限跟随视口）。': ' (the default cap follows the viewport).',
+        '；宽屏自适应放大': '; adaptive zoom on wide screens',
+        '；深层嵌套（如表格化）': '; deeply nested layouts (e.g. tables)',
+        '；404 / 死链不再出现空白框。': '; no more empty boxes for 404s or dead links.',
+        '；升不了的站，用「图片规则 → 帮我找大图」点一下那张图试试。': '; for stubborn sites, try “Image rules → Find a larger image” and click the image.',
+        '面板里的设置': 'the settings in the panel',
+        // —— 介绍卡 / 帮助里的补漏项 ——
+        '先看这里：本站是否生效、规则命中情况，以及最常见的几个问题该去哪里调。': 'Start here: whether it works on this site, which rules matched, and where to fix the most common issues.',
+        's 保存高清图 · c 复制图片地址 · r 旋转 · R 水平翻转 · f 全屏 · 0 重置大小 · Esc 关闭。都能在设置的「键位」里改成顺手的键。': 's save full-res · c copy image URL · r rotate · R flip · f fullscreen · 0 reset size · Esc close. Rebind any of them under “Keys”.',
+        '打包 ZIP；放大图下方显示尺寸、格式、来源与图说。': 'pack a ZIP; size, format, source and caption appear below the preview.',
+        '防盗链图片自动绕过；智能高清升级按需选档，省流量。': 'Hotlink-protected images are bypassed; HD upgrade picks a tier on demand to save bandwidth.',
+        '——去「站点适配」点一下那张图，加条规则即可。': '— open “Site fit”, click that image and add a rule.',
+        '：规则导出后自动填好 Issue 内容。': ': the export fills the issue form for you.',
+        '随时开/关本站放大，也能打开设置面板。': 'Toggle zoom for this site anytime, or open the settings panel.',
+        '很多站的缩略图自带更大的原图，脚本会': 'Many sites ship a larger original behind the thumbnail — the script will',
+        '关掉后，滚轮恢复为上下平移。': 'When off, the wheel scrolls the page instead.',
+        '——每个网站一套，互不干扰。': '— one set per site, fully independent.',
+        '整组打包成 ZIP 下载 ·': 'download the whole set as a ZIP ·',
+        '低分辨率图高倍放大不再出现': 'Low-resolution images no longer break down when zoomed',
+        '，改一次到处都是这套键。': ' — change it once and it applies everywhere.',
+        '动作快捷键（预览显示时）': 'Action shortcuts (while shown)',
+        '「原图周围」模式下大图': 'In “around the image” mode the preview',
+        '旋转 / 翻转后外壳框': 'The hull frame after rotate / flip',
+        '，停留片刻即放大预览；': ', rest a moment and the preview appears;',
+        '缩放（或上下平移），': 'zoom (or scroll),',
+        '一键提交规则到官方': 'Submit a rule to the project',
+        '不再被站点样式染色': 'No longer stained by site styles',
+        '🔒 规则包已验签': '🔒 Rule pack verified',
+        '· 图片悬停放大': '· Image hover zoom',
+        '只对当前网站生效': 'Applies to this site only',
+        '复制图片地址 ·': 'copy image URL ·',
+        '旋转 90° ·': 'rotate 90° ·',
+        '面板文字与选中态': 'Panel text and selected state',
+        '🖱️ 基本用法': '🖱️ Basic usage',
+        '保存高清图 ·': 'save full-res ·',
+        '图悬停没反应？': 'No response on hover?',
+        '图集不再漏识别': 'Galleries no longer missed',
+        '常见原因是页面': 'The usual cause is a page',
+        '显示位置两模式': 'Two placement modes',
+        '遮罩挡住了鼠标': 'overlay blocking the cursor',
+        '切到固定倍数': 'Switch to fixed scale',
+        '复制图片本体': 'Copy image data',
+        '悬停任意图片': 'Hover any image',
+        '水平翻转 ·': 'flip horizontally ·',
+        '页面右下角的': 'the bottom-right',
+        '：同一组图片': ': the same group of images',
+        '找更大的图': 'Find a larger image',
+        '不遮挡原图': 'Without covering the image',
+        '去管理规则': 'Manage rules',
+        '快退快进。': 'Jump forward / back.',
+        '查看细节。': 'to see more detail.',
+        '看得更清楚': 'See more detail',
+        '键位自定义': 'Custom keymap',
+        '，或图片是': ', or the image is',
+        '不再偏小': 'No longer too small',
+        '全屏 ·': 'fullscreen ·',
+        '图集里：': 'In a gallery:',
+        '基本玩法': 'Basics',
+        '翻页 ·': 'page ·',
+        '翻页，按': 'to page, press',
+        '自动升级': 'HD upgrade',
+        '跟随旋转': 'Rotates with the image',
+        '不过滤': 'No filtering',
+        '当前是': 'Currently',
+        '控制球': 'Floating ball',
+        '测试版': 'beta',
+        '正式版': 'release',
+        '背景图': 'Background image',
+        '马赛克': 'Mosaic',
+        '拖拽': 'Drag',
+        '滚轮': 'Wheel',
+        '鼠标': 'Mouse',
+        '内置': 'Built-in',
+        '配置面板': 'Settings',
+        '版本更新说明': 'Release notes',
+        '🎛️ 新增：': '🎛️ New: ',
+        '▶️ 新增：': '▶️ New: ',
+        '🖼️ 新增：': '🖼️ New: ',
+        '🕘 新增：': '🕘 New: ',
+        '💾 新增：': '💾 New: ',
+        '🐛 修复：': '🐛 Fixed: ',
+        ' —— 8 个分区、图示化选择（放大模式 / 尺寸 / 位置 / 动画一眼对比），改动自动保存。': ' — 8 sections with visual choices (zoom mode / size / placement / animation). Changes save automatically.',
+        ' —— 悬停 B站 / YouTube 卡片或页面视频即静音浮出播放，': ' — hover a video or a Bilibili / YouTube card to play it muted,',
+        ' 快退快进。': ' rewind / forward.',
+        ' 翻页、按 ': ' to page, press ',
+        ' 打包 ZIP；放大图下方还会显示尺寸、格式、来源与图说。': ' to pack a ZIP; size, format, source and caption appear below the preview.',
+        ' —— 最近预览随时回看；13 个快捷键可视化改绑，可一键恢复默认。': ' — revisit recent previews; rebind all 13 shortcuts visually, or reset with one click.',
+        ' —— 导出 / 导入 JSON，换设备一键还原全部站点设置。': ' — export / import JSON to restore every site setting on a new device.',
+        '404 空框、占位图误触发、旋转后外框不跟转、面板被站点样式染色、滚轮误关预览等一批问题。另：本次新增 ': 'a batch of issues: empty 404 boxes, placeholder false-triggers, the hull not following rotation, panel styling leaking from sites, wheel closing the preview. Also added the ',
+        ' 权限。': ' permission.',
+        // —— 5.9.1 更新说明 / 更新弹窗 ——
+        '🔍 新增：': '🔍 New: ',
+        '🛡️ 新增：': '🛡️ New: ',
+        '🇬🇧 新增：': '🇬🇧 New: ',
+        '⚡ 改进：': '⚡ Improved: ',
+        '背景图接入预览': 'Background-image previews',
+        '更会找大图': 'Finds bigger images',
+        '（尺寸 7 族 + srcset / data-* 原图）': ' (7 size families + srcset / data-* originals)',
+        '规则包秒开': 'Instant rule packs',
+        '英文界面': 'English interface',
+        '历史画廊': 'History gallery',
+        '；另含一批稳定性修复。': '; plus a batch of stability fixes.',
+        '背景图也能放大': 'Background images zoom too',
+        '：CSS 背景图预览一次继承全部能力——高清升级、滚轮缩放、键位、图片信息、历史记录、Esc 关闭。': ': background previews now inherit every feature — HD upgrade, wheel zoom, shortcuts, image info, history and Esc to close.',
+        '：尺寸识别扩到 7 族（?w= / _Nw. / _NxN. / 七牛 / OSS 等），并接入网页自己声明的原图（srcset、picture、13 个 data-* 属性）。': ': size detection now covers 7 families (?w= / _Nw. / _NxN. / Qiniu / OSS etc.) and picks up page-declared originals (srcset, picture, 13 data-* attributes).',
+        '不换成更小的图': 'Never downscale',
+        '：反负升级闸门——候选比当前图小一律不采，宁可没有候选也不让预览变模糊。': ': anti-downgrade gate — smaller candidates are always rejected; no candidate beats a blurry preview.',
+        '规则包更快更省': 'Faster, lighter rule packs',
+        '：条件请求（服务端说没变就免下载）+ 国内镜像回退。': ': conditional requests (no download when unchanged) + China mirror fallback.',
+        '：面板语言切换（跟随浏览器 / 中文 / English），中英随时来回切。': ': panel language switch (follow browser / 中文 / English), switchable anytime.',
+        '历史记录画廊': 'History gallery',
+        '：历史区可在「列表 / 缩略图墙」间切换，一眼找回看过的图。': ': switch the history area between list and thumbnail wall to find images at a glance.',
+        '：翻页前静默预热相邻高清图（省流量 / 2G 自动跳过，可关闭）。': ': silently pre-warms neighbouring HD images before paging (skipped on data-saver / 2G; can be turned off).',
+        '镜像回退，信任链不变': 'Mirror fallback, trust chain intact',
+        '：镜像只换「字节从哪来」，签名与逐域哈希校验照旧执行。': ': mirrors only change where the bytes come from; signature and per-domain hash checks still run.',
+        '规则包缓存修复': 'Rule pack cache fixes',
+        '：修掉「每次开页都联网重探」与「多站共用缓存互相顶掉」。': ': fixed "re-probe on every page load" and "sites clobbering each other\'s cached pack".',
+        '图片卡片覆盖层只能从边缘触发': 'Card overlays only triggered at the edge',
+        '：卡片层被误判成菜单浮层已修，整张图都能正常悬停放大。': ': card overlays were misjudged as menus — fixed; the whole image triggers the preview again.',
+        '淘宝 / 天猫图片不升级高清': 'Taobao / Tmall images not upgrading to HD',
+        '：首页 460×460 → 1280×1280，搜索页 580×580 → 800×800。': ': home 460×460 → 1280×1280, search 580×580 → 800×800.',
+        '超宽横幅误触发': 'Ultra-wide banner misfires',
+        '：细长条幅（如 7680×120）不再弹预览。': ': elongated banners (e.g. 7680×120) no longer pop a preview.',
+        '站点规则背景图延迟计时器空转已修；淘宝 / 天猫已失效的内置规则表退役。': ': fixed an idle delay timer on site-rule background images; retired the dead built-in rules for Taobao / Tmall.',
+        '背景图也能放大了': 'Background images zoom too',
+        ' —— CSS 背景大图与普通图能力一致：高清升级、滚轮缩放、旋转翻转、图片信息、历史记录、Esc 关闭。': ' — big CSS background images now work like normal images: HD upgrade, wheel zoom, rotate / flip, image info, history, Esc to close.',
+        ' —— 尺寸识别扩到 7 族，并接入网页自声明的原图（srcset、data-original 等 13 个属性）。': ' — size detection covers 7 families and picks up page-declared originals (srcset, data-original and 13 attributes).',
+        ' —— 反负升级闸门：候选比当前图小一律不采，预览不再从清晰退回模糊。': ' — anti-downgrade gate: smaller candidates are always rejected; the preview never degrades from sharp to blurry.',
+        ' —— 条件请求 304 免下载 + 国内镜像回退；修掉每页重探与跨站规则覆盖失效。': ' — conditional requests (304 = no download) + China mirror fallback; fixed per-page re-probing and cross-site cache clobbering.',
+        ' —— 面板语言切换（跟随浏览器 / 中文 / English），中英随时来回切。': ' — panel language switch (follow browser / 中文 / English), switchable anytime.',
+        '图片卡片层只能从边缘触发、淘宝图不升级高清、超宽横幅误触发、背景图规则延迟计时器空转等一批问题。': 'card overlays only triggering at the edge, Taobao images not upgrading to HD, ultra-wide banner misfires, an idle delay timer on site-rule background images, and more.'
+    };
+    // 带变量的文案用模式匹配（条数、域名、版本号等）
+    const I18N_EN_PATTERNS = [
+        [/^·\s*(\d+)\s*条$/, (m) => '· ' + m[1]],
+        [/^(\d+)\s*条生效$/, (m) => m[1] + ' active'],
+        [/^(\d+)\s*条$/, (m) => m[1] + ' items'],
+        [/^(\d+)\s*项$/, (m) => m[1] + ' items'],
+        [/^只作用于\s*(.+)$/, (m) => 'Only on ' + m[1]],
+        [/^已导入\s*(\d+)\s*项配置(，跳过\s*(\d+)\s*项)?\s*✅$/, (m) => 'Imported ' + m[1] + ' settings' + (m[3] ? ', skipped ' + m[3] : '') + ' ✅'],
+        [/^已导出\s*(\d+)\s*项配置\s*📦?$/, (m) => 'Exported ' + m[1] + ' settings 📦'],
+        [/^已是最新规则包\s*v(\S+)$/, (m) => 'Already up to date (v' + m[1] + ')'],
+        [/^规则包已更新到\s*v(\S+)$/, (m) => 'Rule pack updated to v' + m[1] + ' 🎉'],
+        [/^已回滚到\s*v(\S+)$/, (m) => 'Rolled back to v' + m[1]],
+        [/^预览尺寸：(.+)$/, (m) => 'Preview size: ' + m[1]],
+        [/^已切到\s*(.+)模式$/, (m) => 'Switched to ' + m[1] + ' mode']
+    ];
+    const I18N_ATTRS = ['title', 'placeholder', 'aria-label', 'alt'];
+
+    function trText(s) {
+        if (!s || !/[\u4e00-\u9fa5]/.test(s)) return s;
+        const key = s.trim();
+        if (!key) return s;
+        let out = I18N_EN[key];
+        if (out == null) {
+            for (let i = 0; i < I18N_EN_PATTERNS.length; i++) {
+                const m = key.match(I18N_EN_PATTERNS[i][0]);
+                if (m) { out = I18N_EN_PATTERNS[i][1](m); break; }
+            }
+        }
+        if (out == null) return s;
+        return s.replace(key, () => out);   // 函数式替换，避免替换串里的 $ 被当特殊符号
+    }
+
+    // 就地翻译一棵子树（文本节点 + 常见文案属性）。只改能命中的节点，改完即不再命中，不会反复触发。
+    function applyI18nDeep(root) {
+        if (!root || !isEnUI()) return;
+        const texts = [];
+        if (root.nodeType === 3) texts.push(root);
+        else if (root.nodeType === 1 || root.nodeType === 9 || root.nodeType === 11) {
+            const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+            let n; while ((n = w.nextNode())) texts.push(n);
+        }
+        texts.forEach(function (t) {
+            if (t.__hvI18n) return;
+            const v = trText(t.nodeValue);
+            if (v !== t.nodeValue) { t.__hvI18nOrig = t.nodeValue; t.__hvI18n = 1; t.nodeValue = v; }
+        });
+        const els = [];
+        if (root.nodeType === 1) els.push(root);
+        if (root.querySelectorAll) root.querySelectorAll('[title],[placeholder],[aria-label],[alt]').forEach(function (e) { els.push(e); });
+        els.forEach(function (el) {
+            I18N_ATTRS.forEach(function (a) {
+                const v = el.getAttribute && el.getAttribute(a);
+                if (!v) return;
+                const nv = trText(v);
+                if (nv === v) return;
+                if (!el.__hvI18nAttrOrig) el.__hvI18nAttrOrig = {};
+                if (!(a in el.__hvI18nAttrOrig)) el.__hvI18nAttrOrig[a] = v;
+                el.setAttribute(a, nv);
+            });
+        });
+    }
+
+    // 还原成中文原文（切换回中文界面时用；面板本身是整块重建，无需还原）
+    function restoreI18nDeep(root) {
+        if (!root || !root.querySelectorAll) {
+            if (root && root.nodeType === 3 && root.__hvI18nOrig != null) { root.nodeValue = root.__hvI18nOrig; delete root.__hvI18nOrig; delete root.__hvI18n; }
+            return;
+        }
+        const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+        let n; while ((n = w.nextNode())) {
+            if (n.__hvI18nOrig != null) { n.nodeValue = n.__hvI18nOrig; delete n.__hvI18nOrig; delete n.__hvI18n; }
+        }
+        const els = [root];
+        root.querySelectorAll('[title],[placeholder],[aria-label],[alt]').forEach(function (e) { els.push(e); });
+        els.forEach(function (el) {
+            const o = el.__hvI18nAttrOrig;
+            if (!o) return;
+            Object.keys(o).forEach(function (a) { el.setAttribute(a, o[a]); });
+            delete el.__hvI18nAttrOrig;
+        });
+    }
+
+    // 面板是动态渲染的（切分区、出提示、刷新列表都会新增节点），挂一个观察器持续补齐翻译。
+    function i18nWatch(root) {
+        if (!root || !isEnUI() || root.__hvI18nWatch) return;
+        root.__hvI18nWatch = new MutationObserver(function (muts) {
+            muts.forEach(function (m) {
+                if (m.type === 'characterData') applyI18nDeep(m.target);
+                else m.addedNodes.forEach(function (n) { applyI18nDeep(n); });
+            });
+        });
+        root.__hvI18nWatch.observe(root, { subtree: true, childList: true, characterData: true });
+    }
+
+    // 面板外的固定浮层（控制球、首次介绍、说明弹窗、更新弹窗）在英文界面下统一补翻译。
+    const I18N_ROOTS = '#zoomDockZone,#izIntroOverlay,#izHelpModal,#izUpdateNotice,.zoom-bubble-tip';
+    function applyI18nAll() {
+        if (!isEnUI()) return;
+        document.querySelectorAll(I18N_ROOTS).forEach(function (el) { applyI18nDeep(el); });
     }
 
     function isHomepage() {
@@ -383,13 +914,15 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     }
 
     function showToast(message, duration = 2000, type) {
-        if (showPanelCenterToast(message, type)) return;
-        hvToast(message, { variant: 'mid', duration: duration, type: type });
+        const msg = trText(String(message));
+        if (showPanelCenterToast(msg, type)) return;
+        hvToast(msg, { variant: 'mid', duration: duration, type: type });
     }
 
     function showSaveToast(message, type) {
-        if (showPanelCenterToast(message, type)) return;
-        hvToast(message, { variant: 'bottom', type: type });
+        const msg = trText(String(message));
+        if (showPanelCenterToast(msg, type)) return;
+        hvToast(msg, { variant: 'bottom', type: type });
     }
 
 
@@ -508,12 +1041,13 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         blurDismiss: true,
         wheelZoom: true,
         videoHoverPreview: true,   // ★ 视频悬停预览（悬停视频/视频卡片时静音播放）
+        galleryPreload: true,      // ★ 图集邻图预加载（翻页前预热前后张的高清地址；省流量/2G 自动跳过）
         showImageInfo: true,
         previewPlacement: 'center', // 显示位置：center=屏幕居中（默认）/ around=原图周围不遮挡
         previewTransition: 'dock',  // 入场动效：dock 从原图弹出（默认）/ spotlight 从原图绽开 / fade 直接淡入
         zoomMode: 'adaptive',
         minOriginalSize: 51,
-        rulePackAuto: true,      // 规则包：启动时自动更新（失败静默降级到内置/缓存）
+        rulePackAuto: true,      // 规则包：仅在本地没取到本站规则或超过一周未校验时才后台重校验（失败静默降级到内置/缓存）
         userUrlRules: [],        // 用户自定义的图片地址变换规则（面板里增删改）
         keymap: normalizeKeymap(null)
     };
@@ -543,6 +1077,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         v.zoomMode = v.zoomMode === 'fixed' ? 'fixed' : 'adaptive';
         v.blurDismiss = typeof v.blurDismiss === 'boolean' ? v.blurDismiss : true;
         v.videoHoverPreview = typeof v.videoHoverPreview === 'boolean' ? v.videoHoverPreview : true;
+        v.galleryPreload = typeof v.galleryPreload === 'boolean' ? v.galleryPreload : true;
         v.previewPlacement = ['center', 'around'].indexOf(v.previewPlacement) >= 0 ? v.previewPlacement : 'center';
         v.previewTransition = ['dock', 'spotlight', 'fade'].indexOf(v.previewTransition) >= 0 ? v.previewTransition : 'dock';
         // ★ 旧默认(1200/980)一次性迁移到「跟随视口」(3000/3000)：老用户存储里存着旧默认值，
@@ -849,12 +1384,49 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         return true;
     }
 
+    // ★ 图片自身的卡片覆盖层判定：网站常把「悬停才出现的按钮层/蒙层」盖在图片上（如卡片 .card-modal）。
+    // 该层与光标下的图片同属一个 <a>、且图片矩形基本被它覆盖、非 fixed 覆盖式浮层 ⇒ 允许穿透继续找图；
+    // 真弹窗/菜单通常不在图片所属 <a> 内、或为 fixed 定位 ⇒ 仍按拦截处理。
+    function isImgCardCover(el, x, y) {
+        if (!el || !el.getBoundingClientRect || !el.closest) return false;
+        try {
+            if (getComputedStyle(el).position === 'fixed') return false;
+            const anchor = el.closest('a');
+            if (!anchor) return false;
+            let img = null;
+            for (const cand of anchor.querySelectorAll('img')) {
+                if (cand.closest && cand.closest('.image-zoom-container')) continue;
+                if (!isImgVisibleNow(cand)) continue;
+                if (inRect(x, y, cand.getBoundingClientRect())) { img = cand; break; }
+            }
+            if (!img) return false;
+            const r = el.getBoundingClientRect(), ir = img.getBoundingClientRect();
+            if (ir.width <= 0 || ir.height <= 0) return false;
+            const ow = Math.max(0, Math.min(r.right, ir.right) - Math.max(r.left, ir.left));
+            const oh = Math.max(0, Math.min(r.bottom, ir.bottom) - Math.max(r.top, ir.top));
+            return (ow * oh) >= 0.8 * ir.width * ir.height;
+        } catch (e) { return false; }
+    }
+
+    // ★ 细长条幅判定：超宽横幅 / 超窄竖条（长宽比极端、短边又很薄）。
+    // 这类图放大后只是把整条等比拉伸，既看不到更多细节、也没有浏览价值 ⇒ 不触发预览。
+    // 仅按「显示尺寸」判定；长截图（窄边很宽）与普通全景（比值不大）都不受影响。
+    const STRIP_MIN_RATIO = 8, STRIP_MAX_SHORT = 200;
+    function isStripLikeImg(img) {
+        if (!img || !img.getBoundingClientRect) return false;
+        const r = img.getBoundingClientRect();
+        const short = Math.min(r.width, r.height);
+        if (short <= 0) return false;
+        return short <= STRIP_MAX_SHORT && Math.max(r.width, r.height) / short >= STRIP_MIN_RATIO;
+    }
+
     // 实时资格：连接 + 样式可见 + 未被裁出可视区 + 尺寸达标 + 鼠标在实时矩形内
     // 祖先锚（遮罩盖图场景）：面积 ≤ 图片 8 倍、光标距图片矩形 ≤ 120px
     function canTriggerNow(img, x, y) {
         if (!isImgVisibleNow(img)) return null;
         const r = img.getBoundingClientRect();
         if (r.width < config.minOriginalSize || r.height < config.minOriginalSize) return null;
+        if (isStripLikeImg(img)) return null;
 
         if (inRect(x, y, r)) {
             return isImgClippedAway(img) ? null : img;
@@ -927,17 +1499,21 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     // 3. 图片处理工具
     // URL 变换规则表（表驱动）：{ id, name, match, loop, steps: [[正则, 替换串], ...] }
     //   match —— 命中条件（null 表示兜底）；loop —— 反复执行整组直到不再变化；steps —— 按序执行。
+    // 阿里系 CDN（alicdn）缩略图后缀：把「xxx.jpg_580x580q90.jpg_.webp」还原回「xxx.jpg」。
+    // 净化链（背景图地址）与升级链（高清还原）共用同一组步骤 —— 两处各写一份必然漂移。
+    const ALICDN_SUFFIX_STEPS = [
+        [/(_!![\w\-.,]+?\.(?:jpg|jpeg|png|webp))_[\w.\-]+$/i, '$1'],
+        [/\.(jpg|jpeg|png|webp)_[\w.]+$/i, '.$1'],
+        [/_\.(webp|jpg|jpeg|png)$/i, '']
+    ];
+
     const URL_RULES = [
         {
             id: 'alicdn',
             name: '阿里系 CDN 缩略图后缀',
             match: /alicdn\.com/i,
             loop: true,
-            steps: [
-                [/(_!![\w\-.,]+?\.(?:jpg|jpeg|png|webp))_[\w.\-]+$/i, '$1'],
-                [/\.(jpg|jpeg|png|webp)_[\w.]+$/i, '.$1'],
-                [/_\.(webp|jpg|jpeg|png)$/i, '']
-            ]
+            steps: ALICDN_SUFFIX_STEPS
         },
         {
             id: 'generic',
@@ -973,6 +1549,15 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             name: 'remote/thumb 缩略路径',
             match: null, loop: false,
             steps: [[/\/remote\/thumb\/\d+x\d+\//, '/']]
+        },
+        {
+            // 阿里系 CDN（淘宝 / 天猫 / 1688 / 阿里图床）：缩略档位写在「_580x580q90.jpg_.webp」这类后缀里，
+            // 既不是 /s{N}x{N}_ 目录式、也不在 SIZE_FAMILIES 的尺寸指令家族里 —— 去掉后缀即还原成原图。
+            id: 'alicdn-orig',
+            name: '阿里系 CDN 缩略图后缀',
+            match: /alicdn\.com/i,
+            loop: true,
+            steps: ALICDN_SUFFIX_STEPS
         },
         {
             // 京东：请求与预览框上限一致的 CDN 缩放档（s1200x1200，无水印）；CDN 不会放大超原图。
@@ -1075,11 +1660,58 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     // 智能高清升级器：生成多个候选 → 并行探测真实像素 → 选「够用且最小」的那张（都够不上用最大）。
     const HD_MAX_CANDIDATES = 4;
 
+    // 尺寸档位家族表：h = 读出当前档位，b = 按目标档位改写，g = 可选的「能否安全展开」闸门。
+    // 新增家族只加一行；写错也不会污染预览——每个变体都要经过真实探测，加载失败直接丢弃。
+    // ⚠ g 闸门防的是「改出来的 URL 比例与原图不同」→ 会让预览显示变形图，比不升级更糟：
+    //   ① 只带宽或只带高的查询参数：另一个维度不能被同时指定，否则只改一个就变了比例
+    //   ② _NNNxNNN.ext：只有本来就是正方形（两维相等）才能等比放大
+    const SIZE_FAMILIES = [
+        { h: /\/s(\d+)x\d+_/i, b: (u, t) => u.replace(/\/s\d+x\d+_/i, '/s' + t + 'x' + t + '_') },
+        { h: /[?&](?:w|width)=(\d+)/i, g: (u) => !/[?&](?:h|height)=/i.test(u), b: (u, t) => u.replace(/([?&](?:w|width)=)\d+/i, (m0, p1) => p1 + t) },
+        { h: /[?&](?:h|height)=(\d+)/i, g: (u) => !/[?&](?:w|width)=/i.test(u), b: (u, t) => u.replace(/([?&](?:h|height)=)\d+/i, (m0, p1) => p1 + t) },
+        { h: /_(\d+)w\./i, b: (u, t) => u.replace(/_\d+w\./i, '_' + t + 'w.') },
+        { h: /_(\d+)h\./i, b: (u, t) => u.replace(/_\d+h\./i, '_' + t + 'h.') },
+        { h: /_(\d+)x(\d+)\.(jpe?g|png|webp)/i, g: (u, m) => m[1] === m[2], b: (u, t) => u.replace(/_(\d+)x(\d+)\.(jpe?g|png|webp)/i, (m0, p1, p2, p3) => '_' + t + 'x' + t + '.' + p3) },
+        { h: /[?&#\/,]imageView2?\/[^"'\s]*?\/w\/(\d+)/i, b: (u, t) => u.replace(/(\/w\/)\d+/i, (m0, p1) => p1 + t) },
+        { h: /[?&#,\/]w_(\d+)/i, b: (u, t) => u.replace(/([?&#,\/]w_)\d+/i, (m0, p1) => p1 + t) }
+    ];
+
+    // 命中第一个家族；命中但闸门不放行时返回 null（视作「这张图的尺寸指令不可安全展开」）
+    function sizeFamilyMatch(url) {
+        for (let i = 0; i < SIZE_FAMILIES.length; i++) {
+            const fam = SIZE_FAMILIES[i];
+            const m = url.match(fam.h);
+            if (!m) continue;
+            if (fam.g && !fam.g(url, m)) return null;
+            return { fam: fam, m: m };
+        }
+        return null;
+    }
+
+    // 从 URL 的尺寸指令读出「当前档位」；读不到 / 不可安全展开则返回 0
     function sizeHintOf(url) {
-        const m = url.match(/\/s(\d+)x\d+_/i) || url.match(/[?&](?:w|width)=(\d+)/i) || url.match(/_(\d+)w\./i);
-        if (!m) return 0;
-        const n = parseInt(m[1], 10);
+        const hit = sizeFamilyMatch(url);
+        if (!hit) return 0;
+        const n = parseInt(hit.m[1], 10);
         return isNaN(n) ? 0 : n;
+    }
+
+    // 按命中的家族逐级展开更大档位（1200 → 1600 → 2400，只取大于当前档位的）
+    function buildSizeVariants(url) {
+        const hit = sizeFamilyMatch(url);
+        if (!hit) return [];
+        const hint = parseInt(hit.m[1], 10);
+        if (!(hint > 0)) return [];
+        const tiers = [];
+        [1200, 1600, 2400].forEach((t) => { if (t > hint) tiers.push(t); });
+        if (!tiers.length) return [];
+        const out = [];
+        for (let j = 0; j < tiers.length; j++) {
+            let v = url;
+            try { v = hit.fam.b(url, tiers[j]); } catch (e) { continue; }
+            if (v && v !== url && out.indexOf(v) < 0) out.push(v);
+        }
+        return out;
     }
 
     // 候选分两类：
@@ -1099,23 +1731,227 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             try { nu = applyUrlRule(u, r, false); } catch (e) { continue; }
             if (nu !== u) { u = nu; pushP(u); }
         }
-        const hint = sizeHintOf(url);
-        if (hint > 0) {
-            [1200, 1600, 2400].forEach((t) => {
-                if (t <= hint) return;
-                const v = url.replace(/\/s\d+x\d+_/i, '/s' + t + 'x' + t + '_');
-                if (v !== url) pushV(v);
-            });
-        }
+        buildSizeVariants(url).forEach(function (v) { pushV(v); });
         return { primary: primary, variants: variants };
     }
 
+    // ── 起点候选扩展：站点自己声明的「更大图」 ──
+    // currentSrc 只是浏览器按视口/DPR 选中的适配档；响应式站点的 srcset 里往往还留着更大档位，
+    // 相册/论坛/图床站则常把原图直接写在 data-* 属性里。两者都比「盲猜尺寸变体」更可信。
+    // ⚠ 只进备选池（hdExtra）参与探测，绝不改 fallbackSrc —— 首屏预览必须用一定显示得出来的地址。
+    const LAZY_SRC_ATTRS = [
+        // 高置信度：这些属性在相册/论坛/图床站里普遍直接写着「原图」
+        'data-original', 'data-origin', 'data-actualsrc', 'data-echo', 'data-url',
+        'data-big', 'data-large', 'data-hi-res', 'data-hires', 'data-full',
+        'data-zoom-image', 'data-image',
+        // 中置信度：懒加载占位/备用源，常与 currentSrc 相同（相同即被去重丢弃）
+        'data-src', 'data-lazy', 'data-lazy-src', 'data-srcset'
+    ];
+
+    function absUrl(u, base) {
+        if (!u) return '';
+        if (/^https?:/i.test(u)) return u;
+        if (/^(?:data|blob|javascript|#)/i.test(u)) return '';
+        try { return new URL(u, base || location.href).href; } catch (e) { return ''; }
+    }
+
+    // 解析 srcset → [{u, w, x}]（w/x 为描述符数值，缺失为 0）
+    function parseSrcset(srcset, base) {
+        if (!srcset || typeof srcset !== 'string') return [];
+        const list = [];
+        srcset.split(',').forEach(function (part) {
+            const sp = String(part).trim().split(/\s+/);
+            if (!sp[0]) return;
+            const u = absUrl(sp[0], base);
+            if (!u) return;
+            const d = sp[1] || '', mw = /^(\d+)w$/i.exec(d), mx = /^([\d.]+)x$/i.exec(d);
+            list.push({ u: u, w: mw ? (parseInt(mw[1], 10) || 0) : 0, x: mx ? (parseFloat(mx[1]) || 0) : 0 });
+        });
+        return list;
+    }
+
+    // 「当前这张图在文件层面的像素宽」——用来判断候选是不是真的更大。
+    // ⚠ 不能直接拿 img.naturalWidth 当文件像素宽：图片经 srcset 选中时浏览器会按密度校正，
+    //   naturalWidth 返回的是 CSS 像素（≈ sizes 值），跟 srcset 的 w 描述符不是同一个量纲。
+    //   两者差一个密度系数，直接拿 naturalWidth 与 w 描述符比较会恒错。
+    function currentSourcePixelWidth(img, base) {
+        const cur = img.currentSrc || img.src || '';
+        const nw = img.naturalWidth || 0;
+        const sets = [];
+        try {
+            const pic = img.closest ? img.closest('picture') : null;
+            if (pic) Array.prototype.forEach.call(pic.querySelectorAll('source[srcset]'), function (s) { sets.push(s.getAttribute('srcset')); });
+        } catch (e) { }
+        try { sets.push(img.getAttribute('srcset')); } catch (e) { }
+        for (let i = 0; i < sets.length; i++) {
+            const entries = parseSrcset(sets[i], base);
+            for (let j = 0; j < entries.length; j++) {
+                if (entries[j].u !== cur) continue;
+                if (entries[j].w > 0) return entries[j].w;              // w 描述符就是文件像素宽
+                if (entries[j].x > 0 && nw > 0) return Math.round(nw * entries[j].x);  // x 描述符：density = x
+            }
+        }
+        return nw;   // 无 srcset 时 naturalWidth 即文件像素宽
+    }
+
+    // srcset 候选 → 按推定像素宽从大到小。已知源图文件像素宽 srcPx 时，丢掉 w 更小的档位：
+    // 换上比源图还小的图只会更模糊，属于负升级 —— 宁可没有候选，也不要倒退。
+    // x 描述符量纲依赖 sizes，无法与 srcPx 可靠比较，只参与排序、不做丢弃。
+    function pickLargestSrcset(srcset, base, srcPx) {
+        const entries = parseSrcset(srcset, base);
+        const scored = [];
+        for (let i = 0; i < entries.length; i++) {
+            const e = entries[i];
+            if (srcPx > 0 && e.w > 0 && e.w < srcPx) continue;
+            scored.push({ u: e.u, px: e.w > 0 ? e.w : (e.x > 0 ? Math.round(e.x * 1000) : 0) });
+        }
+        scored.sort(function (a, b) { return b.px - a.px; });
+        return scored.map(function (e) { return e.u; });
+    }
+
+    // 收集「这张 <img> 背后可能存在的更大图」：data-* 原图 → <picture><source srcset> → <img srcset>
+    function collectElementSources(img, limit) {
+        const out = [];
+        const max = Math.max(1, limit || HD_MAX_CANDIDATES);
+        const base = (img.ownerDocument && img.ownerDocument.baseURI) || location.href;
+        const cur = img.currentSrc || img.src || '';
+        const srcPx = currentSourcePixelWidth(img, base);   // 源图文件像素宽：挡掉「换上更小的图」这种负升级
+        const push = function (u) {
+            if (!u || u === cur || out.length >= max || out.indexOf(u) >= 0) return false;
+            out.push(u);
+            return true;
+        };
+        const addSrcset = function (ss, cap) {
+            const list = pickLargestSrcset(ss, base, srcPx);
+            let n = 0;
+            for (let i = 0; i < list.length && n < cap && out.length < max; i++) if (push(list[i])) n++;
+        };
+        // 1) 懒加载 / 原图属性（每个属性最多贡献 1 个地址）
+        for (let i = 0; i < LAZY_SRC_ATTRS.length && out.length < max; i++) {
+            let v = null;
+            try { v = img.getAttribute(LAZY_SRC_ATTRS[i]); } catch (e) { continue; }
+            if (!v) continue;
+            // 有的站把整串 srcset 塞进 data-src
+            if (/,/.test(v) && /\s\d+[wx]\b/i.test(v)) { addSrcset(v, 2); continue; }
+            // ★ 反负升级：单 URL 属性没有 srcset 那样的 w 描述符可比，但有些站把尺寸档直接写进了
+            //   URL（sizeHintOf 可读）。读得出档位且比源图还小 → 直接丢，连探测请求都省了。
+            const one = absUrl(String(v).trim().split(/\s+/)[0], base);
+            const hint = one ? sizeHintOf(one) : 0;
+            if (srcPx > 0 && hint > 0 && hint < srcPx) continue;
+            push(one);
+        }
+        // 2) <picture> 里的 <source srcset>（站点为不同条件准备的替代源）
+        try {
+            const pic = img.closest ? img.closest('picture') : null;
+            if (pic) {
+                const sources = pic.querySelectorAll('source[srcset]');
+                for (let i = 0; i < sources.length && out.length < max; i++) addSrcset(sources[i].getAttribute('srcset'), 2);
+            }
+        } catch (e) { }
+        // 3) <img> 自身 srcset
+        try { addSrcset(img.getAttribute('srcset'), 2); } catch (e) { }
+        return out;
+    }
+
+    // ── 图集邻图预加载 ──
+    // 翻图集时的体感瓶颈是「下一张还没下载」。预览激活后静默把前后 N 张的「高清首选地址」
+    // 预热进浏览器缓存（只发请求，不做探测、不建 DOM），翻到时直接用缓存。
+    // 关闭开关 / 省流量模式 / 2G 网络会跳过；同一地址只预热一次。
+    const GALLERY_PRELOAD_SPAN = 2;    // 前后各预热几张
+    const GALLERY_PRELOAD_MAX = 60;    // 单页面会话最多预热多少个地址，防失控
+    const preloadSeen = new Set();
+    let preloadCount = 0;
+    let preloadTimer = null, preloadSeq = 0;
+
+    // 省流量 / 慢网：不预热（尊重系统的省流量偏好）
+    function preloadSuppressed() {
+        try {
+            const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            if (!c) return false;
+            if (c.saveData) return true;
+            return /(^|-)2g$/.test(String(c.effectiveType || ''));
+        } catch (e) { return false; }
+    }
+    function warmUrl(u) {
+        if (!u || preloadSeen.has(u)) return false;
+        preloadSeen.add(u);
+        preloadCount++;
+        try {
+            const im = new Image();
+            if ('decoding' in im) im.decoding = 'async';
+            im.src = u;   // 只借浏览器 HTTP 缓存，不持有引用
+        } catch (e) { }
+        return true;
+    }
+    // 预热 inst 前后 span 张：有高清规则用规则地址，没有就退化成原图地址
+    function prefetchGalleryNeighbors(inst, span) {
+        if (!inst || !inst.galleryList || inst.galleryList.length < 2) return 0;
+        if (config.galleryPreload === false || preloadSuppressed()) return 0;
+        const list = inst.galleryList;
+        let i = list.indexOf(inst.sourceImg);
+        if (i < 0) i = inst.galleryIndex || 0;
+        let n = 0;
+        for (let d = 1; d <= Math.max(1, span || GALLERY_PRELOAD_SPAN); d++) {
+            [i + d, i - d].forEach(function (k) {
+                if (preloadCount >= GALLERY_PRELOAD_MAX) return;
+                const im = list[(k + list.length) % list.length];
+                if (!im || im === inst.sourceImg) return;
+                const src = im.currentSrc || im.src || '';
+                if (!src || /^(blob|data):/i.test(src)) return;
+                let targets = [src];
+                try {
+                    const c = buildHdCandidates(src);
+                    if (c && c.primary && c.primary.length) targets = c.primary;
+                } catch (e) { }
+                targets.slice(0, 2).forEach(function (u) { if (warmUrl(u)) n++; });
+            });
+        }
+        return n;
+    }
+    // 延后一点再预热：先把当前这张显示完，别跟它抢带宽；实例已换/已收起则放弃
+    function scheduleGalleryPrefetch(inst, stillValid) {
+        if (preloadTimer) { clearTimeout(preloadTimer); preloadTimer = null; }
+        const seq = ++preloadSeq;
+        preloadTimer = setTimeout(function () {
+            preloadTimer = null;
+            if (seq !== preloadSeq) return;
+            try { if (stillValid && !stillValid()) return; } catch (e) { return; }
+            prefetchGalleryNeighbors(inst);
+        }, 300);
+    }
+
     // 并行探测候选：返回 [{url, w, h}]（失败的丢弃）。带整体超时，避免慢图拖住预览。
+    // 探测结论按「候选集合」做会话级缓存：同一张图二次悬停直接复用结论，不再重复走一遍网络。
+    //   命中的结果缓存较久；空结果（多为超时/网络抖动）只缓存很短时间，避免把临时失败固化下来。
+    const PROBE_CACHE = new Map();
+    const PROBE_CACHE_MAX = 240;
+    const PROBE_TTL_HIT = 5 * 60 * 1000;
+    const PROBE_TTL_MISS = 30 * 1000;
+    function probeCacheKey(list) { return list.join('\n'); }
+    function probeCacheRead(key) {
+        const hit = PROBE_CACHE.get(key);
+        if (!hit) return null;
+        if (Date.now() - hit.at > hit.ttl) { PROBE_CACHE.delete(key); return null; }
+        PROBE_CACHE.delete(key);
+        PROBE_CACHE.set(key, hit);   // 命中即置新（LRU 顺序）
+        return hit.list;
+    }
+    function probeCacheWrite(key, list) {
+        PROBE_CACHE.set(key, { at: Date.now(), ttl: list.length ? PROBE_TTL_HIT : PROBE_TTL_MISS, list: list });
+        while (PROBE_CACHE.size > PROBE_CACHE_MAX) PROBE_CACHE.delete(PROBE_CACHE.keys().next().value);
+    }
     function probeCandidates(list, timeoutMs) {
+        const key = probeCacheKey(list);
+        const cached = probeCacheRead(key);
+        if (cached) return Promise.resolve(cached.map((c) => ({ url: c.url, w: c.w, h: c.h })));
         return new Promise((resolve) => {
             const done = [];
             let left = list.length;
-            const finish = () => resolve(done.filter(Boolean));
+            const finish = () => {
+                const out = done.filter(Boolean);
+                probeCacheWrite(key, out);
+                resolve(out);
+            };
             if (!left) return finish();
             const timer = setTimeout(() => { if (left > 0) { left = 0; finish(); } }, timeoutMs || 3500);
             list.forEach((u, i) => {
@@ -1133,14 +1969,19 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         });
     }
 
-    // 择优选：优先「≥ 需求像素里最小的」，否则取最大的
-    function pickBestCandidate(loaded, needMax) {
+    // 择优选：优先「≥ 需求像素里最小的」，否则取最大的。
+    // minPx（可选）：源图较长边。候选全部比它还小 → 返回 null（换上比源图更小的图属于负升级，
+    //   只会更模糊；宁可保持源图预览，也不倒退）。不传 minPx 时行为与旧版一致。
+    function pickBestCandidate(loaded, needMax, minPx) {
         if (!loaded || !loaded.length) return null;
+        const floor = Math.max(0, Number(minPx) || 0);
+        const pool = floor > 0 ? loaded.filter((c) => Math.max(c.w, c.h) >= floor) : loaded;
+        if (!pool.length) return null;
         const need = Math.max(1, Number(needMax) || 0);
-        const enough = loaded.filter((c) => Math.max(c.w, c.h) >= need)
+        const enough = pool.filter((c) => Math.max(c.w, c.h) >= need)
             .sort((a, b) => Math.max(a.w, a.h) - Math.max(b.w, b.h));
         if (enough.length) return enough[0];
-        return loaded.slice().sort((a, b) => (b.w * b.h) - (a.w * a.h))[0];
+        return pool.slice().sort((a, b) => (b.w * b.h) - (a.w * a.h))[0];
     }
 
     function extractBgUrl(el) {
@@ -1180,6 +2021,12 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     const RULE_PACK_MAX_PATTERN = 1000;  // 单个正则 pattern 最大长度
     const RULE_PACK_MAX_REPLACE = 500;   // 单个替换串最大长度
     const RULE_PACK_MAX_PER_DOMAIN = 50; // 单域 clean / hd 各自最多条数
+    // 本地规则包「陈旧」阈值：超过它才在启动时后台重校验一次。
+    // 云端规则不常变，本地已有通过验签的整包就不必每次启动联网再探一次
+    // ——既省流量，也让首屏悬停不必等一个网络往返。
+    const RULE_PACK_STALE_MS = 7 * 24 * 60 * 60 * 1000;
+    // 缓存按域名累积（否则访问 B 站会把 A 站的规则挤掉，回到 A 站又得重下），超出上限按最久未用淘汰。
+    const RULE_PACK_MAX_CACHED_DOMAINS = 60;
 
     /* HVSIGN-BEGIN */
     // 规则包签名校验（ECDSA P-256 + SHA-256，WebCrypto）：先验整包签名，再逐文件比对哈希，
@@ -1333,6 +2180,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         meta: null,      // { fetchedAt, source, version, error }
         loading: false
     };
+    // 本次页面生命周期内「向规则包取源发起过几次请求」——仅供端到端验证读，不影响行为。
+    let rulePackFetchCount = 0;
 
     function loadRulePackFromStorage() {
         rulePackState.current = storageGet(RULE_PACK_KEY, null) || null;
@@ -1340,20 +2189,51 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         rebuildEffectiveRules();
     }
 
+    // 启动时是否需要后台重校验规则包。
+    // 本地已有「本站命中」且未过陈旧阈值的整包时返回 false —— 云端规则不常变，
+    // 没必要每次开页都联网探一次；只有「本站规则从没取到过」或「太久没校验」才拉。
+    function rulePackNeedsRefresh() {
+        const cur = rulePackState.current;
+        const cached = (cur && Array.isArray(cur.domains)) ? cur.domains : [];
+        const cachedMatch = cached.some(function (e) { return e && e.domain && packDomainMatches(currentDomain, e.domain); });
+        if (!cachedMatch) return true;              // 本站专属规则从未取到 → 需要拉
+        const meta = rulePackState.meta || {};
+        const ts = Number(meta.revalidatedAt || meta.fetchedAt || 0);
+        if (!ts) return true;                       // 没有校验时间戳（旧版写入）→ 当作陈旧
+        return (Date.now() - ts) > RULE_PACK_STALE_MS;
+    }
+
     // 拉取（GM_xmlhttpRequest）→ 解析 → 校验 → 落盘 → 生效
     // 说明：不使用 fetch，因为用户脚本运行环境里 GM_xmlhttpRequest 才能正确处理跨域与 @connect
-    function fetchRulePackText(url) {
+    // 单源抓取；失败即 reject，由上层决定是否换源。
+    // 从 GM_xmlhttpRequest 的响应头里取 ETag；拿不到就空串（自动退化为「每次全量」的旧行为）
+    function etagOf(headers) {
+        if (!headers || typeof headers !== 'string') return '';
+        const m = /^etag:[ \t]*(.+)$/im.exec(headers);
+        return m ? m[1].trim() : '';
+    }
+
+    // 单源抓取；etag 非空时带 If-None-Match，源站返回 304 即 resolve({notModified:true})，
+    // 省掉整包 index 的下行流量（index 随站点规则增长，是全量下载里最大的一块）。
+    function fetchRulePackOnce(url, etag) {
         return new Promise(function (resolve, reject) {
             try {
                 if (typeof GM_xmlhttpRequest !== 'function') { reject(new Error('no-gm-xhr')); return; }
+                rulePackFetchCount++;
+                const headers = { 'Accept': 'application/json' };
+                if (etag) headers['If-None-Match'] = etag;
                 GM_xmlhttpRequest({
                     method: 'GET',
                     url: url,
                     timeout: RULE_PACK_TIMEOUT,
-                    headers: { 'Accept': 'application/json' },
+                    headers: headers,
                     onload: function (res) {
-                        if (res.status >= 200 && res.status < 300 && typeof res.responseText === 'string') resolve(res.responseText);
-                        else reject(new Error('http-' + res.status));
+                        if (res.status === 304) { resolve({ notModified: true }); return; }
+                        if (res.status >= 200 && res.status < 300 && typeof res.responseText === 'string') {
+                            resolve({ text: res.responseText, etag: etagOf(res.responseHeaders) });
+                            return;
+                        }
+                        reject(new Error('http-' + res.status));
                     },
                     ontimeout: function () { reject(new Error('timeout')); },
                     onerror: function () { reject(new Error('network')); }
@@ -1362,10 +2242,54 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         });
     }
 
+    // 镜像回退：主源 raw.githubusercontent.com 在部分网络下不可达，依次尝试内容一致的 CDN 镜像。
+    // 签名与逐域哈希校验照旧执行，镜像只影响「从哪里取字节」，不影响信任链。
+    const RULE_PACK_MIRRORS = [
+        'https://cdn.jsdelivr.net/gh/YDGG123/hover-image-zoom@main/rules/',
+        'https://fastly.jsdelivr.net/gh/YDGG123/hover-image-zoom@main/rules/'
+    ];
+    function rulePackUrlCandidates(url) {
+        const out = [url];
+        if (url.indexOf(RULE_PACK_URL_PREFIX) === 0) {
+            const rel = url.slice(RULE_PACK_URL_PREFIX.length);
+            RULE_PACK_MIRRORS.forEach(function (base) { out.push(base + rel); });
+        }
+        return out;
+    }
+    function fetchRulePackText(url, etag) {
+        const urls = rulePackUrlCandidates(url);
+        return new Promise(function (resolve, reject) {
+            let i = 0, lastErr = null;
+            const attempt = function () {
+                if (i >= urls.length) { reject(lastErr || new Error('all-sources-failed')); return; }
+                fetchRulePackOnce(urls[i++], etag).then(resolve, function (e) { lastErr = e; attempt(); });
+            };
+            attempt();
+        });
+    }
+
     function updateRulePack(manual) {
         if (rulePackState.loading) return Promise.resolve({ ok: false, reason: 'busy' });
         rulePackState.loading = true;
-        return fetchRulePackText(RULE_PACK_URL + '?t=' + Date.now()).then(async function (text) {
+        // 本站是否已有规则包条目（缓存是全局的，只有「第一次取源的那个站」才有）
+        const cachedDomains0 = (rulePackState.current && rulePackState.current.domains) || [];
+        const cachedMatch0 = cachedDomains0.some(function (e) { return e && e.domain && packDomainMatches(currentDomain, e.domain); });
+        // ★ 条件请求只在本站已有条目时才用：index 返回 304 会「整包跳过」，
+        //   而「跳过」对本站还没有规则的情况等于**永远拿不到规则**——
+        //   它比下面「版本相同」那条更早返回，把 cachedMatch 守卫整个绕过去了。
+        //   所以本站无条目时必须放弃 If-None-Match，走全量 index 再取本站文件。
+        const useEtag = (!manual && cachedMatch0 && rulePackState.meta && rulePackState.meta.indexEtag) || '';
+        const indexUrl = manual ? RULE_PACK_URL + '?t=' + Date.now() : RULE_PACK_URL;
+        return fetchRulePackText(indexUrl, useEtag).then(async function (res) {
+            // 304：index 未变。发得出 etag 说明本地已有可用整包，直接沿用（同「版本相同即跳过」的语义）
+            if (res && res.notModified) {
+                rulePackState.loading = false;
+                const m2 = Object.assign({}, rulePackState.meta || {}, { revalidatedAt: Date.now() });
+                rulePackState.meta = m2;
+                storageSet(RULE_PACK_META_KEY, m2);
+                return { ok: true, unchanged: true, notModified: true, version: m2.version || 0 };
+            }
+            const text = res && res.text;
             let index;
             try { index = JSON.parse(text); } catch (e) { throw new Error('index-json'); }
             if (!index || !Array.isArray(index.domains)) throw new Error('index-shape');
@@ -1380,16 +2304,24 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             // ★「版本相同→跳过」的前提：缓存里已有【当前站点】匹配的规则。
             //   缓存是全局的、domains 是「当时那个站」的——否则 A 站更新后访问 B 站会被短路，
             //   B 永远拉不到自己的规则；一次网络抖动也会把空 domains 固化进缓存。
-            const cachedDomains = (rulePackState.current && rulePackState.current.domains) || [];
-            const cachedMatch = cachedDomains.some(function (e) { return e && e.domain && packDomainMatches(currentDomain, e.domain); });
+            // ★「版本相同→跳过」的前提：缓存里已有【当前站点】匹配的规则。
+            //   缓存是全局的，domains 可能全是「别的站」的——否则 A 站更新后访问 B 站会被短路，
+            //   B 永远拉不到自己的规则；一次网络抖动也会把空 domains 固化进缓存。
+            const cachedMatch = cachedMatch0;
             if (!manual && version && prevMeta.version === version && rulePackState.current
                 && (wanted.length === 0 || cachedMatch)) {
                 rulePackState.loading = false;
+                // 已经真去取过 index 并确认版本未变 —— 这就是一次「重校验」，要盖上时间戳，
+                // 否则陈旧阈值永远判为过期，每次开页都会再探一次（与「不重复探」的意图相反）。
+                const m2 = Object.assign({}, prevMeta, { revalidatedAt: Date.now() });
+                rulePackState.meta = m2;
+                storageSet(RULE_PACK_META_KEY, m2);
                 return { ok: true, unchanged: true, version: version };
             }
             return Promise.all(wanted.map(function (d) {
                 return fetchRulePackText(RULE_PACK_URL_PREFIX + encodeURIComponent(d) + '.json')
-                    .then(function (t2) {
+                    .then(function (r2) {
+                        const t2 = r2 && r2.text;
                         const o = JSON.parse(t2);
                         return (o && typeof o === 'object') ? { raw: t2, obj: o } : null;
                     })
@@ -1404,12 +2336,34 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                     const o = f.obj;
                     return { domain: String(o.domain || ''), label: String(o.label || ''), clean: Array.isArray(o.clean) ? o.clean.slice(0, RULE_PACK_MAX_PER_DOMAIN) : [], hd: Array.isArray(o.hd) ? o.hd.slice(0, RULE_PACK_MAX_PER_DOMAIN) : [] };
                 }).filter(function (e) { return e.domain; });
-                const next = { version: version, updatedAt: String(index.updatedAt || ''), domains: domains };
-                // ★ 回滚点：把「当前」挪到「上一版」再覆盖
                 const old = rulePackState.current;
+                const oldMeta = rulePackState.meta || {};
+                const oldStamps = (oldMeta.domainStamps && typeof oldMeta.domainStamps === 'object') ? oldMeta.domainStamps : {};
+                const now = Date.now();
+                // ★ 跨站累积：整包只存「本站命中」的域，若直接整体覆盖，访问 B 站会把 A 站的规则挤掉，
+                //   回到 A 站又要重下一次（还得再等一个网络往返）——与「下载完就固定在本地」相违背。
+                //   因此保留非本站的旧条目，本站条目用新数据覆盖；超出上限按最久未用淘汰。
+                const kept = ((old && Array.isArray(old.domains)) ? old.domains : []).filter(function (e) {
+                    return e && e.domain && !packDomainMatches(currentDomain, e.domain);
+                });
+                let merged = kept.concat(domains);
+                if (merged.length > RULE_PACK_MAX_CACHED_DOMAINS) {
+                    merged = merged.slice().sort(function (a, b) {
+                        return Number(oldStamps[b.domain] || 0) - Number(oldStamps[a.domain] || 0);
+                    }).slice(0, RULE_PACK_MAX_CACHED_DOMAINS);
+                }
+                const next = { version: version, updatedAt: String(index.updatedAt || ''), domains: merged };
+                // 逐域时间戳：本站刚更新过 → 记 now；保留的其他站 → 沿用旧时间戳（供陈旧判定与淘汰排序）
+                const stamps = {};
+                merged.forEach(function (e) {
+                    stamps[e.domain] = packDomainMatches(currentDomain, e.domain)
+                        ? now
+                        : Number(oldStamps[e.domain] || oldMeta.fetchedAt || now);
+                });
+                // ★ 回滚点：把「当前」挪到「上一版」再覆盖
                 if (old) storageSet(RULE_PACK_PREV_KEY, old);
                 storageSet(RULE_PACK_KEY, next);
-                const meta = { fetchedAt: Date.now(), source: 'remote', version: version, at: next.updatedAt, domains: domains.map(function (d) { return d.domain; }), verified: true };
+                const meta = { fetchedAt: now, source: 'remote', version: version, at: next.updatedAt, domains: merged.map(function (d) { return d.domain; }), verified: true, indexEtag: (res && res.etag) || '', domainStamps: stamps };
                 storageSet(RULE_PACK_META_KEY, meta);
                 rulePackState.current = next;
                 rulePackState.meta = meta;
@@ -1619,14 +2573,12 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
 
 
     // 7. 站点规则（背景图模式）
-    const SITE_HOVER_PROXY_RULES = [
-        {
-            domains: ['taobao.com', 'tmall.com'],
-            itemSelector: '.img-wrapper',
-            cardSelector: '.tb-pick-content-item, li',
-            pollInterval: 300
-        }
-    ];
+    // 内置规则表：按 domains 命中后由 setupBgRuleProxy 轮询 itemSelector，**仅对 CSS 背景图生效**
+    // （extractBgUrl 只读内联 style / 计算样式的 background-image，不会去找容器内的 <img>）。
+    // 当前无内置条目（原淘宝/天猫条目已退役）。
+    // 用户自定义背景规则（image_zoom_custom_rules）不受影响，且优先命中。
+    // 如需补回内置规则，按 { domains, itemSelector, cardSelector, pollInterval } 结构添加。
+    const SITE_HOVER_PROXY_RULES = [];
 
     function getCustomRules() {
         try { return storageGet('image_zoom_custom_rules', []); } catch (e) { return []; }
@@ -1664,6 +2616,13 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             if (document.hidden) return;
             if (!pointerInWindow) return;   // ★ 光标不在浏览器内，不做背景图识别
             if (!isEnabled || isHomepageZoomDisabled()) return;
+            // 背景预览一旦不在显示（无论是被 Esc / 心跳 / 光标离开收掉），就允许重新进入同一张卡片时再次显示。
+            // 若只在「光标离开卡片」时重置 lastBgCard，则「离开又立刻回来」会因卡片不变而不再弹出。
+            // ★ 但「延迟显示计时器在途」时必须例外：本函数按 pollInterval 轮询，若每 tick 都把 lastBgCard
+            //   清空，则下面 card !== lastBgCard 恒成立 → 每 tick 都 clearTimeout 掉尚未到期的显示计时器；
+            //   当 config.delay > pollInterval（默认 800 > 300）时，该计时器永远等不到触发，
+            //   背景图放大在本路径下永不弹出（延迟计时器被轮询饿死）。
+            if (!zoomFSM.isBgActive() && !bgDelayTimer) lastBgCard = null;
             if (zoomFSM.hasActiveZoom()) return;
             const x = lastMouse.x, y = lastMouse.y;
             if (x < 0) return;
@@ -1695,7 +2654,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                         bgDelayTimer = null;
                         if (Math.abs(lastMouse.x - mx) < 20 && Math.abs(lastMouse.y - my) < 20) {
                             const url = extractBgUrl(wrapper);
-                            if (url) bgZoomLayer.show({ cleaned: url, raw: url }, 1);
+                            if (url) bgZoomLayer.show({ cleaned: url, raw: url }, 1, wrapper);
                         } else {
                             // ★ 本次延迟显示已放弃，lastBgCard 必须回滚：
                             // 否则回到同一张卡片时 card === lastBgCard，背景图放大永久失效。
@@ -1715,53 +2674,32 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     }
 
     // 8. 背景图自动识别兜底
+    // ★ 背景图不再自建浮层：改为把「显式图片源」交给统一的 zoomFSM / createInstance 管线。
+    //   这样背景图预览与 <img> 预览共享同一套能力：高清升级（含 srcset/data-* 与尺寸家族）、
+    //   滚轮缩放、键位快捷键（含 Esc 关闭）、图片信息栏、历史记录、以及 FSM 的状态/巡检/跨 frame 仲裁。
+    //   触发层（站点规则轮询 / 自动识别）只负责决定「何时显示哪张图」，不再自己画浮层。
     const bgZoomLayer = (function() {
-        let container = null, url = null;
+        let lastUrl = null;
 
         function hide() {
-            url = null;
-            if (!container) return;
-            const c = container;
-            container = null;
-            const im = c.querySelector('img');
-            if (im) im.style.transform = 'scale(.6)';
-            c.style.opacity = '0';
-            setTimeout(() => c.remove(), 280);
+            lastUrl = null;
+            // 只收「背景图来源」的预览：触发层会在大量与背景图无关的时机调用 hide()，
+            // 若无条件收起，会误伤用户正在看的普通 <img> 预览。
+            try { if (zoomFSM.isBgActive()) zoomFSM.dispatch('HOVER_NONE', { force: true }); } catch (e) { }
         }
 
-        function show(loadUrls, zOffset) {
-            if (container && !container.isConnected) { container = null; url = null; }
-            if (container && url === loadUrls.cleaned) return;
-            hide();
-            zoomFSM.dispatch('RESET'); // 背景图接管前硬重置 FSM，避免悬空引用
-            const c = document.createElement('div');
-            c.className = 'image-zoom-container';
-            c.dataset.izOwner = 'bg';
-            c.style.cssText = `position:fixed;inset:0;z-index:${config.zoomZIndex - (zOffset || 1)};opacity:0;
-                transition:all .3s ease;pointer-events:none;display:flex;justify-content:center;align-items:center;
-                padding:20px;box-sizing:border-box;`;
-            const big = document.createElement('img');
-            big.style.cssText = `max-width:${Math.min(window.innerWidth - 60, config.maxWidth)}px;
-                max-height:${Math.min(window.innerHeight - 60, config.maxHeight)}px;object-fit:contain;border-radius:12px;
-                image-rendering:auto;
-                box-shadow:0 10px 34px rgba(0,0,0,.30),0 3px 10px rgba(0,0,0,.20),0 0 0 1px rgba(255,255,255,.10);`;
-            let triedFallback = false;
-            big.onerror = () => {
-                if (!triedFallback && loadUrls.raw && loadUrls.raw !== big.src) {
-                    triedFallback = true;
-                    big.src = loadUrls.raw;
-                    return;
-                }
-                hide();
-            };
-            big.onload = () => requestAnimationFrame(() => {
-                c.style.opacity = '1';
-            });
-            big.src = loadUrls.cleaned;
-            c.appendChild(big);
-            document.body.appendChild(c);
-            container = c;
-            url = big.src;
+        // srcEl：背景图宿主元素（站点规则模式传 wrapper，自动识别传 bgEl）。它同时是
+        //   ① 预览几何来源（源矩形 / 入场动画起点）② 保活判据（光标仍在其矩形内则保持显示）。
+        // zOffset：旧实现用它把背景层压在图片层之下。现在同一时刻只可能有一层（单实例 FSM），
+        //   该参数已无需生效，仅为调用点兼容保留。
+        function show(loadUrls, zOffset, srcEl) {
+            const target = loadUrls && loadUrls.cleaned;
+            if (!target || !srcEl) return;
+            // 普通图片预览优先级更高：背景图是兜底路径，不抢用户正在看的那张图
+            if (zoomFSM.hasActiveZoom() && !zoomFSM.isBgActive()) return;
+            if (target === lastUrl && zoomFSM.isBgActive()) return;   // 同一张图已在显示
+            lastUrl = target;
+            zoomFSM.dispatch('SHOW', { el: srcEl, srcOpts: { srcUrl: target } });
         }
 
         return { show, hide };
@@ -1848,7 +2786,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             pendingUrl = url;
 
             if (config.delay <= 0) {
-                bgZoomLayer.show({ cleaned: url, raw: url }, 2);
+                bgZoomLayer.show({ cleaned: url, raw: url }, 2, bgEl);
                 return;
             }
             bgTimer = setTimeout(() => {
@@ -1858,7 +2796,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                     pendingUrl = null;
                     return;
                 }
-                bgZoomLayer.show({ cleaned: url, raw: url }, 2);
+                bgZoomLayer.show({ cleaned: url, raw: url }, 2, bgEl);
             }, config.delay);
         }, 100), true);
 
@@ -2039,8 +2977,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             // 🔴 防止自身放大层污染 elementsFromPoint 结果
             if (el && el.closest && el.closest('.image-zoom-container')) { continue; }
             if (el.tagName !== 'IMG') {
-                // ★ 从顶往下扫，先碰到菜单/空白占位 → 判定无图，不再穿透
-                if (el !== document.body && el !== document.documentElement && isHoverBlocker(el) && !canPierceBlocker(el)) return null;
+                // ★ 从顶往下扫，先碰到菜单/空白占位 → 判定无图，不再穿透（图片自身的卡片覆盖层除外）
+                if (el !== document.body && el !== document.documentElement && isHoverBlocker(el) && !canPierceBlocker(el) && !isImgCardCover(el, x, y)) return null;
                 continue;
             }
             if (!isImgVisibleNow(el)) continue;
@@ -2141,7 +3079,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
 
         // 路径C：遮罩盖图 —— 局部扫描
         if (!img) {
-            if (t && t !== document.body && isHoverBlocker(t) && !canPierceBlocker(t)) {
+            if (t && t !== document.body && isHoverBlocker(t) && !canPierceBlocker(t) && !isImgCardCover(t, x, y)) {
                 zoomFSM.dispatch('HOVER_NONE', { x, y });
                 return;
             }
@@ -2160,6 +3098,10 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 }
             }
         }
+
+        // ★ 细长条幅（超宽横幅/超窄竖条）：无放大意义 → 直接判为无目标。
+        //   在这里统一收口，路径 A~C 全覆盖；同时避免被标记成已处理图。
+        if (img && isStripLikeImg(img)) img = null;
 
         if (img) {
             if (!img.classList.contains('image-zoom-processed')) processImage(img);
@@ -2907,7 +3849,10 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             return null;
         }
 
-        function createInstance(img) {
+        // srcOpts（可选）：{ srcUrl } —— 给「没有 <img> 元素可读地址」的图片来源（CSS 背景图）使用。
+        //   srcUrl 存在时：图片地址以它为准，且不参与图集（背景图没有「同组多图」概念）。
+        //   不传 srcOpts 时行为与旧版一致 —— 元素本身是 <img>，照旧读 currentSrc。
+        function createInstance(img, srcOpts) {
             try {
                 const rect = img.getBoundingClientRect();
                 if (rect.width === 0 || rect.height === 0) return null;
@@ -3034,7 +3979,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                     display:block;border-radius:10px;opacity:0;`;
 
                 // 必须优先 currentSrc：带 srcset 时浏览器只加载 currentSrc，src 可能是从未请求、甚至不是图片的兜底地址。
-                const rawSrc = img.currentSrc || img.src;
+                // 背景图等「无 <img> 可读」的来源由调用方显式传入 srcUrl —— 它的优先级最高。
+                const rawSrc = (srcOpts && srcOpts.srcUrl) || img.currentSrc || img.src;
                 // ★ 源图自身加载失败时 currentSrc 为空，会退回相对路径的 src；
                 // 相对地址直连易受 referer 策略影响，且 GM_xmlhttpRequest 无法抓取相对地址
                 // —— 防盗链绕过等场景会因此直接失败。统一解析为绝对地址兜底。
@@ -3052,6 +3998,9 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                     : Math.max(1, Math.min(5, Math.min(boxW / rect.width, boxH / rect.height)));
                 const inst = {
                     container, imgEl: zoomedImg, sourceImg: img,
+                    // 'bg' = 来源是 CSS 背景图（无 <img> 元素）；'img' = 普通图片元素。
+                    // 仅用于「只收起背景预览、别误伤普通预览」这类归属判断，不参与功能分支。
+                    srcKind: (srcOpts && srcOpts.srcUrl) ? 'bg' : 'img',
                     generation,   // 创建时代际；异步回调据此判断是否过期
                     // 信息浮层专用的“展示用 URL”：黑边裁剪会把 imgEl.src 换成 blob:，
                     // 届时域名/格式都取不到，所以这里单独记一份真实来源地址。
@@ -3075,10 +4024,17 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 };
                 container.__zoomInstance = inst;
                 // ★ 图集：记录同容器内的图片列表与当前位置（← / → 翻页 + 预览框内「3/9」指示）
-                try {
-                    inst.galleryList = collectGalleryImages(img);
-                    inst.galleryIndex = Math.max(0, inst.galleryList.indexOf(img));
-                } catch (e) { inst.galleryList = [img]; inst.galleryIndex = 0; }
+                if (inst.srcKind === 'bg') {
+                    // 背景图没有「同组多图」概念。也必须跳过 collectGalleryImages：
+                    // 它会把「不在候选里的源元素」unshift 进列表，而背景图宿主是 <div>，混进列表会污染翻页。
+                    inst.galleryList = [];
+                    inst.galleryIndex = -1;
+                } else {
+                    try {
+                        inst.galleryList = collectGalleryImages(img);
+                        inst.galleryIndex = Math.max(0, inst.galleryList.indexOf(img));
+                    } catch (e) { inst.galleryList = [img]; inst.galleryIndex = 0; }
+                }
 
                 zoomedImg.onload = () => {
                     if (inst.generation !== generation || instance !== inst) return; // 过期代际/实例回调直接丢弃
@@ -3233,8 +4189,12 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                     if (hiResSrc) arr.push(hiResSrc);            // 只先探「规则链的最终结果」
                     return arr;
                 })();
-                const hdExtra = hd.primary.concat(hd.variants)
-                    .filter(function (u) { return hdPrimary.indexOf(u) < 0; })
+                // 站点自声明的大图（srcset / <picture> / data-* 原图）排在备选池最前：比盲猜尺寸变体可信
+                const elSources = (function () {
+                    try { return collectElementSources(img, HD_MAX_CANDIDATES); } catch (e) { return []; }
+                })();
+                const hdExtra = elSources.concat(hd.primary, hd.variants)
+                    .filter(function (u, i, a) { return u && a.indexOf(u) === i && hdPrimary.indexOf(u) < 0; })
                     .slice(0, HD_MAX_CANDIDATES);
                 const hdCandidates = hdPrimary.concat(hdExtra);
                 const ac = currentAbort;
@@ -3260,15 +4220,35 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                     );
                     // 够用标准 = 预览可能的最大显示尺寸 × 设备像素比（不加余量：宁可取小一档，也别为了清晰抓巨图）
                     const needMax = Math.max(600, Math.min(2400, Math.round(availNow * dpr)));
+                    // 源图较长边 = 负升级闸门下界。取法有二，按图片元素形态二选一：
+                    //   ① 元素是 <img>：currentSourcePixelWidth 给文件像素宽（srcset 场景已按 w 描述符换算），
+                    //      再按自然比例推长边（密度校正对宽高同比例，故比例可信）。
+                    //   ② 元素不是 <img>（背景图宿主 div）：只能靠预览里那张图的真实文件尺寸。
+                    //   都取不到 → 0，闸门失效（fail-open，与本改动前行为一致）。
+                    const sourceLongSide = (function () {
+                        try {
+                            const base = (img.ownerDocument && img.ownerDocument.baseURI) || location.href;
+                            const w = currentSourcePixelWidth(img, base);
+                            const nw = img.naturalWidth || 0, nh = img.naturalHeight || 0;
+                            if (w > 0) return (nw > 0 && nh > 0) ? Math.max(w, Math.round(w * nh / nw)) : w;
+                            const zw = zoomedImg.naturalWidth || 0, zh = zoomedImg.naturalHeight || 0;
+                            return (zw > 0 && zh > 0) ? Math.max(zw, zh) : 0;
+                        } catch (e) { return 0; }
+                    })();
                     const finishWith = (loaded, extra) => {
                         if (ac && ac.signal.aborted) return;
-                        const best = pickBestCandidate(loaded, needMax);
-                        if (HV_DEBUG) { inst.hdDiag = hdCandidates.length + '候选·探成' + loaded.length + '·选' + (best ? Math.max(best.w, best.h) + 'px' : '无') + '·需' + needMax + (extra || ''); }
+                        const best = pickBestCandidate(loaded, needMax, sourceLongSide);
+                        if (HV_DEBUG) { inst.hdDiag = hdCandidates.length + '候选·探成' + loaded.length + '·选' + (best ? Math.max(best.w, best.h) + 'px' : '无') + '·需' + needMax + '·源' + sourceLongSide + (extra || ''); }
                         if (best) { applyHiRes(best.url, null); return; }
-                        // 全部直连失败 → 防盗链绕过（以脚本身份抓第一候选）
-                        gmFetchBlobUrl(hdCandidates[0])
-                            .then((blobUrl) => applyHiRes(hdCandidates[0], blobUrl))
-                            .catch(() => { if (HV_DEBUG) updateImageInfo(inst); /* 静默回退：保持源图预览 */ });
+                        // 全部直连失败（一个都没加载成功）→ 防盗链绕过（以脚本身份抓第一候选）
+                        // 注意：候选「加载成功但都比源图小」不算失败，此时保持源图预览，不做负升级。
+                        if (!loaded.length) {
+                            gmFetchBlobUrl(hdCandidates[0])
+                                .then((blobUrl) => applyHiRes(hdCandidates[0], blobUrl))
+                                .catch(() => { if (HV_DEBUG) updateImageInfo(inst); /* 静默回退：保持源图预览 */ });
+                            return;
+                        }
+                        if (HV_DEBUG) updateImageInfo(inst);
                     };
                     if (hdPrimary.length) {
                         probeCandidates(hdPrimary, 2500).then((loaded1) => {
@@ -3314,13 +4294,17 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 if (currentAbort) { currentAbort.abort(); currentAbort = null; }
                 state = S.IDLE;
             },
-            show(img) {
+            show(payload) {
+                // payload 两种形态：① 裸元素（<img>，既有调用方）② { el, srcOpts }（背景图等「无 <img> 可读地址」的来源）
+                const el = (payload && payload.el) || payload;
+                const srcOpts = (payload && payload.srcOpts) || null;
+                if (!el) { hideHoverWaitIndicator(); state = S.IDLE; wheelManager.sync(); return; }
                 // ★ 等待动画保持显示，直到该实例真正 LOADED/ACTIVE。
                 // 新目标：作废上一代在途任务并开启新代（ADR-002）
                 if (currentAbort) currentAbort.abort();
                 currentAbort = new AbortController();
                 generation++;
-                const inst = createInstance(img);
+                const inst = createInstance(el, srcOpts);
                 if (!inst) {
                     hideHoverWaitIndicator();
                     state = S.IDLE;
@@ -3351,6 +4335,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                     showToast(config.wheelZoom ? '滚动滚轮缩放图片' : '图片超出屏幕，滚动滚轮查看其余部分', 800);
                 }
                 state = S.ACTIVE;
+                // ★ 邻图预加载：图集里把前后张的高清地址预热进缓存，翻页零等待（实例已换/已收起则自动放弃）
+                scheduleGalleryPrefetch(inst, function () { return instance === inst && state === S.ACTIVE; });
                 // ★ 通知其他 frame：本 frame 已有 ACTIVE 预览
                 arbiterStartRenew();
                 // ★ P1 竞态修复：准入检查与占位是两次独立读写，两帧可能同时通过。
@@ -3694,6 +4680,9 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         const FSM = {
             get state() { return state; },
             hasActiveZoom() { return state === S.SHOWING || state === S.ACTIVE; },
+            // 当前显示的是否为「背景图来源」的预览。仅供背景图触发层判断「该不该由我来收」，
+            // 避免它无条件收起时误伤用户正常的 <img> 预览。
+            isBgActive() { return !!instance && instance.srcKind === 'bg' && (state === S.SHOWING || state === S.ACTIVE); },
             getSourceRect() { return instance && instance.sourceImg && instance.sourceImg.isConnected ? instance.sourceImg.getBoundingClientRect() : null; },
 
             heartbeat() {
@@ -3784,6 +4773,11 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                         }
                         if (state === S.PENDING) actions.cancel();
                         else if (state === S.SHOWING || state === S.ACTIVE) actions.beginFade();
+                        break;
+                    }
+                    case 'SHOW': {
+                        // 显式请求直接显示（不走 PENDING 等待）：背景图触发层已经自己等过 config.delay
+                        actions.show(payload);
                         break;
                     }
                     case 'TIMER_FIRE': {
@@ -4162,28 +5156,56 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             return null;
         }
 
-        // 借用节点：把站点自备的 <video> 临时移进预览容器（记住原位 + 原 inline style，关闭时归还）
+        // 原位留占位：视频是「在流内」时，移走它可能让原容器失去唯一撑高元素而塌陷 →
+        // 光标下的命中测试漂移到外层 → 预览被自己判成「已离开」而反复自动关闭（振荡）。
+        // 故按实测盒尺寸插一个不可见的等尺寸占位，保持原布局不变。
+        function makeHolder(v, parent, next) {
+            if (!parent || !v.getBoundingClientRect) return null;
+            const cs = window.getComputedStyle(v);
+            if (cs.position === 'absolute' || cs.position === 'fixed') return null;  // 脱离文档流：移走不影响父级布局
+            const r = v.getBoundingClientRect();
+            if (!(r.width > 0) || !(r.height > 0)) return null;
+            const h = document.createElement('span');
+            h.className = 'hv-video-holder';
+            h.setAttribute('aria-hidden', 'true');
+            h.style.cssText = 'display:' + (cs.display === 'inline' ? 'inline-block' : cs.display) +
+                ';width:' + Math.round(r.width) + 'px;height:' + Math.round(r.height) + 'px' +
+                ';margin:' + cs.margin + ';padding:0;border:0;background:transparent' +
+                ';visibility:hidden;pointer-events:none;';
+            try { parent.insertBefore(h, next); } catch (e) { return null; }
+            return h;
+        }
+
+        function dropHolder(h) {
+            try { if (h && h.parentElement) h.parentElement.removeChild(h); } catch (e) { }
+        }
+
+        // 借用节点：把站点自备的 <video> 临时移进预览容器（记住原位 + 原 inline style + 原位占位，关闭时归还）
         function borrowNode(container, v) {
-            const from = { parent: v.parentElement, next: v.nextSibling, css: v.getAttribute('style') };
+            const from = { parent: v.parentElement, next: v.nextSibling, css: v.getAttribute('style'), holder: null };
             try {
+                try { from.holder = makeHolder(v, from.parent, from.next); } catch (e) { from.holder = null; }
                 v.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;background:#000';
                 container.appendChild(v);
                 try { v.muted = true; } catch (e) { }
                 const p = v.play();
                 if (p && p.catch) p.catch(function () { });
-            } catch (e) { return null; }
+            } catch (e) { restoreNode(v, from); return null; }
             return from;
         }
 
         function restoreNode(v, from) {
-            if (!v || !from) return;
+            if (!from) return;
             try {
-                if (from.parent && from.parent.isConnected) {
-                    const nx = from.next;
+                if (v && from.parent && from.parent.isConnected) {
+                    // 有占位就以占位为锚点，保证归位顺序与原来一致
+                    const nx = (from.holder && from.holder.parentElement === from.parent) ? from.holder : from.next;
                     from.parent.insertBefore(v, (nx && nx.parentElement === from.parent) ? nx : null);
                 }
-                if (from.css) v.setAttribute('style', from.css); else v.removeAttribute('style');
+                if (v) { if (from.css) v.setAttribute('style', from.css); else v.removeAttribute('style'); }
             } catch (e) { }
+            dropHolder(from.holder);
+            from.holder = null;
         }
 
         // 看门狗：站点播放器可能自己把借走的视频暂停（兜底）。一旦节点被站点抢回（parentElement 变了）→ 关闭预览，不硬抢。
@@ -5027,6 +6049,12 @@ const bilibiliVolumeModule = (function() {
                 .izn-nav-item.on{background:var(--iz-accent)!important;border-color:var(--iz-accent)!important;color:#fff!important;font-weight:650;box-shadow:0 4px 12px -5px var(--iz-accent-line)}
                 .izn-nav-item .izn-tag{margin-left:auto;font-size:10px;color:var(--iz-tx-muted);background:var(--iz-bg-5);border-radius:999px;padding:1px 6px;flex-shrink:0}
                 .izn-nav-item.on .izn-tag{background:rgba(255,255,255,.26)!important;color:#fff!important}
+                .iz-hist-cell>img{transition:transform .18s ease}
+                .iz-hist-cell:hover>img{transform:scale(1.06)}
+                .iz-hist-acts{position:absolute;left:0;right:0;bottom:0;display:flex;gap:4px;justify-content:flex-end;padding:3px;background:linear-gradient(transparent,rgba(0,0,0,.55));opacity:0;transition:opacity .15s ease}
+                .iz-hist-cell:hover .iz-hist-acts{opacity:1}
+                .iz-hist-acts button{border:none;border-radius:5px;background:rgba(255,255,255,.94);color:#1f2937;font-size:11px;line-height:1;padding:3px 6px;cursor:pointer;font-family:inherit}
+                .iz-hist-acts button.iz-hist-del{color:var(--iz-danger)}
                 .izn-content{flex:1;min-width:0;overflow-y:auto;overscroll-behavior:contain;padding:18px 22px 24px}
                 .izn-content::-webkit-scrollbar{width:4px}
                 .izn-content::-webkit-scrollbar-thumb{background:var(--iz-scroll);border-radius:8px}
@@ -5489,6 +6517,10 @@ const bilibiliVolumeModule = (function() {
         settingsTip.className = 'zoom-bubble-tip';
         settingsTip.textContent = '配置面板';
 
+        applyI18nDeep(dockZone);
+        applyI18nDeep(dockTip);
+        applyI18nDeep(settingsTip);
+
         document.body.appendChild(dockZone);
         document.body.appendChild(dockTip);
         document.body.appendChild(settingsTip);
@@ -5737,6 +6769,7 @@ const bilibiliVolumeModule = (function() {
                     </div>
                 </div>`;
             document.body.appendChild(overlay);
+            applyI18nDeep(overlay);
             bindWheelTrap(overlay);
 
             const close = () => {
@@ -5807,28 +6840,29 @@ const bilibiliVolumeModule = (function() {
                         </div>
                         <div class="izn-htab" data-tab="changelog">
                             <div class="izn-hverline"><span class="v">${UPDATE_VERSION}</span><span class="d">${/test/i.test(UPDATE_VERSION) ? '测试版' : '正式版'}</span><span class="iz-badge ok" style="margin-left:auto">🔒 规则包已验签</span></div>
-                            <p class="izn-hnew">本次更新：<b>全新配置面板</b> · <b>视频悬停预览</b> · <b>图集翻页与打包</b> · <b>历史记录 / 键位自定义</b> · <b>三层换图规则</b>；另含显示位置两模式与重采样分级。</p>
+                            <p class="izn-hnew">本次更新：<b>背景图接入预览</b> · <b>更会找大图</b>（尺寸 7 族 + srcset / data-* 原图）· <b>规则包秒开</b> · <b>英文界面</b> · <b>历史画廊</b>；另含一批稳定性修复。</p>
                             <div class="izn-hgroup"><h4>新功能</h4><ul>
-                                <li><b>全新配置面板</b>：左侧 8 分区导航，图示化选择（放大模式 / 尺寸 / 位置 / 动画一眼对比），改动自动保存。</li>
-                                <li><b>视频悬停预览</b>：悬停页面视频或 B站 / YouTube 卡片即静音浮出播放，<b>←/→</b> 快退快进。</li>
-                                <li><b>图集翻页与打包</b>：同一组图片 <b>←/→</b> 翻页，按 <b>z</b> 打包 ZIP；放大图下方显示尺寸、格式、来源与图说。</li>
-                                <li><b>显示位置两模式</b>：屏幕居中 / 原图周围不遮挡（「显示与样式」里切换）。</li>
-                                <li><b>历史记录</b>：最近看过的图可回看、打开原图、复制地址（只存本机）。</li>
-                                <li><b>键位自定义</b>：点键帽改绑，冲突自动让出；一键恢复默认。</li>
-                                <li><b>配置备份与恢复</b>：导出 / 导入 JSON，换设备或重装后一键还原。</li>
+                                <li><b>背景图也能放大</b>：CSS 背景图预览一次继承全部能力——高清升级、滚轮缩放、键位、图片信息、历史记录、Esc 关闭。</li>
+                                <li><b>更会找大图</b>：尺寸识别扩到 7 族（?w= / _Nw. / _NxN. / 七牛 / OSS 等），并接入网页自己声明的原图（srcset、picture、13 个 data-* 属性）。</li>
+                                <li><b>不换成更小的图</b>：反负升级闸门——候选比当前图小一律不采，宁可没有候选也不让预览变模糊。</li>
+                                <li><b>规则包更快更省</b>：条件请求（服务端说没变就免下载）+ 国内镜像回退。</li>
+                                <li><b>英文界面</b>：面板语言切换（跟随浏览器 / 中文 / English），中英随时来回切。</li>
+                                <li><b>历史记录画廊</b>：历史区可在「列表 / 缩略图墙」间切换，一眼找回看过的图。</li>
+                                <li><b>图集邻图预加载</b>：翻页前静默预热相邻高清图（省流量 / 2G 自动跳过，可关闭）。</li>
                             </ul></div>
                             <div class="izn-hgroup"><h4>规则与安全</h4><ul>
                                 <li><b>三层换图规则</b>：我的规则 → 云端规则包 → 内置兜底，命中即停；「点图选图」自动生成规则，遮罩层 / 背景图也能放大。</li>
                                 <li><b>规则包签名校验</b>：云端规则带签名与逐站哈希校验，被篡改即拒用。</li>
-                                <li><b>网页版规则中心</b>：ydgg123.github.io/hover-image-zoom/rules.html 可在线浏览全部站点规则。</li>
-                                <li><b>一键提交规则到官方</b>：规则导出后自动填好 Issue 内容。</li>
+                                <li><b>镜像回退，信任链不变</b>：镜像只换「字节从哪来」，签名与逐域哈希校验照旧执行。</li>
+                                <li><b>规则包缓存修复</b>：修掉「每次开页都联网重探」与「多站共用缓存互相顶掉」。</li>
                             </ul></div>
                             <div class="izn-hgroup"><h4>修复与优化</h4><ul>
+                                <li><b>图片卡片覆盖层只能从边缘触发</b>：卡片层被误判成菜单浮层已修，整张图都能正常悬停放大。</li>
+                                <li><b>淘宝 / 天猫图片不升级高清</b>：首页 460×460 → 1280×1280，搜索页 580×580 → 800×800。</li>
+                                <li><b>超宽横幅误触发</b>：细长条幅（如 7680×120）不再弹预览。</li>
+                                <li>站点规则背景图延迟计时器空转已修；淘宝 / 天猫已失效的内置规则表退役。</li>
                                 <li>低分辨率图高倍放大不再出现<b>马赛克</b>（重采样按倍率分级）。</li>
-                                <li>「原图周围」模式下大图<b>不遮挡原图</b>；宽屏自适应放大<b>不再偏小</b>（默认上限跟随视口）。</li>
-                                <li>旋转 / 翻转后外壳框<b>跟随旋转</b>；深层嵌套（如表格化）<b>图集不再漏识别</b>。</li>
                                 <li>面板文字与选中态<b>不再被站点样式染色</b>；404 / 死链不再出现空白框。</li>
-                                <li>防盗链图片自动绕过；智能高清升级按需选档，省流量。</li>
                             </ul></div>
                         </div>
                     </div>
@@ -5839,6 +6873,7 @@ const bilibiliVolumeModule = (function() {
                     </div>
                 </div>`;
             document.body.appendChild(mask);
+            applyI18nDeep(mask);
             bindWheelTrap(mask);
             mask.addEventListener('click', (e) => { if (e.target === mask) mask.classList.remove('open'); });
             mask.querySelector('.izn-hclose').addEventListener('click', () => mask.classList.remove('open'));
@@ -5852,6 +6887,7 @@ const bilibiliVolumeModule = (function() {
         }
         mask.querySelectorAll('.izn-htabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === tab));
         mask.querySelectorAll('.izn-htab').forEach(p => p.classList.toggle('on', p.dataset.tab === tab));
+        applyI18nDeep(mask);
         mask.classList.add('open');
     }
 
@@ -5874,17 +6910,14 @@ const bilibiliVolumeModule = (function() {
                     </div>
                 </div>
                 <div class="iz-update-body">
-                    <div class="iz-update-item">🎛️ 新增：<b>全新配置面板</b> —— 8 个分区、图示化选择（放大模式 / 尺寸 / 位置 / 动画一眼对比），改动自动保存。</div>
-                    <div class="iz-update-item">▶️ 新增：<b>视频悬停预览</b> —— 悬停 B站 / YouTube 卡片或页面视频即静音浮出播放，<b>←/→</b> 快退快进。</div>
-                    <div class="iz-update-item">🖼️ 新增：<b>图集翻页与打包</b> —— <b>←/→</b> 翻页、按 <b>z</b> 打包 ZIP；放大图下方还会显示尺寸、格式、来源与图说。</div>
-                    <div class="iz-update-item">🕘 新增：<b>历史记录</b> + ⌨️ <b>键位自定义</b> —— 最近预览随时回看；13 个快捷键可视化改绑，可一键恢复默认。</div>
-                    <div class="iz-update-item">💾 新增：<b>配置备份与恢复</b> —— 导出 / 导入 JSON，换设备一键还原全部站点设置。</div>
-                    <div class="iz-update-item">🐛 修复：404 空框、占位图误触发、旋转后外框不跟转、面板被站点样式染色、滚轮误关预览等一批问题。另：本次新增 <b>GM_listValues</b> 权限。</div>
+                    <div class="iz-update-item">🇬🇧 新增：<b>英文界面</b> —— 面板语言切换（跟随浏览器 / 中文 / English），中英随时来回切。</div>
+                    <div class="iz-update-item">🐛 修复：图片卡片层只能从边缘触发、淘宝图不升级高清、超宽横幅误触发、背景图规则延迟计时器空转等一批问题。</div>
                 </div>
                 <div class="iz-update-footer">
                     <button class="iz-btn-primary-solid iz-update-ok" id="izUpdateOk">知道了</button>
                 </div>`;
             document.body.appendChild(notice);
+            applyI18nDeep(notice);
 
             const close = () => {
                 storageSet(UPDATE_SEEN_KEY, true);
@@ -5982,7 +7015,7 @@ const bilibiliVolumeModule = (function() {
             <div id="izRuleForm" style="display:none;margin-top:12px;padding:14px;background-color:var(--iz-bg-3);border-radius:var(--iz-r-md);border:1.5px solid var(--iz-bd-2);">
                 <div class="iz-param-item" style="margin-bottom:10px;"><label>规则名称</label><input id="izRuleName" type="text" placeholder="选填" class="iz-rule-input"></div>
                 <div class="iz-param-item" style="margin-bottom:10px;"><label>域名（逗号分隔，留空为当前网站）</label><input id="izRuleDomains" type="text" placeholder="${currentDomain}" class="iz-rule-input"></div>
-                <div class="iz-param-item" style="margin-bottom:10px;"><label>图片容器选择器（背景图元素的 CSS 选择器）</label><input id="izRuleItem" type="text" placeholder="如：.image-container-top 或 .img-wrapper" class="iz-rule-input"></div>
+                <div class="iz-param-item" style="margin-bottom:10px;"><label>图片容器选择器（背景图元素的 CSS 选择器）</label><input id="izRuleItem" type="text" placeholder="如：.image-container-top 或 .dt-carousel-img" class="iz-rule-input"></div>
                 <div class="iz-param-item" style="margin-bottom:10px;"><label>卡片选择器</label><input id="izRuleCard" type="text" placeholder="如：.qtd-theme-card" class="iz-rule-input"></div>
                 <div style="font-size:12px;color:var(--iz-tx-muted);margin-bottom:10px;">💡 不会写选择器？点「🖱️ 拾取选择器」后直接在页面上点一下图片即可自动填写。</div>
                 <div style="display:flex;gap:10px;justify-content:flex-end;">
@@ -6265,7 +7298,7 @@ const bilibiliVolumeModule = (function() {
         const DISPLAY_SIZE_DEFS = COMMON_PARAM_DEFS.filter(p => p.key === 'maxWidth' || p.key === 'maxHeight');
         const TRIGGER_BASIC_DEFS = COMMON_PARAM_DEFS.filter(p => p.key === 'delay' || p.key === 'minOriginalSize');
         const SCROLL_DEFS = COMMON_PARAM_DEFS.filter(p => p.key === 'scrollSpeed');
-        overlay.innerHTML = `
+        function buildPanelHTML() { return `
             <div id="izConfigPanel">
                 <div class="izn-top">
                     <div class="izn-brand">
@@ -6320,6 +7353,17 @@ const bilibiliVolumeModule = (function() {
                                 <div class="izn-grid2">
                                     <div class="izn-status"><span class="izn-sd"></span><div class="flex">我的规则 <b id="iznRuleSummary">0 条</b><div class="note">云端规则包与本站命中情况见「图片规则」</div></div><button class="iz-btn-sm" data-izn-go="rules">管理</button></div>
                                     <div class="izn-status"><span class="izn-sd"></span><div class="flex">云端规则包 <b id="iznPackSummary">读取中</b><div class="note">🔒 签名校验状态与更新入口在「图片规则」</div></div><button class="iz-btn-sm" data-izn-go="rules">更新</button></div>
+                                </div>
+                            </div>
+                            <div class="izn-sect">
+                                <div class="izn-sect-h"><b>界面语言</b><span class="izn-hint">只影响显示文案</span></div>
+                                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                                    <div class="iz-seg" id="izLangSeg" data-seg="lang">
+                                        <button type="button" data-val="auto">跟随浏览器</button>
+                                        <button type="button" data-val="zh">中文</button>
+                                        <button type="button" data-val="en">English</button>
+                                    </div>
+                                    <span style="font-size:11.5px;color:var(--iz-tx-muted);">属全局设置，所有网站共用。</span>
                                 </div>
                             </div>
                             <div class="izn-sect">
@@ -6451,6 +7495,10 @@ const bilibiliVolumeModule = (function() {
                                         <div class="iz-toggle ${config.videoHoverPreview ? 'active' : ''}" id="izVideoHoverToggle"><div class="iz-knob"></div></div>
                                         <div class="iz-switch-text"><div class="iz-switch-title">悬停视频时预览播放</div><div class="iz-switch-sub">悬停视频卡片时静音浮出播放，按 Esc 关闭。</div></div>
                                     </div>
+                                    <div class="iz-switch-card" id="izGalleryPreloadWrap" role="switch" tabindex="0" aria-checked="${config.galleryPreload ? 'true' : 'false'}">
+                                        <div class="iz-toggle ${config.galleryPreload ? 'active' : ''}" id="izGalleryPreloadToggle"><div class="iz-knob"></div></div>
+                                        <div class="iz-switch-text"><div class="iz-switch-title">图集邻图预加载</div><div class="iz-switch-sub">翻页前先预热前后张，翻起来更顺；省流量模式与 2G 网络会自动跳过。</div></div>
+                                    </div>
                                     <div class="iz-switch-card" id="izBiliWrap" role="switch" tabindex="0" aria-checked="${bilibiliVolumeModule.isEnabled ? 'true' : 'false'}">
                                         <div class="iz-toggle ${bilibiliVolumeModule.isEnabled ? 'active' : ''}" id="izBiliToggle"><div class="iz-knob"></div></div>
                                         <div class="iz-switch-text"><div class="iz-switch-title">B站全屏音量修正</div><div class="iz-switch-sub">B站全屏时如果滚轮调不了音量，开启这项即可。</div></div>
@@ -6575,7 +7623,7 @@ const bilibiliVolumeModule = (function() {
                                         <div class="iz-switch-grid" style="margin-bottom:8px">
                                             <div class="iz-switch-card" id="izPackAutoWrap" role="switch" tabindex="0" aria-checked="${config.rulePackAuto ? 'true' : 'false'}">
                                                 <div class="iz-toggle ${config.rulePackAuto ? 'active' : ''}" id="izPackAutoToggle"><div class="iz-knob"></div></div>
-                                                <div class="iz-switch-text"><div class="iz-switch-title">自动更新</div><div class="iz-switch-sub">启动时后台拉取，失败自动用本地缓存。</div></div>
+                                                <div class="iz-switch-text"><div class="iz-switch-title">自动更新</div><div class="iz-switch-sub">下载后固定在本地；只有没取到本站规则、或超过一周未校验时才后台重探。</div></div>
                                             </div>
                                         </div>
                                         <div class="iz-exclusion-box" style="padding:9px 10px;">
@@ -6627,8 +7675,14 @@ const bilibiliVolumeModule = (function() {
                                     <span style="font-size:12px;color:var(--iz-tx-muted);text-align:right;max-width:150px;" id="izHistoryHint">点击收起</span>
                                 </div>
                                 <div class="iz-collapse-body open" id="izHistoryBody">
+                                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
+                                        <div class="iz-seg" id="izHistoryView" data-seg="historyView">
+                                            <button type="button" data-val="list" class="on">列表</button>
+                                            <button type="button" data-val="gallery">画廊</button>
+                                        </div>
+                                        <button class="iz-btn-sm" id="izHistoryClearBtn">🗑 清空历史</button>
+                                    </div>
                                     <div id="izHistoryList"></div>
-                                    <div style="margin-top:8px;"><button class="iz-btn-sm" id="izHistoryClearBtn">🗑 清空历史</button></div>
                                 </div>
                             </div>
                         </section>
@@ -6639,6 +7693,7 @@ const bilibiliVolumeModule = (function() {
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                         <button class="iz-btn-ghost" id="izHelpBtn">📘 使用说明</button>
                         <button class="iz-btn-ghost" id="izChangelogBtn">📋 更新说明</button>
+                        <button class="iz-btn-ghost" id="izDiagBtn" title="把版本、浏览器、本站状态与规则包情况复制成一段文字，反馈问题时直接粘贴">🩺 复制诊断信息</button>
                         <button class="iz-btn-ghost" id="izFeedbackBtn">🐞 反馈问题</button>
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -6651,8 +7706,12 @@ const bilibiliVolumeModule = (function() {
                 <input type="file" id="izImportInput" accept="application/json,.json" style="display:none">
             </div>
 `;
+        }
+        overlay.innerHTML = buildPanelHTML();
 
         document.body.appendChild(overlay);
+        applyI18nDeep(overlay);      // 英文界面：首屏文案就地翻译
+        i18nWatch(overlay);          // 之后动态渲染的节点（切分区、刷新列表、提示）持续补齐
         bindWheelTrap(overlay);
         injectCustomRulesSection(overlay);
 
@@ -6660,18 +7719,10 @@ const bilibiliVolumeModule = (function() {
         const conflictToggle = $('izConflictToggle');
         const modeBadge = $('izModeBadge');
         const biliToggle = $('izBiliToggle');
+        // 面板级 document/window 监听统一由它管理：overlay 被移除（导入配置后整块重建）时一次性注销，避免重复叠加
+        const panelAbort = new AbortController();
 
-        // 快捷开关 / 折叠区：键盘可操作 + 无障碍状态同步
-        overlay.querySelectorAll('.iz-switch-card').forEach(wrap => {
-            const tg = wrap.querySelector('.iz-toggle');
-            if (!tg) return;
-            const syncSw = () => wrap.setAttribute('aria-checked', tg.classList.contains('active') ? 'true' : 'false');
-            new MutationObserver(syncSw).observe(tg, { attributes: true, attributeFilter: ['class'] });
-            syncSw();
-            wrap.addEventListener('keydown', (e) => {
-                if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); wrap.click(); }
-            });
-        });
+        // ==== 供模板与各分区复用的函数 / 元素引用（原顶层声明，跨分节共享） ====
         const wireCollapseA11y = (header, body) => {
             const syncExp = () => header.setAttribute('aria-expanded', body.classList.contains('open') ? 'true' : 'false');
             new MutationObserver(syncExp).observe(body, { attributes: true, attributeFilter: ['class'] });
@@ -6680,77 +7731,6 @@ const bilibiliVolumeModule = (function() {
                 if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); header.click(); }
             });
         };
-
-        // 规则包：原独立折叠区块已并入「图片规则」区的 ② 云端规则包，元素 id 保持不变，状态渲染与按钮绑定无需改动。
-        function renderPackStatus() {
-            const badge = $('izPackBadge'), st = $('izPackStatus'), note = $('izPackNote');
-            if (!badge || !st || !note) return;
-            const meta = rulePackState.meta || {};
-            const cur = rulePackState.current;
-            if (cur && cur.version) {
-                badge.textContent = 'v' + cur.version;
-                st.textContent = '已加载规则包 v' + cur.version + (meta.at ? '（' + String(meta.at).slice(0, 10) + '）' : '');
-            } else {
-                badge.textContent = '内置';
-                st.textContent = '当前使用内置规则';
-            }
-            const hits = ((cur && cur.domains) || []).filter(function (d) { return packDomainMatches(currentDomain, d.domain); });
-            const extra = hits.length
-                ? '　本站命中：' + hits.map(function (d) { return d.label || d.domain; }).join('、')
-                : '　本站无专属规则';
-            // 签名校验状态（供应链加固）：verified 只在「验签+哈希全过」时写入 meta
-            let sig = '';
-            if (meta.verified) sig = '　🔒 签名校验通过';
-            else if (meta.lastError && /^sig-|^hash-/.test(meta.lastError)) sig = '　⚠ 签名校验未通过（' + meta.lastError + '）';
-            const err = meta.lastError ? '　上次更新失败：' + meta.lastError : '';
-            note.textContent = '规则包只提供「正则 → 替换」的数据，不执行任何代码。' + sig + extra + err;
-        }
-        renderPackStatus();
-        const packAutoWrap = $('izPackAutoWrap');
-        if (packAutoWrap) {
-            packAutoWrap.addEventListener('click', () => {
-                config.rulePackAuto = !config.rulePackAuto;
-                $('izPackAutoToggle').classList.toggle('active', config.rulePackAuto);
-                packAutoWrap.setAttribute('aria-checked', config.rulePackAuto ? 'true' : 'false');
-                saveConfig();
-            });
-        }
-        const packUpdateBtn = $('izPackUpdateBtn');
-        if (packUpdateBtn) {
-            packUpdateBtn.addEventListener('click', () => {
-                packUpdateBtn.disabled = true;
-                packUpdateBtn.textContent = '更新中…';
-                updateRulePack(true).then(function (r) {
-                    packUpdateBtn.disabled = false;
-                    packUpdateBtn.textContent = '↻ 立即更新';
-                    renderPackStatus();
-                    if (r && r.ok) showToast(r.unchanged ? '已是最新规则包 v' + r.version : '规则包已更新到 v' + r.version + ' 🎉');
-                    else if (r && r.reason === 'busy') showToast('规则包正在更新中，请稍候再试');
-                    else showToast('更新失败：' + ((r && r.reason) || '未知') + '（继续使用现有规则）');
-                });
-            });
-        }
-        const packRollbackBtn = $('izPackRollbackBtn');
-        if (packRollbackBtn) {
-            packRollbackBtn.addEventListener('click', () => {
-                const r = rollbackRulePack();
-                renderPackStatus();
-                showToast(r.ok ? '已回滚到 v' + r.version : '没有可回滚的版本');
-            });
-        }
-
-        // ===== 图片地址规则（极简版：一键找大图；正则收进「高级」）=====
-        const urHeader = $('izUrlRuleHeader'), urBody = $('izUrlRuleBody');
-        if (urHeader && urBody) {
-            wireCollapseA11y(urHeader, urBody);
-            urHeader.addEventListener('click', () => {
-                const isOpen = urBody.classList.contains('open');
-                urBody.classList.toggle('open');
-                $('izUrlRuleArrow').classList.toggle('open');
-                $('izUrlRuleHint').innerHTML = isOpen ? '点开编辑' : '点击收起';
-                if (!isOpen) renderUrlRuleStatus();   // 展开时刷新「最近命中」等状态
-            });
-        }
 
         function renderUrlRules() {
             const list = $('izUrlRuleList');
@@ -6782,11 +7762,10 @@ const bilibiliVolumeModule = (function() {
             if (segValue('izUrlScope', 'site') === 'global') return { scope: 'global', domain: '' };
             return { scope: 'site', domain: currentDomain };
         }
-        renderUrlRules();
-        renderUrlRuleStatus();   // 新布局默认展开规则区，打开面板即显示命中状态
 
         // 「规则在当前网站生效了吗」——生效规则数、来源构成、最近一次真实命中
         function renderUrlRuleStatus() {
+            const en = isEnUI();
             const st = $('izUrlRuleStatus'), note = $('izUrlRuleNote');
             if (!st || !note) return;
             const userN = (config.userUrlRules || []).filter(function (r) { return r.enabled !== false; }).length;
@@ -6796,25 +7775,28 @@ const bilibiliVolumeModule = (function() {
             const builtinN = URL_RULES.length + HD_UPGRADE_RULES.length;
             // 顶部折叠头计数 + ③ 内置兜底条数（合并成单一「图片规则」区后新增）
             const cntEl = $('izRuleCount');
-            if (cntEl) cntEl.textContent = (userN + packN + builtinN) + ' 条生效';
+            if (cntEl) cntEl.textContent = en ? ((userN + packN + builtinN) + ' active') : ((userN + packN + builtinN) + ' 条生效');
             const biEl = $('izBuiltinCount');
-            if (biEl) biEl.textContent = builtinN + ' 条';
-            st.textContent = currentDomain + '：生效 ' + (userN + packN + builtinN) + ' 条规则'
-                + '（① 我的 ' + userN + ' / ② 云端 ' + packN + ' / ③ 内置 ' + builtinN + '）';
+            if (biEl) biEl.textContent = builtinN + (en ? ' items' : ' 条');
+            st.textContent = en
+                ? (currentDomain + ': ' + (userN + packN + builtinN) + ' rules active (① mine ' + userN + ' / ② cloud ' + packN + ' / ③ built-in ' + builtinN + ')')
+                : (currentDomain + '：生效 ' + (userN + packN + builtinN) + ' 条规则'
+                    + '（① 我的 ' + userN + ' / ② 云端 ' + packN + ' / ③ 内置 ' + builtinN + '）');
             const parts = [];
             if (lastRuleHit) {
                 const f = String(lastRuleHit.from), t = String(lastRuleHit.to);
                 const tail = function (s) { return s.length > 68 ? '…' + s.slice(-68) : s; };
-                parts.push('✅ 最近一次实际命中【' + (lastRuleHit.name || lastRuleHit.id) + '】　'
-                    + tail(f) + '　→　' + tail(t));
+                parts.push((en ? '✅ Last real match [' : '✅ 最近一次实际命中【') + (lastRuleHit.name || lastRuleHit.id) + (en ? ']  ' : '】　')
+                    + tail(f) + (en ? '  →  ' : '　→　') + tail(t));
             } else {
-                parts.push('⏳ 本次页面还没命中过规则：悬停一张图片后回到这里看结果。');
+                parts.push(en
+                    ? '⏳ No rule has matched on this page yet — hover an image and come back.'
+                    : '⏳ 本次页面还没命中过规则：悬停一张图片后回到这里看结果。');
             }
-            if (hits.length) parts.push('规则包为本站提供：' + hits.map(function (d) { return d.label || d.domain; }).join('、'));
-            else parts.push('规则包暂无本站专属规则（使用内置规则）。');
-            note.textContent = parts.join('　|　');
+            if (hits.length) parts.push((en ? 'Rule pack for this site: ' : '规则包为本站提供：') + hits.map(function (d) { return d.label || d.domain; }).join(en ? ', ' : '、'));
+            else parts.push(en ? 'Rule pack has no site-specific rules (using built-in rules).' : '规则包暂无本站专属规则（使用内置规则）。');
+            note.textContent = parts.join(en ? ' | ' : '　|　');
         }
-        renderUrlRuleStatus();
 
         // ===== 历史记录 =====
         function fmtHistTime(ts) {
@@ -6822,17 +7804,41 @@ const bilibiliVolumeModule = (function() {
             const d = new Date(ts), now = new Date();
             const pad = n => (n < 10 ? '0' + n : '' + n);
             const hm = pad(d.getHours()) + ':' + pad(d.getMinutes());
-            if (d.toDateString() === now.toDateString()) return '今天 ' + hm;
+            if (d.toDateString() === now.toDateString()) return (isEnUI() ? 'Today ' : '今天 ') + hm;
             return (d.getMonth() + 1) + '-' + d.getDate() + ' ' + hm;
         }
+        // 历史视图：列表 / 画廊（缩略图墙）。属全局偏好，跨网站共用。
+        function histGalleryOn() { return globalPrefs.historyGallery === true; }
         function renderHistory() {
             const list = $('izHistoryList');
             if (!list) return;
             const items = getHistory();
             const cnt = $('izHistoryCount');
             if (cnt) cnt.textContent = items.length ? ('· ' + items.length + ' 条') : '';
+            const viewSeg = $('izHistoryView');
+            if (viewSeg) viewSeg.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', (b.dataset.val === 'gallery') === histGalleryOn()); });
             if (!items.length) {
                 list.innerHTML = '<div style="font-size:12px;color:var(--iz-tx-muted);padding:6px 0;line-height:1.6;">还没有。悬停放大过的图片会自动记在这里（只保存在本机，最多 60 条）。</div>';
+                return;
+            }
+            if (histGalleryOn()) {
+                list.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;">'
+                    + items.map(function (r) {
+                        const dim = (r.w > 0 && r.h > 0) ? (r.w + '×' + r.h) : '';
+                        const meta = [r.host, dim, fmtHistTime(r.ts)].filter(Boolean).join(' · ');
+                        const thumb = r.thumb || r.u;
+                        return '<div class="iz-hist-cell" data-hid="' + escapeHtml(r.id) + '" title="' + escapeHtml(r.u) + '" style="position:relative;aspect-ratio:1/1;border-radius:8px;overflow:hidden;background:var(--iz-bg-3);border:1px solid var(--iz-bd-1);cursor:zoom-in;">'
+                            + '<img src="' + escapeHtml(thumb) + '" alt="" loading="lazy" title="' + escapeHtml(meta) + '" style="width:100%;height:100%;object-fit:cover;display:block;">'
+                            + '<div class="iz-hist-acts">'
+                            + '<button type="button" data-act="open">打开</button>'
+                            + '<button type="button" data-act="copy">复制</button>'
+                            + '<button type="button" class="iz-hist-del" data-act="del">✕</button>'
+                            + '</div></div>';
+                    }).join('') + '</div>';
+                // 缩略图加载失败直接隐藏（不写内联 onerror，避免被站点 CSP 拦掉）
+                list.querySelectorAll('.iz-hist-cell > img').forEach(function (im) {
+                    im.addEventListener('error', function () { im.style.visibility = 'hidden'; });
+                });
                 return;
             }
             list.innerHTML = items.map(function (r) {
@@ -6850,343 +7856,6 @@ const bilibiliVolumeModule = (function() {
                     + '</div></div>';
             }).join('');
         }
-        const histHeader = $('izHistoryHeader'), histBody = $('izHistoryBody');
-        if (histHeader && histBody) {
-            wireCollapseA11y(histHeader, histBody);
-            histHeader.addEventListener('click', () => {
-                const isOpen = histBody.classList.contains('open');
-                histBody.classList.toggle('open');
-                $('izHistoryArrow').classList.toggle('open');
-                $('izHistoryHint').innerHTML = isOpen ? '点开查看' : '点击收起';
-                if (!isOpen) renderHistory();   // 展开时刷新（悬停可能新增了记录）
-            });
-            const histClear = $('izHistoryClearBtn');
-            if (histClear) histClear.addEventListener('click', () => {
-                clearHistory();
-                renderHistory();
-                iznSync();   // ★ 角标（导航栏历史条数）也要跟着归零，否则列表空了角标还挂着旧数
-                showSaveToast('历史记录已清空');
-            });
-            const histList = $('izHistoryList');
-            if (histList) histList.addEventListener('click', (e) => {
-                const item = e.target.closest('[data-hid]');
-                if (!item) return;
-                const hid = item.getAttribute('data-hid');
-                const actEl = e.target.closest('[data-act]');
-                const act = actEl ? actEl.getAttribute('data-act') : '';
-                const entry = getHistory().find(x => x && x.id === hid);
-                if (act === 'del') { removeHistoryItem(hid); renderHistory(); iznSync(); }
-                else if (act === 'open' && entry && typeof GM_openInTab === 'function') {
-                    try { GM_openInTab(entry.u, { active: true }); } catch (err) { showSaveToast('打开失败'); }
-                }
-                else if (act === 'copy' && entry && typeof GM_setClipboard === 'function') {
-                    GM_setClipboard(entry.u, 'text');
-                    showSaveToast('已复制图片地址');
-                }
-            });
-        }
-        renderHistory();
-
-        // ★ 一键找大图：把所有已知变换在这个地址上各试一遍，真实加载后按大小给用户挑。
-        //   用户完全不需要懂正则——看到的缩略图就是最终效果。
-        let autoCands = [];
-        function loadImgForTest(url) {
-            return new Promise(function (res) {
-                const t = setTimeout(function () { res(null); }, 8000);
-                const im = new Image();
-                im.onload = function () { clearTimeout(t); res({ w: im.naturalWidth, h: im.naturalHeight }); };
-                im.onerror = function () { clearTimeout(t); res(null); };
-                im.src = url;
-            });
-        }
-        async function autoFindBig(url) {
-            const out = $('izUrlAutoOut');
-            try {
-            out.innerHTML = '<div style="font-size:12px;color:var(--iz-tx-muted);">正在尝试各种方式…</div>';
-            const orig = await loadImgForTest(url);
-            if (!orig) {
-                out.innerHTML = '<div style="font-size:12px;color:var(--iz-danger);">这个地址打不开。请确认复制的是「图片地址」（右键图片 → 复制图片地址）。</div>';
-                return;
-            }
-            const cands = []; const seen = new Set();
-            activeHdRules.forEach(function (r) {
-                (r.steps || []).forEach(function (s) {
-                    // ★ 兼容两种步长格式：内置 [regex, replace]（2 元素）/ 规则包 [pattern, flags, replace]（3 元素）
-                    const is3 = s.length > 2;
-                    const pat = s[0], fl = is3 ? (s[1] || '') : '', rep = is3 ? s[2] : s[1];
-                    let re = (pat instanceof RegExp) ? pat : new RegExp(pat, fl);
-                    let c; try { c = url.replace(re, rep); } catch (e) { return; }
-                    if (c && c !== url && !seen.has(c)) { seen.add(c); cands.push({ rule: { label: r.name || '自动优化', phase: 'hd', pattern: pat, flags: fl, replace: rep }, url: c }); }
-                });
-            });
-            if (!cands.length) {
-                const dbg = [];
-                activeHdRules.forEach(function (r) {
-                    let chg = false;
-                    (r.steps || []).forEach(function (s) {
-                        const is3 = s.length > 2;
-                        const pat = s[0], fl = is3 ? (s[1] || '') : '', rep = is3 ? s[2] : s[1];
-                        try { const re = (pat instanceof RegExp) ? pat : new RegExp(pat, fl); const t = url.replace(re, rep); if (t !== url) chg = true; } catch (e) { chg = 'ERR'; }
-                    });
-                    dbg.push((r.id || '?') + (chg === true ? '✓' : (chg === 'ERR' ? '✗err' : '·')));
-                });
-                out.innerHTML = '<div style="font-size:12px;color:var(--iz-tx-muted);line-height:1.6;">暂时没有已知的优化方式适用于这个地址。'
-                    + '<br><span style="font-size:11px;">（诊断：' + dbg.join('，') + '）</span></div>';
-                return;
-            }
-            const results = await Promise.all(cands.map(function (c) {
-                return loadImgForTest(c.url).then(function (r) { return r ? { c: c, w: r.w, h: r.h } : null; });
-            }));
-            // 按位置对应：加载成功的带尺寸，失败的标「未验证」（不能靠 slice 尾部——失败项散布在 results 里）
-            const loaded = results.map(function (r, i) { return r ? { c: cands[i], w: r.w, h: r.h } : null; }).filter(Boolean);
-            const unverified = results.map(function (r, i) { return r ? null : { c: cands[i], w: 0, h: 0 }; }).filter(Boolean);
-            autoCands = loaded.concat(unverified);
-            if (!autoCands.length) {
-                out.innerHTML = '<div style="font-size:12px;color:var(--iz-tx-muted);">这个地址没有可尝试的变换。</div>';
-                return;
-            }
-            autoCands.sort(function (a, b) { return (b.w * b.h) - (a.w * a.h); });   // 未验证(w=0)排最后
-            const rowHtml = function (r, i) {
-                return '<div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--iz-bd-1);border-radius:var(--iz-r-sm);margin-bottom:6px;background:var(--iz-bg-4);">'
-                    + '<img src="' + escapeHtml(r.c.url) + '" style="width:64px;height:64px;object-fit:cover;border-radius:4px;flex-shrink:0;">'
-                    + '<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--iz-tx-2);">' + (r.w ? (r.w + ' × ' + r.h) : '未验证') + '</div>'
-                    + '<div style="font-size:11px;color:var(--iz-tx-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(r.c.url.slice(-72)) + '</div></div>'
-                    + '<button class="iz-btn-sm primary" data-autoidx="' + i + '" style="flex-shrink:0;">就用这个</button></div>';
-            };
-            const biggerIdx = [], smallerIdx = [], unverIdx = [];
-            autoCands.forEach(function (r, i) {
-                if (!r.w) unverIdx.push(i);
-                else if (r.w * r.h > orig.w * orig.h) biggerIdx.push(i);
-                else smallerIdx.push(i);
-            });
-            let html = '';
-            if (biggerIdx.length) {
-                html += '<div style="font-size:12px;color:var(--iz-tx-2);margin-bottom:6px;">找到 ' + biggerIdx.length + ' 个更大的版本（原来 ' + orig.w + '×' + orig.h + '），点一个就用：</div>'
-                    + biggerIdx.map(function (i) { return rowHtml(autoCands[i], i); }).join('');
-            } else {
-                html += '<div style="font-size:12px;color:var(--iz-tx-muted);margin-bottom:6px;">没有比原图（' + orig.w + '×' + orig.h + '）更大的版本。</div>';
-            }
-            if (smallerIdx.length) {
-                html += '<details style="margin-top:6px;"><summary style="font-size:12px;color:var(--iz-tx-muted);cursor:pointer;user-select:none;">另有 ' + smallerIdx.length + ' 种方式，但没比原图大</summary>'
-                    + '<div style="margin-top:6px;">' + smallerIdx.map(function (i) { return rowHtml(autoCands[i], i); }).join('') + '</div></details>';
-            }
-            if (unverIdx.length) {
-                html += '<details style="margin-top:6px;"><summary style="font-size:12px;color:var(--iz-tx-muted);cursor:pointer;user-select:none;">未验证（加载失败，可手动试）' + unverIdx.length + ' 个</summary>'
-                    + '<div style="margin-top:6px;">' + unverIdx.map(function (i) { return rowHtml(autoCands[i], i); }).join('') + '</div></details>';
-            }
-            out.innerHTML = html;
-            } catch (e) {
-                out.innerHTML = '<div style="font-size:12px;color:var(--iz-danger);">出错了：' + escapeHtml(String(e && e.message || e)) + '</div>';
-            }
-        }
-        $('izUrlAutoBtn').addEventListener('click', function () {
-            const v = $('izUrlAutoIn').value.trim();
-            if (!v) { showSaveToast('请先粘贴图片地址'); return; }
-            autoFindBig(v);
-        });
-
-        // ★ 点图选图：关面板 → 用户直接点网页图片 → 自动找大图（不用复制粘贴）
-        function extractPickUrl(t) {
-            let el = t, hops = 0;
-            while (el && el !== document.body && hops < 4) {
-                if (el.tagName === 'IMG') { const u = el.currentSrc || el.src || ''; if (u) return u; }
-                try {
-                    const bg = getComputedStyle(el).backgroundImage;
-                    if (bg && bg !== 'none') { const m = bg.match(/url\((['"]?)(.+?)\1\)/); if (m && m[2] && m[2].indexOf('data:') !== 0) return m[2]; }
-                } catch (e) { }
-                el = el.parentElement; hops++;
-            }
-            return '';
-        }
-        let pickBar = null, pickClick = null, pickKeydown = null, pickStyle = null;
-        function closePickUi() {
-            urlPickMode = false;
-            document.documentElement.classList.remove('hv-picking');
-            if (pickClick) { window.removeEventListener('click', pickClick, true); pickClick = null; }
-            if (pickKeydown) { window.removeEventListener('keydown', pickKeydown, true); pickKeydown = null; }
-            if (pickBar) { pickBar.remove(); pickBar = null; }
-            if (pickStyle) { pickStyle.remove(); pickStyle = null; }
-        }
-        function reopenPanelAfterPick() {
-            const ov = document.getElementById('izModalOverlay');
-            if (!ov || ov.style.display !== 'flex') toggleConfigPanel();
-            const body = document.getElementById('izUrlRuleBody');
-            if (body && !body.classList.contains('open')) { const h = document.getElementById('izUrlRuleHeader'); if (h) h.click(); }
-            setTimeout(function () { const b = document.getElementById('izUrlAutoIn'); if (b) b.scrollIntoView({ block: 'center' }); }, 80);
-        }
-        $('izUrlPickBtn').addEventListener('click', function () {
-            if (urlPickMode) return;
-            urlPickMode = true;
-            try { zoomFSM.dispatch('DISMISS'); } catch (e) { }   // 收起可能开着的预览
-            const ov = document.getElementById('izModalOverlay');
-            if (ov && ov.style.display === 'flex') ov.style.display = 'none';   // 面板让位，别挡图
-            pickStyle = document.createElement('style');
-            pickStyle.textContent = 'html.hv-picking, html.hv-picking *{cursor:crosshair!important}';
-            document.documentElement.appendChild(pickStyle);
-            document.documentElement.classList.add('hv-picking');
-            pickBar = document.createElement('div');
-            pickBar.style.cssText = 'position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:2147483000;background:rgba(15,23,42,.92);color:#fff;padding:10px 20px;border-radius:12px;font-size:13px;font-family:Arial,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.35);pointer-events:none;white-space:nowrap;';
-            pickBar.textContent = '🖱 点击网页上想看大图的图片（Esc 取消）';
-            document.body.appendChild(pickBar);
-            pickKeydown = function (e) {
-                if (e.key !== 'Escape') return;
-                e.stopImmediatePropagation();
-                closePickUi();
-                reopenPanelAfterPick();
-                showSaveToast('已取消选图');
-            };
-            window.addEventListener('keydown', pickKeydown, true);
-            pickClick = function (e) {
-                // 自有 UI 不算选图（面板此时已关，防误触 dock/预览层）
-                if (e.target && e.target.closest && e.target.closest('#zoomDockZone, #izModalOverlay, #izIntroOverlay, #izUpdateNotice, #izHelpModal, .image-zoom-container')) return;
-                const url = extractPickUrl(e.target);
-                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();   // 别点进链接 / 别触发页面行为
-                closePickUi();
-                if (url) {
-                    $('izUrlAutoIn').value = url;
-                    reopenPanelAfterPick();
-                    autoFindBig(url);
-                } else {
-                    reopenPanelAfterPick();
-                    showSaveToast('刚才点的不是图片，再点「点图选图」选一张网页图片');
-                }
-            };
-            window.addEventListener('click', pickClick, true);
-        });
-        $('izUrlAutoOut').addEventListener('click', (e) => {
-            const b = (e.target && e.target.closest) ? e.target.closest('[data-autoidx]') : null;
-            if (!b) return;
-            const cand = autoCands[Number(b.dataset.autoidx)];
-            if (!cand || !cand.c) return;
-            const ruleSrc = cand.c.rule;
-            const patStr = (ruleSrc.pattern instanceof RegExp) ? ruleSrc.pattern.source : String(ruleSrc.pattern || '');
-            config.userUrlRules = normalizeUserUrlRules((config.userUrlRules || []).concat([
-                Object.assign({ phase: 'hd', enabled: true }, ruleSrc, { id: 'u' + Date.now(), label: (cand.w ? ('大图 ' + cand.w + '×' + cand.h) : '自动找的大图规则'), enabled: true, pattern: patStr }, readRuleScope())
-            ]));
-            commitUrlRules();
-            showSaveToast('已保存！本站这类图片以后自动换大图 🎉');
-            $('izUrlAutoOut').innerHTML = '';
-            $('izUrlAutoIn').value = '';
-        });
-
-        // 高级：手写正则（保留给会写的人）
-        $('izUrlRuleSave').addEventListener('click', () => {
-            const pattern = $('izUrlPattern').value.trim();
-            if (!pattern) { showSaveToast('正则 pattern 不能为空'); return; }
-            const flags = $('izUrlFlags').value.trim().replace(/[^gimsuy]/g, '');
-            try { new RegExp(pattern, flags); } catch (e) { showSaveToast('正则不合法：' + e.message); return; }
-            config.userUrlRules = normalizeUserUrlRules((config.userUrlRules || []).concat([
-                Object.assign({
-                    id: 'u' + Date.now(),
-                    label: $('izUrlLabel').value.trim(),
-                    phase: segValue('izUrlPhase', 'hd') === 'clean' ? 'clean' : 'hd',
-                    pattern: pattern, flags: flags, replace: $('izUrlReplace').value, enabled: true
-                }, readRuleScope())
-            ]));
-            ['izUrlPattern', 'izUrlFlags', 'izUrlReplace', 'izUrlLabel'].forEach(function (id) { $(id).value = ''; });
-            commitUrlRules();
-            showSaveToast('规则已保存并立即生效');
-        });
-        $('izUrlRuleList').addEventListener('click', (e) => {
-            const item = (e.target && e.target.closest) ? e.target.closest('.iz-urlrule-item') : null;
-            if (!item) return;
-            const id = item.dataset.id;
-            if (e.target.classList.contains('iz-urlrule-enabled')) {
-                config.userUrlRules = (config.userUrlRules || []).map(function (r) {
-                    return r.id === id ? Object.assign({}, r, { enabled: e.target.checked }) : r;
-                });
-                commitUrlRules();
-            } else if (e.target.classList.contains('iz-urlrule-del')) {
-                config.userUrlRules = (config.userUrlRules || []).filter(function (r) { return r.id !== id; });
-                commitUrlRules();
-                showSaveToast('已删除该规则');
-            }
-        });
-        // 贡献闭环：把当前站点的自定义规则导出为「可直接放进 rules/ 目录」的片段
-        function buildRuleSnippet() {
-            // 只导出「在当前站确实生效」的规则，避免把别的站的规则当成本站提交
-            const rules = (config.userUrlRules || []).filter(function (r) {
-                if (r.enabled === false) return false;
-                if (r.scope === 'site' && r.domain && !packDomainMatches(currentDomain, r.domain)) return false;
-                return true;
-            });
-            if (!rules.length) return null;
-            return JSON.stringify({
-                domain: currentDomain,
-                label: currentDomain,
-                note: '由用户在面板中导出；建议先在本站确认有效再提交',
-                hd: rules.filter(function (r) { return r.phase !== 'clean'; }).map(function (r, i) {
-                    return { id: 'u' + (i + 1), name: r.label || '原图还原', loop: false, steps: [[r.pattern, r.flags, r.replace]] };
-                }),
-                clean: rules.filter(function (r) { return r.phase === 'clean'; }).map(function (r, i) {
-                    return { id: 'c' + (i + 1), name: r.label || '地址清理', loop: false, steps: [[r.pattern, r.flags, r.replace]] };
-                })
-            }, null, 1);
-        }
-
-        $('izUrlRuleShare').addEventListener('click', () => {
-            const snippet = buildRuleSnippet();
-            if (!snippet) { showSaveToast('还没有可导出的自定义规则'); return; }
-            copyText(snippet).then(function (ok) {
-                showSaveToast(ok ? '规则片段已复制，可粘贴到 rules/ 目录或提交 Issue' : '复制失败，请手动复制');
-            });
-        });
-
-        // 一键提交：打开 GitHub 新建 Issue 页面，标题与正文已自动填好（同时把片段复制到剪贴板兜底）
-        $('izUrlRuleFeedback').addEventListener('click', () => {
-            const snippet = buildRuleSnippet();
-            if (!snippet) { showSaveToast('先在本站加一条规则（用「帮我找大图」）再提交'); return; }
-            try { copyText(snippet); } catch (e) { }
-            const title = '[规则] ' + currentDomain + ' 大图还原';
-            const body = [
-                '### 站点', currentDomain, '',
-                '### 规则片段（面板导出，已在本站验证）', '```json', snippet, '```', '',
-                '### 环境',
-                '- 悬景版本：' + SCRIPT_VERSION,
-                '- 浏览器：' + navigator.userAgent, '',
-                '> 由面板「一键提交到官方」生成；提交前请确认规则在本站确实有效。'
-            ].join('\n');
-            const url = 'https://github.com/YDGG123/hover-image-zoom/issues/new'
-                + '?title=' + encodeURIComponent(title)
-                + '&body=' + encodeURIComponent(body);
-            // 优先用 GM_openInTab（脚本沙箱里 window.open 常被拦截）
-            let opened = false;
-            try {
-                if (typeof GM_openInTab === 'function') { GM_openInTab(url, { active: true, insert: true }); opened = true; }
-            } catch (e) { opened = false; }
-            if (!opened) { try { opened = !!window.open(url, '_blank'); } catch (e) { opened = false; } }
-            showSaveToast(opened ? '已打开 GitHub 提交页（内容已填好，规则片段也已复制）' : '未能自动打开：规则片段已复制，请手动打开 GitHub Issue');
-        });
-        // 参数说明气泡
-        const oldTip = document.getElementById('izTipBubble');
-        if (oldTip) oldTip.remove();
-        const tipBubble = document.createElement('div');
-        tipBubble.id = 'izTipBubble';
-        document.body.appendChild(tipBubble);
-
-        const showTip = (icon) => {
-            tipBubble.textContent = icon.dataset.tip;
-            const r = icon.getBoundingClientRect();
-            tipBubble.style.opacity = '0';
-            tipBubble.style.display = 'block';
-            const bw = tipBubble.offsetWidth, bh = tipBubble.offsetHeight;
-            let top = r.top - bh - 10;
-            if (top < 8) top = r.bottom + 10;
-            let left = r.left + r.width / 2 - bw / 2;
-            left = Math.max(8, Math.min(left, window.innerWidth - bw - 8));
-            tipBubble.style.top = top + 'px';
-            tipBubble.style.left = left + 'px';
-            tipBubble.style.opacity = '1';
-        };
-        const hideTip = () => { tipBubble.style.opacity = '0'; };
-
-        overlay.addEventListener('mouseover', (e) => {
-            const icon = e.target.closest('.iz-tip-icon');
-            if (icon) showTip(icon);
-        });
-        overlay.addEventListener('mouseout', (e) => {
-            if (e.target.closest('.iz-tip-icon')) hideTip();
-        });
 
         function updateDetailState() {
             const isFixed = config.zoomMode === 'fixed';
@@ -7221,75 +7890,12 @@ const bilibiliVolumeModule = (function() {
             overlay.querySelectorAll('.iz-slider[data-param="' + key + '"]').forEach(paintSlider);
             markModified(key, val);
         }
-        function commitParam(key, val) {
-            const def = COMMON_PARAM_DEFS.concat(FIXED_PARAM_DEFS).find(p => p.key === key);
-            if (isNaN(val)) val = defaultConfig[key];
-            // 把值对齐到「滑块步进」网格，保证数字框与滑块取值一致：步进取 min(定义步进, 1)，
-            // 整数参数可用任意整数、小数参数保持 0.1 精度。
-            if (def && def.step) {
-                const step = Math.min(Number(def.step) || 1, 1);
-                const base = (typeof def.min === 'number') ? def.min : 0;
-                val = Math.round((val - base) / step) * step + base;
-                val = Math.round(val * 1000) / 1000;
-            }
-            if (CONFIG_LIMITS[key]) {
-                const lim = CONFIG_LIMITS[key];
-                val = Math.max(lim[0], Math.min(lim[1], val));
-            }
-            config[key] = val;
-            saveConfig();
-            syncParamControls(key, val);
-            notifyConfigSaved(key, val, def ? def.label : key);
-        }
-        overlay.querySelectorAll('.iz-slider').forEach(sl => {
-            const key = sl.dataset.param;
-            paintSlider(sl);
-            sl.addEventListener('input', () => {
-                paintSlider(sl);
-                config[key] = parseFloat(sl.value);
-                syncParamControls(key, sl.value, sl);
-            });
-            sl.addEventListener('change', () => {
-                commitParam(key, parseFloat(sl.value));
-                const num = overlay.querySelector('.iz-param-num[data-param="' + key + '"]');
-                if (num) { num.classList.remove('pop'); void num.offsetWidth; num.classList.add('pop'); }
-                if (key === 'maxWidth' || key === 'maxHeight') syncSizeStep();
-            });
-        });
-        overlay.querySelectorAll('.iz-param-num').forEach(num => {
-            const key = num.dataset.param;
-            const apply = () => {
-                commitParam(key, parseFloat(num.value));
-                if (key === 'maxWidth' || key === 'maxHeight') syncSizeStep();
-            };
-            num.addEventListener('change', apply);
-            num.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); num.blur(); } });
-        });
-
-        // ===== 分段控件（替代下拉框）=====
-        function syncSeg(key, val) {
-            const seg = overlay.querySelector('.iz-seg[data-seg="' + key + '"]');
-            if (!seg) return;
-            seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', String(b.dataset.val) === String(val)));
-        }
         // ★ 放大模式：两张动画大卡（不再是下拉/分段，因为这是决定全局行为的关键选项）
         function syncZoomModes() {
             const box = $('iznZoomModes');
             if (!box) return;
             const cur = config.zoomMode === 'fixed' ? 'fixed' : 'adaptive';
             box.querySelectorAll('.izn-mode').forEach(b => b.classList.toggle('on', b.dataset.mode === cur));
-        }
-        const zoomModesBox = $('iznZoomModes');
-        if (zoomModesBox) {
-            zoomModesBox.addEventListener('click', (e) => {
-                const btn = (e.target && e.target.closest) ? e.target.closest('.izn-mode') : null;
-                if (!btn) return;
-                config.zoomMode = btn.dataset.mode === 'fixed' ? 'fixed' : 'adaptive';
-                saveConfig();
-                syncZoomModes();
-                updateDetailState();
-                showSaveToast('已切到 ' + (config.zoomMode === 'fixed' ? '固定倍数' : '智能自适应') + ' 模式');
-            });
         }
         // ★ 预览尺寸：4 档方块（方块大小 = 大图大小）
         function syncSizeStep() {
@@ -7298,76 +7904,18 @@ const bilibiliVolumeModule = (function() {
             const idx = sizeStepIndex();
             box.querySelectorAll('.izn-size').forEach(b => b.classList.toggle('on', String(b.dataset.val) === String(idx)));
         }
-        const sizeStepsBox = $('iznSizeSteps');
-        if (sizeStepsBox) {
-            sizeStepsBox.addEventListener('click', (e) => {
-                const btn = (e.target && e.target.closest) ? e.target.closest('.izn-size') : null;
-                if (!btn) return;
-                const s = SIZE_STEPS[parseInt(btn.dataset.val, 10)];
-                if (!s) return;
-                config.maxWidth = s.w;
-                config.maxHeight = s.h;
-                saveConfig();
-                syncParamControls('maxWidth', s.w);
-                syncParamControls('maxHeight', s.h);
-                syncSizeStep();
-                showSaveToast('预览尺寸：' + s.name);
-            });
-        }
-        // 规则区两个分段控件（urlScope / urlPhase）只作为「下一条规则」的默认值，
-        // 由 readRuleScope 与保存时读取，无需落盘 —— 这里只负责切换选中态。
-        overlay.querySelectorAll('.iz-seg[data-seg]').forEach(seg => {
-            seg.addEventListener('click', (e) => {
-                const btn = (e.target && e.target.closest) ? e.target.closest('button[data-val]') : null;
-                if (!btn || !seg.contains(btn)) return;
-                seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
-            });
-        });
-
-        $('izHpToggleBtn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleHomepageDisabled();
-        });
 
         // 显示位置（center/around）两卡片
         function syncPlaces() {
             const cur = config.previewPlacement || 'center';
             overlay.querySelectorAll('#iznPlaces .izn-place').forEach(p => p.classList.toggle('on', p.dataset.place === cur));
         }
-        syncPlaces();
-        overlay.__iznSyncPlaces = syncPlaces;
-        overlay.querySelectorAll('#iznPlaces .izn-place').forEach(p => p.addEventListener('click', () => {
-            config.previewPlacement = p.dataset.place;
-            saveConfig();
-            syncPlaces();
-            const names = { center: '屏幕居中', around: '原图周围（不遮挡）' };
-            showSaveToast(`显示位置：${names[config.previewPlacement]}（下次预览生效）`);
-        }));
 
         // 出现方式（dock/spotlight/fade）三卡片
         function syncTransitions() {
             const cur = config.previewTransition || 'dock';
             overlay.querySelectorAll('#iznTransitions .izn-place').forEach(p => p.classList.toggle('on', p.dataset.fx === cur));
         }
-        syncTransitions();
-        overlay.__iznSyncTransitions = syncTransitions;
-        overlay.querySelectorAll('#iznTransitions .izn-place').forEach(p => p.addEventListener('click', () => {
-            config.previewTransition = p.dataset.fx;
-            saveConfig();
-            syncTransitions();
-            const names = { dock: '从原图弹出', spotlight: '从原图绽开', fade: '直接淡入' };
-            showSaveToast('出现方式：' + (names[config.previewTransition] || config.previewTransition) + '（下次预览生效）');
-        }));
-
-        // ===== izn 导航 / 总览同步 / 总开关 =====
-        const iznContent = $('iznContent');
-        function iznGo(view) {
-            overlay.querySelectorAll('.izn-nav-item').forEach(x => x.classList.toggle('on', x.dataset.view === view));
-            overlay.querySelectorAll('.izn-view').forEach(v => v.classList.toggle('on', v.dataset.view === view));
-            if (iznContent) iznContent.scrollTop = 0;
-        }
-        overlay.querySelectorAll('.izn-nav-item').forEach(x => x.addEventListener('click', () => iznGo(x.dataset.view)));
-        overlay.querySelectorAll('[data-izn-go]').forEach(b => b.addEventListener('click', () => iznGo(b.dataset.iznGo)));
         function iznSync() {
             try {
                 const master = $('iznMasterWrap');
@@ -7384,7 +7932,6 @@ const bilibiliVolumeModule = (function() {
                 if (ht) { try { const h = storageGet('hvHistoryV1', []); ht.textContent = Array.isArray(h) ? h.length : 0; } catch (e) { } }
             } catch (e) { }
         }
-        overlay.__iznGo = iznGo; overlay.__iznSync = iznSync;
 
         // 面板控件「单一同步入口」：把每个控件校正为「当前 config + isEnabled + 哔哩开关」的真实状态；
         // 「打开面板」与「恢复默认」都走这里。
@@ -7395,6 +7942,7 @@ const bilibiliVolumeModule = (function() {
             const wt = $('izWheelZoomToggle'); if (wt) wt.classList.toggle('active', config.wheelZoom);
             const it = $('izImageInfoToggle'); if (it) it.classList.toggle('active', config.showImageInfo);
             const vt = $('izVideoHoverToggle'); if (vt) vt.classList.toggle('active', config.videoHoverPreview);
+            const gp = $('izGalleryPreloadToggle'); if (gp) gp.classList.toggle('active', config.galleryPreload !== false);
             const bl = $('izBiliToggle'); if (bl) bl.classList.toggle('active', bilibiliVolumeModule.isEnabled);
             // 数值参数：滑块与数字框一起校正，并重绘填充色与「已改」标记
             COMMON_PARAM_DEFS.concat(FIXED_PARAM_DEFS).forEach(p => syncParamControls(p.key, config[p.key]));
@@ -7407,107 +7955,9 @@ const bilibiliVolumeModule = (function() {
             renderHistory();
             iznSync();          // 总开关 aria-checked + 规则/规则包/历史条数角标
         }
-        overlay.__izSyncAll = syncPanelFromState;
-
-        // 总开关：isEnabled（image_zoom_enabled_<域名>），等效控制球。
-        // 用 overlay 捕获阶段委托（点击目标无论被内部结构如何包裹都能命中）。
-        overlay.addEventListener('click', (e) => {
-            const wrap = (e.target && e.target.closest) ? e.target.closest('#iznMasterWrap') : null;
-            if (!wrap) return;
-            e.stopPropagation();
-            isEnabled = !isEnabled;
-            storageSet('image_zoom_enabled_' + currentDomain, isEnabled);
-            wrap.setAttribute('aria-checked', String(isEnabled));
-            const tg = $('iznMasterToggle');
-            if (tg) tg.classList.toggle('active', isEnabled);
-            try { updateButtonState(); } catch (err) { }   // 同步 dock 球的颜色/状态点
-            showSaveToast(isEnabled ? '已启用本网站图片放大' : '已停用本网站图片放大');
-            if (!isEnabled) { try { zoomFSM.dispatch('RESET'); } catch (err) { } }
-        }, true);
-
-        $('izConflictWrap').addEventListener('click', (e) => {
-            e.stopPropagation();
-            config.avoidClickConflict = !config.avoidClickConflict;
-            conflictToggle.classList.toggle('active', config.avoidClickConflict);
-            saveConfig();
-            showSaveToast(`避免与点击放大功能冲突 ${config.avoidClickConflict ? '已开启' : '已关闭'}`);
-        });
-
-        $('izBlurDismissWrap').addEventListener('click', (e) => {
-            e.stopPropagation();
-            config.blurDismiss = !config.blurDismiss;
-            $('izBlurDismissToggle').classList.toggle('active', config.blurDismiss);
-            saveConfig();
-            showSaveToast(`窗口失焦时收起放大图 ${config.blurDismiss ? '已开启' : '已关闭（切换应用时保留预览）'}`);
-        });
-
-        $('izWheelZoomWrap').addEventListener('click', (e) => {
-            e.stopPropagation();
-            config.wheelZoom = !config.wheelZoom;
-            $('izWheelZoomToggle').classList.toggle('active', config.wheelZoom);
-            saveConfig();
-            showSaveToast(`滚轮控制放大图缩放 ${config.wheelZoom ? '已开启' : '已关闭（恢复上下移动）'}`);
-        });
-
-        $('izVideoHoverWrap').addEventListener('click', (e) => {
-            e.stopPropagation();
-            config.videoHoverPreview = !config.videoHoverPreview;
-            $('izVideoHoverToggle').classList.toggle('active', config.videoHoverPreview);
-            saveConfig();
-            if (!config.videoHoverPreview) videoPreviewModule.hide();
-            showSaveToast(`视频悬停预览 ${config.videoHoverPreview ? '已开启' : '已关闭'}`);
-        });
-
-        $('izImageInfoWrap').addEventListener('click', (e) => {
-            e.stopPropagation();
-            config.showImageInfo = !config.showImageInfo;
-            $('izImageInfoToggle').classList.toggle('active', config.showImageInfo);
-            saveConfig();
-            // 关闭时若正有放大图在显示，顺手把已渲染的浮层摘掉
-            if (!config.showImageInfo) {
-                const live = document.querySelector('#izImageInfo');
-                if (live) live.remove();
-                const liveBar = document.querySelector('.hv-capbar');
-                if (liveBar) liveBar.remove();
-            }
-            showSaveToast(`图片信息栏 ${config.showImageInfo ? '已开启' : '已关闭'}`);
-        });
-
-        // 键位区：与其它折叠区完全一致的交互
-        const keymapHeader = $('izKeymapHeader');
-        const keymapBody = $('izKeymapBody');
-        const keymapArrow = $('izKeymapArrow');
-        const keymapHint = $('izKeymapHint');
-        if (keymapHeader && keymapBody) {
-            wireCollapseA11y(keymapHeader, keymapBody);
-            keymapHeader.addEventListener('click', () => {
-                const isOpen = keymapBody.classList.contains('open');
-                keymapBody.classList.toggle('open');
-                keymapArrow.classList.toggle('open');
-                keymapHint.innerHTML = isOpen ? '点右侧按键即可改绑' : '点击收起';
-            });
-        }
-
-        $('iznToFixedBtn').addEventListener('click', () => {
-            config.zoomMode = 'fixed';
-            saveConfig();
-            syncZoomModes();
-            updateDetailState();
-            showSaveToast('已切到固定倍数模式');
-        });
-
-        $('izBiliWrap').addEventListener('click', (e) => {
-            e.stopPropagation();
-            const newState = !bilibiliVolumeModule.isEnabled;
-            bilibiliVolumeModule.setEnabled(newState);
-            biliToggle.classList.toggle('active', newState);
-            showSaveToast(`B站播放器辅助 ${newState ? '已启用' : '已禁用'}`);
-        });
 
         // ===== 键位：可视化改绑 =====
         const keymapGrid = $('izKeymapGrid');
-        let keyRecording = null;
-        config.keymap = normalizeKeymap(config.keymap);   // 兜底，避免旧配置缺字段
 
         function keyCapText(action) {
             const list = (config.keymap && config.keymap[action]) || [];
@@ -7521,200 +7971,1009 @@ const bilibiliVolumeModule = (function() {
                     + escapeHtml(keyCapText(d.key)) + '</button></div>';
             }).join('');
         }
-        function stopKeyRecord() {
-            if (!keyRecording) return;
-            window.removeEventListener('keydown', onKeyRecord, true);
-            keyRecording = null;
+
+        function wireSwitches() {
+
+            // 快捷开关 / 折叠区：键盘可操作 + 无障碍状态同步
+            overlay.querySelectorAll('.iz-switch-card').forEach(wrap => {
+                const tg = wrap.querySelector('.iz-toggle');
+                if (!tg) return;
+                const syncSw = () => wrap.setAttribute('aria-checked', tg.classList.contains('active') ? 'true' : 'false');
+                new MutationObserver(syncSw).observe(tg, { attributes: true, attributeFilter: ['class'] });
+                syncSw();
+                wrap.addEventListener('keydown', (e) => {
+                    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); wrap.click(); }
+                });
+            });
         }
-        // 录制：捕获阶段拦截，避免被面板自身的 Esc/其它快捷键吃掉
-        function onKeyRecord(e) {
-            if (!keyRecording) return;
-            e.preventDefault();
-            e.stopPropagation();
-            if (e.key === 'Escape') { stopKeyRecord(); renderKeymap(); return; }
-            if (['Control', 'Shift', 'Alt', 'Meta', 'CapsLock', 'Dead', 'Unidentified'].indexOf(e.key) >= 0) return;
-            const k = e.key;
-            // 一个键只归一个动作：先从其它动作里摘掉，避免同一个键绑两处
-            // （若该键原本绑在别的动作上，提示去向，用户不会疑惑「原来的键怎么失效了」）
-            const stolen = [];
-            Object.keys(config.keymap).forEach(function (a) {
-                if (a !== keyRecording) {
-                    const before = (config.keymap[a] || []).length;
-                    config.keymap[a] = (config.keymap[a] || []).filter(function (x) { return x !== k; });
-                    if (config.keymap[a].length < before) stolen.push(a);
-                }
-            });
-            config.keymap[keyRecording] = [k];
-            // 让出后若原动作变空（「未设置」），回退到它的默认键（前提：该默认键未被任何动作占用）。
-            const usedKeys = new Set();
-            Object.keys(config.keymap).forEach(function (a) {
-                (config.keymap[a] || []).forEach(function (x) { usedKeys.add(x); });
-            });
-            const restored = [];
-            stolen.forEach(function (a) {
-                if ((config.keymap[a] || []).length) return;
-                const free = (KEYMAP_DEFAULTS[a] || []).filter(function (x) { return !usedKeys.has(x); });
-                if (!free.length) return;
-                config.keymap[a] = free.slice();
-                free.forEach(function (x) { usedKeys.add(x); });
-                restored.push(a);
-            });
-            saveConfig();
-            saveGlobalKeymap(config.keymap);   // ★ 键位全局：同步写入全局键
-            stopKeyRecord();
-            renderKeymap();
-            if (stolen.length) {
-                const nameOf = function (a) {
-                    const d = KEYMAP_ACTION_DEFS.find(function (x) { return x.key === a; });
-                    return d ? d.name : a;
-                };
-                let msg = '「' + k + '」已从「' + nameOf(stolen[0]) + '」移到当前动作';
-                if (restored.length) {
-                    msg += '；「' + nameOf(restored[0]) + '」已恢复默认键 '
-                        + (KEYMAP_DEFAULTS[restored[0]] || []).map(displayKeyName).join(' / ');
+
+        // 规则包状态原先只在「构建面板」与「手动更新/回滚」后渲染；自动更新完成后若面板正开着，
+        // 就会一直显示打开那一刻的过期快照（如仍写着「本站无专属规则」）→ 留一个钩子让自动路径也能刷新。
+        let refreshPackStatusIfOpen = function () { };
+
+        function wireRulePack() {
+
+            // 规则包：原独立折叠区块已并入「图片规则」区的 ② 云端规则包，元素 id 保持不变，状态渲染与按钮绑定无需改动。
+            function renderPackStatus() {
+                const en = isEnUI();
+                const badge = $('izPackBadge'), st = $('izPackStatus'), note = $('izPackNote');
+                if (!badge || !st || !note) return;
+                const meta = rulePackState.meta || {};
+                const cur = rulePackState.current;
+                if (cur && cur.version) {
+                    badge.textContent = 'v' + cur.version;
+                    st.textContent = en
+                        ? ('Rule pack v' + cur.version + (meta.at ? ' (' + String(meta.at).slice(0, 10) + ')' : '') + ' loaded')
+                        : ('已加载规则包 v' + cur.version + (meta.at ? '（' + String(meta.at).slice(0, 10) + '）' : ''));
                 } else {
-                    // 默认键也已被占用 → 无法自动回退；明确告知「去哪恢复」，避免用户不知原动作为何失效
-                    const lost = stolen.filter(function (a) { return (config.keymap[a] || []).length === 0; });
-                    if (lost.length) {
-                        msg += '；「' + nameOf(lost[0]) + '」已失去快捷键，点它的键帽可重新设置';
-                    }
+                    badge.textContent = en ? 'built-in' : '内置';
+                    st.textContent = en ? 'Using built-in rules' : '当前使用内置规则';
                 }
-                showSaveToast(msg);
+                const hits = ((cur && cur.domains) || []).filter(function (d) { return packDomainMatches(currentDomain, d.domain); });
+                const extra = hits.length
+                    ? ((en ? '　Matched here: ' : '　本站命中：') + hits.map(function (d) { return d.label || d.domain; }).join(en ? ', ' : '、'))
+                    : (en ? '　No site-specific rules' : '　本站无专属规则');
+                // 签名校验状态（供应链加固）：verified 只在「验签+哈希全过」时写入 meta
+                let sig = '';
+                if (meta.verified) sig = en ? '　🔒 Signature verified' : '　🔒 签名校验通过';
+                else if (meta.lastError && /^sig-|^hash-/.test(meta.lastError)) sig = (en ? '　⚠ Signature check failed (' : '　⚠ 签名校验未通过（') + meta.lastError + (en ? ')' : '）');
+                const err = meta.lastError ? ((en ? '　Last update failed: ' : '　上次更新失败：') + meta.lastError) : '';
+                note.textContent = (en
+                    ? 'The rule pack only supplies regex → replacement data; no code is executed.'
+                    : '规则包只提供「正则 → 替换」的数据，不执行任何代码。') + sig + extra + err;
+            }
+            refreshPackStatusIfOpen = renderPackStatus;
+            renderPackStatus();
+            const packAutoWrap = $('izPackAutoWrap');
+            if (packAutoWrap) {
+                packAutoWrap.addEventListener('click', () => {
+                    config.rulePackAuto = !config.rulePackAuto;
+                    $('izPackAutoToggle').classList.toggle('active', config.rulePackAuto);
+                    packAutoWrap.setAttribute('aria-checked', config.rulePackAuto ? 'true' : 'false');
+                    saveConfig();
+                });
+            }
+            const packUpdateBtn = $('izPackUpdateBtn');
+            if (packUpdateBtn) {
+                packUpdateBtn.addEventListener('click', () => {
+                    packUpdateBtn.disabled = true;
+                    packUpdateBtn.textContent = '更新中…';
+                    updateRulePack(true).then(function (r) {
+                        packUpdateBtn.disabled = false;
+                        packUpdateBtn.textContent = '↻ 立即更新';
+                        renderPackStatus();
+                        if (r && r.ok) showToast(r.unchanged ? '已是最新规则包 v' + r.version : '规则包已更新到 v' + r.version + ' 🎉');
+                        else if (r && r.reason === 'busy') showToast('规则包正在更新中，请稍候再试');
+                        else showToast('更新失败：' + ((r && r.reason) || '未知') + '（继续使用现有规则）');
+                    });
+                });
+            }
+            const packRollbackBtn = $('izPackRollbackBtn');
+            if (packRollbackBtn) {
+                packRollbackBtn.addEventListener('click', () => {
+                    const r = rollbackRulePack();
+                    renderPackStatus();
+                    showToast(r.ok ? '已回滚到 v' + r.version : '没有可回滚的版本');
+                });
             }
         }
-        if (keymapGrid) {
-            renderKeymap();
-            keymapGrid.addEventListener('click', function (e) {
-                const btn = (e.target && e.target.closest) ? e.target.closest('.iz-key-cap') : null;
-                if (!btn) return;
-                stopKeyRecord();
-                keyRecording = btn.dataset.km;
-                btn.classList.add('recording');
-                btn.textContent = '按下按键…';
-                window.addEventListener('keydown', onKeyRecord, true);
+
+        function wireUrlRules() {
+
+            // ===== 图片地址规则（极简版：一键找大图；正则收进「高级」）=====
+            const urHeader = $('izUrlRuleHeader'), urBody = $('izUrlRuleBody');
+            if (urHeader && urBody) {
+                wireCollapseA11y(urHeader, urBody);
+                urHeader.addEventListener('click', () => {
+                    const isOpen = urBody.classList.contains('open');
+                    urBody.classList.toggle('open');
+                    $('izUrlRuleArrow').classList.toggle('open');
+                    $('izUrlRuleHint').innerHTML = isOpen ? '点开编辑' : '点击收起';
+                    if (!isOpen) renderUrlRuleStatus();   // 展开时刷新「最近命中」等状态
+                });
+            }
+            renderUrlRules();
+            renderUrlRuleStatus();   // 新布局默认展开规则区，打开面板即显示命中状态
+            renderUrlRuleStatus();
+        }
+
+        function wireHistory() {
+            const histHeader = $('izHistoryHeader'), histBody = $('izHistoryBody');
+            if (histHeader && histBody) {
+                wireCollapseA11y(histHeader, histBody);
+                histHeader.addEventListener('click', () => {
+                    const isOpen = histBody.classList.contains('open');
+                    histBody.classList.toggle('open');
+                    $('izHistoryArrow').classList.toggle('open');
+                    $('izHistoryHint').innerHTML = isOpen ? '点开查看' : '点击收起';
+                    if (!isOpen) renderHistory();   // 展开时刷新（悬停可能新增了记录）
+                });
+                const histClear = $('izHistoryClearBtn');
+                if (histClear) histClear.addEventListener('click', () => {
+                    clearHistory();
+                    renderHistory();
+                    iznSync();   // ★ 角标（导航栏历史条数）也要跟着归零，否则列表空了角标还挂着旧数
+                    showSaveToast('历史记录已清空');
+                });
+                const histView = $('izHistoryView');
+                if (histView) histView.addEventListener('click', (e) => {
+                    const btn = e.target.closest('button[data-val]');
+                    if (!btn) return;
+                    const want = btn.dataset.val === 'gallery';
+                    if (want === histGalleryOn()) return;
+                    globalPrefs.historyGallery = want;
+                    saveGlobalPrefs();
+                    renderHistory();
+                });
+                const histList = $('izHistoryList');
+                if (histList) histList.addEventListener('click', (e) => {
+                    const item = e.target.closest('[data-hid]');
+                    if (!item) return;
+                    const hid = item.getAttribute('data-hid');
+                    const actEl = e.target.closest('[data-act]');
+                    // 画廊视图里整格就是「回看」入口：点缩略图本身等同点「打开」
+                    const act = actEl ? actEl.getAttribute('data-act') : (histGalleryOn() ? 'open' : '');
+                    const entry = getHistory().find(x => x && x.id === hid);
+                    if (act === 'del') { removeHistoryItem(hid); renderHistory(); iznSync(); }
+                    else if (act === 'open' && entry && typeof GM_openInTab === 'function') {
+                        try { GM_openInTab(entry.u, { active: true }); } catch (err) { showSaveToast('打开失败'); }
+                    }
+                    else if (act === 'copy' && entry && typeof GM_setClipboard === 'function') {
+                        GM_setClipboard(entry.u, 'text');
+                        showSaveToast('已复制图片地址');
+                    }
+                });
+            }
+            renderHistory();
+        }
+
+        function wireAutoFind() {
+
+            // ★ 一键找大图：把所有已知变换在这个地址上各试一遍，真实加载后按大小给用户挑。
+            //   用户完全不需要懂正则——看到的缩略图就是最终效果。
+            let autoCands = [];
+            function loadImgForTest(url) {
+                return new Promise(function (res) {
+                    const t = setTimeout(function () { res(null); }, 8000);
+                    const im = new Image();
+                    im.onload = function () { clearTimeout(t); res({ w: im.naturalWidth, h: im.naturalHeight }); };
+                    im.onerror = function () { clearTimeout(t); res(null); };
+                    im.src = url;
+                });
+            }
+            async function autoFindBig(url) {
+                const out = $('izUrlAutoOut');
+                try {
+                out.innerHTML = '<div style="font-size:12px;color:var(--iz-tx-muted);">正在尝试各种方式…</div>';
+                const orig = await loadImgForTest(url);
+                if (!orig) {
+                    out.innerHTML = '<div style="font-size:12px;color:var(--iz-danger);">这个地址打不开。请确认复制的是「图片地址」（右键图片 → 复制图片地址）。</div>';
+                    return;
+                }
+                const cands = []; const seen = new Set();
+                activeHdRules.forEach(function (r) {
+                    (r.steps || []).forEach(function (s) {
+                        // ★ 兼容两种步长格式：内置 [regex, replace]（2 元素）/ 规则包 [pattern, flags, replace]（3 元素）
+                        const is3 = s.length > 2;
+                        const pat = s[0], fl = is3 ? (s[1] || '') : '', rep = is3 ? s[2] : s[1];
+                        let re = (pat instanceof RegExp) ? pat : new RegExp(pat, fl);
+                        let c; try { c = url.replace(re, rep); } catch (e) { return; }
+                        if (c && c !== url && !seen.has(c)) { seen.add(c); cands.push({ rule: { label: r.name || '自动优化', phase: 'hd', pattern: pat, flags: fl, replace: rep }, url: c }); }
+                    });
+                });
+                if (!cands.length) {
+                    const dbg = [];
+                    activeHdRules.forEach(function (r) {
+                        let chg = false;
+                        (r.steps || []).forEach(function (s) {
+                            const is3 = s.length > 2;
+                            const pat = s[0], fl = is3 ? (s[1] || '') : '', rep = is3 ? s[2] : s[1];
+                            try { const re = (pat instanceof RegExp) ? pat : new RegExp(pat, fl); const t = url.replace(re, rep); if (t !== url) chg = true; } catch (e) { chg = 'ERR'; }
+                        });
+                        dbg.push((r.id || '?') + (chg === true ? '✓' : (chg === 'ERR' ? '✗err' : '·')));
+                    });
+                    out.innerHTML = '<div style="font-size:12px;color:var(--iz-tx-muted);line-height:1.6;">暂时没有已知的优化方式适用于这个地址。'
+                        + '<br><span style="font-size:11px;">（诊断：' + dbg.join('，') + '）</span></div>';
+                    return;
+                }
+                const results = await Promise.all(cands.map(function (c) {
+                    return loadImgForTest(c.url).then(function (r) { return r ? { c: c, w: r.w, h: r.h } : null; });
+                }));
+                // 按位置对应：加载成功的带尺寸，失败的标「未验证」（不能靠 slice 尾部——失败项散布在 results 里）
+                const loaded = results.map(function (r, i) { return r ? { c: cands[i], w: r.w, h: r.h } : null; }).filter(Boolean);
+                const unverified = results.map(function (r, i) { return r ? null : { c: cands[i], w: 0, h: 0 }; }).filter(Boolean);
+                autoCands = loaded.concat(unverified);
+                if (!autoCands.length) {
+                    out.innerHTML = '<div style="font-size:12px;color:var(--iz-tx-muted);">这个地址没有可尝试的变换。</div>';
+                    return;
+                }
+                autoCands.sort(function (a, b) { return (b.w * b.h) - (a.w * a.h); });   // 未验证(w=0)排最后
+                const rowHtml = function (r, i) {
+                    return '<div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--iz-bd-1);border-radius:var(--iz-r-sm);margin-bottom:6px;background:var(--iz-bg-4);">'
+                        + '<img src="' + escapeHtml(r.c.url) + '" style="width:64px;height:64px;object-fit:cover;border-radius:4px;flex-shrink:0;">'
+                        + '<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--iz-tx-2);">' + (r.w ? (r.w + ' × ' + r.h) : '未验证') + '</div>'
+                        + '<div style="font-size:11px;color:var(--iz-tx-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(r.c.url.slice(-72)) + '</div></div>'
+                        + '<button class="iz-btn-sm primary" data-autoidx="' + i + '" style="flex-shrink:0;">就用这个</button></div>';
+                };
+                const biggerIdx = [], smallerIdx = [], unverIdx = [];
+                autoCands.forEach(function (r, i) {
+                    if (!r.w) unverIdx.push(i);
+                    else if (r.w * r.h > orig.w * orig.h) biggerIdx.push(i);
+                    else smallerIdx.push(i);
+                });
+                let html = '';
+                if (biggerIdx.length) {
+                    html += '<div style="font-size:12px;color:var(--iz-tx-2);margin-bottom:6px;">找到 ' + biggerIdx.length + ' 个更大的版本（原来 ' + orig.w + '×' + orig.h + '），点一个就用：</div>'
+                        + biggerIdx.map(function (i) { return rowHtml(autoCands[i], i); }).join('');
+                } else {
+                    html += '<div style="font-size:12px;color:var(--iz-tx-muted);margin-bottom:6px;">没有比原图（' + orig.w + '×' + orig.h + '）更大的版本。</div>';
+                }
+                if (smallerIdx.length) {
+                    html += '<details style="margin-top:6px;"><summary style="font-size:12px;color:var(--iz-tx-muted);cursor:pointer;user-select:none;">另有 ' + smallerIdx.length + ' 种方式，但没比原图大</summary>'
+                        + '<div style="margin-top:6px;">' + smallerIdx.map(function (i) { return rowHtml(autoCands[i], i); }).join('') + '</div></details>';
+                }
+                if (unverIdx.length) {
+                    html += '<details style="margin-top:6px;"><summary style="font-size:12px;color:var(--iz-tx-muted);cursor:pointer;user-select:none;">未验证（加载失败，可手动试）' + unverIdx.length + ' 个</summary>'
+                        + '<div style="margin-top:6px;">' + unverIdx.map(function (i) { return rowHtml(autoCands[i], i); }).join('') + '</div></details>';
+                }
+                out.innerHTML = html;
+                } catch (e) {
+                    out.innerHTML = '<div style="font-size:12px;color:var(--iz-danger);">出错了：' + escapeHtml(String(e && e.message || e)) + '</div>';
+                }
+            }
+            $('izUrlAutoBtn').addEventListener('click', function () {
+                const v = $('izUrlAutoIn').value.trim();
+                if (!v) { showSaveToast('请先粘贴图片地址'); return; }
+                autoFindBig(v);
             });
-            // 恢复默认键位（只动键表，不动其它设置）
-            const kmReset = $('izKeymapResetBtn');
-            if (kmReset) kmReset.addEventListener('click', function () {
-                if (!confirm('把所有按键恢复为默认键位？')) return;
-                config.keymap = normalizeKeymap(null);
+
+            // ★ 点图选图：关面板 → 用户直接点网页图片 → 自动找大图（不用复制粘贴）
+            function extractPickUrl(t) {
+                let el = t, hops = 0;
+                while (el && el !== document.body && hops < 4) {
+                    if (el.tagName === 'IMG') { const u = el.currentSrc || el.src || ''; if (u) return u; }
+                    try {
+                        const bg = getComputedStyle(el).backgroundImage;
+                        if (bg && bg !== 'none') { const m = bg.match(/url\((['"]?)(.+?)\1\)/); if (m && m[2] && m[2].indexOf('data:') !== 0) return m[2]; }
+                    } catch (e) { }
+                    el = el.parentElement; hops++;
+                }
+                return '';
+            }
+            let pickBar = null, pickClick = null, pickKeydown = null, pickStyle = null;
+            function closePickUi() {
+                urlPickMode = false;
+                document.documentElement.classList.remove('hv-picking');
+                if (pickClick) { window.removeEventListener('click', pickClick, true); pickClick = null; }
+                if (pickKeydown) { window.removeEventListener('keydown', pickKeydown, true); pickKeydown = null; }
+                if (pickBar) { pickBar.remove(); pickBar = null; }
+                if (pickStyle) { pickStyle.remove(); pickStyle = null; }
+            }
+            function reopenPanelAfterPick() {
+                const ov = document.getElementById('izModalOverlay');
+                if (!ov || ov.style.display !== 'flex') toggleConfigPanel();
+                const body = document.getElementById('izUrlRuleBody');
+                if (body && !body.classList.contains('open')) { const h = document.getElementById('izUrlRuleHeader'); if (h) h.click(); }
+                setTimeout(function () { const b = document.getElementById('izUrlAutoIn'); if (b) b.scrollIntoView({ block: 'center' }); }, 80);
+            }
+            $('izUrlPickBtn').addEventListener('click', function () {
+                if (urlPickMode) return;
+                urlPickMode = true;
+                try { zoomFSM.dispatch('DISMISS'); } catch (e) { }   // 收起可能开着的预览
+                const ov = document.getElementById('izModalOverlay');
+                if (ov && ov.style.display === 'flex') ov.style.display = 'none';   // 面板让位，别挡图
+                pickStyle = document.createElement('style');
+                pickStyle.textContent = 'html.hv-picking, html.hv-picking *{cursor:crosshair!important}';
+                document.documentElement.appendChild(pickStyle);
+                document.documentElement.classList.add('hv-picking');
+                pickBar = document.createElement('div');
+                pickBar.style.cssText = 'position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:2147483000;background:rgba(15,23,42,.92);color:#fff;padding:10px 20px;border-radius:12px;font-size:13px;font-family:Arial,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.35);pointer-events:none;white-space:nowrap;';
+                pickBar.textContent = '🖱 点击网页上想看大图的图片（Esc 取消）';
+                document.body.appendChild(pickBar);
+                pickKeydown = function (e) {
+                    if (e.key !== 'Escape') return;
+                    e.stopImmediatePropagation();
+                    closePickUi();
+                    reopenPanelAfterPick();
+                    showSaveToast('已取消选图');
+                };
+                window.addEventListener('keydown', pickKeydown, true);
+                pickClick = function (e) {
+                    // 自有 UI 不算选图（面板此时已关，防误触 dock/预览层）
+                    if (e.target && e.target.closest && e.target.closest('#zoomDockZone, #izModalOverlay, #izIntroOverlay, #izUpdateNotice, #izHelpModal, .image-zoom-container')) return;
+                    const url = extractPickUrl(e.target);
+                    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();   // 别点进链接 / 别触发页面行为
+                    closePickUi();
+                    if (url) {
+                        $('izUrlAutoIn').value = url;
+                        reopenPanelAfterPick();
+                        autoFindBig(url);
+                    } else {
+                        reopenPanelAfterPick();
+                        showSaveToast('刚才点的不是图片，再点「点图选图」选一张网页图片');
+                    }
+                };
+                window.addEventListener('click', pickClick, true);
+            });
+            $('izUrlAutoOut').addEventListener('click', (e) => {
+                const b = (e.target && e.target.closest) ? e.target.closest('[data-autoidx]') : null;
+                if (!b) return;
+                const cand = autoCands[Number(b.dataset.autoidx)];
+                if (!cand || !cand.c) return;
+                const ruleSrc = cand.c.rule;
+                const patStr = (ruleSrc.pattern instanceof RegExp) ? ruleSrc.pattern.source : String(ruleSrc.pattern || '');
+                config.userUrlRules = normalizeUserUrlRules((config.userUrlRules || []).concat([
+                    Object.assign({ phase: 'hd', enabled: true }, ruleSrc, { id: 'u' + Date.now(), label: (cand.w ? ('大图 ' + cand.w + '×' + cand.h) : '自动找的大图规则'), enabled: true, pattern: patStr }, readRuleScope())
+                ]));
+                commitUrlRules();
+                showSaveToast('已保存！本站这类图片以后自动换大图 🎉');
+                $('izUrlAutoOut').innerHTML = '';
+                $('izUrlAutoIn').value = '';
+            });
+        }
+
+        function wireAdvancedRegex() {
+
+            // 高级：手写正则（保留给会写的人）
+            $('izUrlRuleSave').addEventListener('click', () => {
+                const pattern = $('izUrlPattern').value.trim();
+                if (!pattern) { showSaveToast('正则 pattern 不能为空'); return; }
+                const flags = $('izUrlFlags').value.trim().replace(/[^gimsuy]/g, '');
+                try { new RegExp(pattern, flags); } catch (e) { showSaveToast('正则不合法：' + e.message); return; }
+                config.userUrlRules = normalizeUserUrlRules((config.userUrlRules || []).concat([
+                    Object.assign({
+                        id: 'u' + Date.now(),
+                        label: $('izUrlLabel').value.trim(),
+                        phase: segValue('izUrlPhase', 'hd') === 'clean' ? 'clean' : 'hd',
+                        pattern: pattern, flags: flags, replace: $('izUrlReplace').value, enabled: true
+                    }, readRuleScope())
+                ]));
+                ['izUrlPattern', 'izUrlFlags', 'izUrlReplace', 'izUrlLabel'].forEach(function (id) { $(id).value = ''; });
+                commitUrlRules();
+                showSaveToast('规则已保存并立即生效');
+            });
+            $('izUrlRuleList').addEventListener('click', (e) => {
+                const item = (e.target && e.target.closest) ? e.target.closest('.iz-urlrule-item') : null;
+                if (!item) return;
+                const id = item.dataset.id;
+                if (e.target.classList.contains('iz-urlrule-enabled')) {
+                    config.userUrlRules = (config.userUrlRules || []).map(function (r) {
+                        return r.id === id ? Object.assign({}, r, { enabled: e.target.checked }) : r;
+                    });
+                    commitUrlRules();
+                } else if (e.target.classList.contains('iz-urlrule-del')) {
+                    config.userUrlRules = (config.userUrlRules || []).filter(function (r) { return r.id !== id; });
+                    commitUrlRules();
+                    showSaveToast('已删除该规则');
+                }
+            });
+        }
+
+        function wireContribute() {
+            // 贡献闭环：把当前站点的自定义规则导出为「可直接放进 rules/ 目录」的片段
+            function buildRuleSnippet() {
+                // 只导出「在当前站确实生效」的规则，避免把别的站的规则当成本站提交
+                const rules = (config.userUrlRules || []).filter(function (r) {
+                    if (r.enabled === false) return false;
+                    if (r.scope === 'site' && r.domain && !packDomainMatches(currentDomain, r.domain)) return false;
+                    return true;
+                });
+                if (!rules.length) return null;
+                return JSON.stringify({
+                    domain: currentDomain,
+                    label: currentDomain,
+                    note: '由用户在面板中导出；建议先在本站确认有效再提交',
+                    hd: rules.filter(function (r) { return r.phase !== 'clean'; }).map(function (r, i) {
+                        return { id: 'u' + (i + 1), name: r.label || '原图还原', loop: false, steps: [[r.pattern, r.flags, r.replace]] };
+                    }),
+                    clean: rules.filter(function (r) { return r.phase === 'clean'; }).map(function (r, i) {
+                        return { id: 'c' + (i + 1), name: r.label || '地址清理', loop: false, steps: [[r.pattern, r.flags, r.replace]] };
+                    })
+                }, null, 1);
+            }
+
+            $('izUrlRuleShare').addEventListener('click', () => {
+                const snippet = buildRuleSnippet();
+                if (!snippet) { showSaveToast('还没有可导出的自定义规则'); return; }
+                copyText(snippet).then(function (ok) {
+                    showSaveToast(ok ? '规则片段已复制，可粘贴到 rules/ 目录或提交 Issue' : '复制失败，请手动复制');
+                });
+            });
+
+            // 一键提交：打开 GitHub 新建 Issue 页面，标题与正文已自动填好（同时把片段复制到剪贴板兜底）
+            $('izUrlRuleFeedback').addEventListener('click', () => {
+                const snippet = buildRuleSnippet();
+                if (!snippet) { showSaveToast('先在本站加一条规则（用「帮我找大图」）再提交'); return; }
+                try { copyText(snippet); } catch (e) { }
+                const title = '[规则] ' + currentDomain + ' 大图还原';
+                const body = [
+                    '### 站点', currentDomain, '',
+                    '### 规则片段（面板导出，已在本站验证）', '```json', snippet, '```', '',
+                    '### 环境',
+                    '- 悬景版本：' + SCRIPT_VERSION,
+                    '- 浏览器：' + navigator.userAgent, '',
+                    '> 由面板「一键提交到官方」生成；提交前请确认规则在本站确实有效。'
+                ].join('\n');
+                const url = 'https://github.com/YDGG123/hover-image-zoom/issues/new'
+                    + '?title=' + encodeURIComponent(title)
+                    + '&body=' + encodeURIComponent(body);
+                // 优先用 GM_openInTab（脚本沙箱里 window.open 常被拦截）
+                let opened = false;
+                try {
+                    if (typeof GM_openInTab === 'function') { GM_openInTab(url, { active: true, insert: true }); opened = true; }
+                } catch (e) { opened = false; }
+                if (!opened) { try { opened = !!window.open(url, '_blank'); } catch (e) { opened = false; } }
+                showSaveToast(opened ? '已打开 GitHub 提交页（内容已填好，规则片段也已复制）' : '未能自动打开：规则片段已复制，请手动打开 GitHub Issue');
+            });
+        }
+
+        function wireTipBubble() {
+            // 参数说明气泡
+            const oldTip = document.getElementById('izTipBubble');
+            if (oldTip) oldTip.remove();
+            const tipBubble = document.createElement('div');
+            tipBubble.id = 'izTipBubble';
+            document.body.appendChild(tipBubble);
+
+            const showTip = (icon) => {
+                tipBubble.textContent = icon.dataset.tip;
+                const r = icon.getBoundingClientRect();
+                tipBubble.style.opacity = '0';
+                tipBubble.style.display = 'block';
+                const bw = tipBubble.offsetWidth, bh = tipBubble.offsetHeight;
+                let top = r.top - bh - 10;
+                if (top < 8) top = r.bottom + 10;
+                let left = r.left + r.width / 2 - bw / 2;
+                left = Math.max(8, Math.min(left, window.innerWidth - bw - 8));
+                tipBubble.style.top = top + 'px';
+                tipBubble.style.left = left + 'px';
+                tipBubble.style.opacity = '1';
+            };
+            const hideTip = () => { tipBubble.style.opacity = '0'; };
+
+            overlay.addEventListener('mouseover', (e) => {
+                const icon = e.target.closest('.iz-tip-icon');
+                if (icon) showTip(icon);
+            });
+            overlay.addEventListener('mouseout', (e) => {
+                if (e.target.closest('.iz-tip-icon')) hideTip();
+            });
+        }
+
+        function wireNumericParams() {
+            function commitParam(key, val) {
+                const def = COMMON_PARAM_DEFS.concat(FIXED_PARAM_DEFS).find(p => p.key === key);
+                if (isNaN(val)) val = defaultConfig[key];
+                // 把值对齐到「滑块步进」网格，保证数字框与滑块取值一致：步进取 min(定义步进, 1)，
+                // 整数参数可用任意整数、小数参数保持 0.1 精度。
+                if (def && def.step) {
+                    const step = Math.min(Number(def.step) || 1, 1);
+                    const base = (typeof def.min === 'number') ? def.min : 0;
+                    val = Math.round((val - base) / step) * step + base;
+                    val = Math.round(val * 1000) / 1000;
+                }
+                if (CONFIG_LIMITS[key]) {
+                    const lim = CONFIG_LIMITS[key];
+                    val = Math.max(lim[0], Math.min(lim[1], val));
+                }
+                config[key] = val;
                 saveConfig();
-                saveGlobalKeymap(config.keymap);   // ★ 键位全局：默认键位也要落全局键
+                syncParamControls(key, val);
+                notifyConfigSaved(key, val, def ? def.label : key);
+            }
+            overlay.querySelectorAll('.iz-slider').forEach(sl => {
+                const key = sl.dataset.param;
+                paintSlider(sl);
+                sl.addEventListener('input', () => {
+                    paintSlider(sl);
+                    config[key] = parseFloat(sl.value);
+                    syncParamControls(key, sl.value, sl);
+                });
+                sl.addEventListener('change', () => {
+                    commitParam(key, parseFloat(sl.value));
+                    const num = overlay.querySelector('.iz-param-num[data-param="' + key + '"]');
+                    if (num) { num.classList.remove('pop'); void num.offsetWidth; num.classList.add('pop'); }
+                    if (key === 'maxWidth' || key === 'maxHeight') syncSizeStep();
+                });
+            });
+            overlay.querySelectorAll('.iz-param-num').forEach(num => {
+                const key = num.dataset.param;
+                const apply = () => {
+                    commitParam(key, parseFloat(num.value));
+                    if (key === 'maxWidth' || key === 'maxHeight') syncSizeStep();
+                };
+                num.addEventListener('change', apply);
+                num.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); num.blur(); } });
+            });
+        }
+
+        function wireSegments() {
+
+            // ===== 分段控件（替代下拉框）=====
+            function syncSeg(key, val) {
+                const seg = overlay.querySelector('.iz-seg[data-seg="' + key + '"]');
+                if (!seg) return;
+                seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', String(b.dataset.val) === String(val)));
+            }
+            const zoomModesBox = $('iznZoomModes');
+            if (zoomModesBox) {
+                zoomModesBox.addEventListener('click', (e) => {
+                    const btn = (e.target && e.target.closest) ? e.target.closest('.izn-mode') : null;
+                    if (!btn) return;
+                    config.zoomMode = btn.dataset.mode === 'fixed' ? 'fixed' : 'adaptive';
+                    saveConfig();
+                    syncZoomModes();
+                    updateDetailState();
+                    showSaveToast('已切到 ' + (config.zoomMode === 'fixed' ? '固定倍数' : '智能自适应') + ' 模式');
+                });
+            }
+            const sizeStepsBox = $('iznSizeSteps');
+            if (sizeStepsBox) {
+                sizeStepsBox.addEventListener('click', (e) => {
+                    const btn = (e.target && e.target.closest) ? e.target.closest('.izn-size') : null;
+                    if (!btn) return;
+                    const s = SIZE_STEPS[parseInt(btn.dataset.val, 10)];
+                    if (!s) return;
+                    config.maxWidth = s.w;
+                    config.maxHeight = s.h;
+                    saveConfig();
+                    syncParamControls('maxWidth', s.w);
+                    syncParamControls('maxHeight', s.h);
+                    syncSizeStep();
+                    showSaveToast('预览尺寸：' + s.name);
+                });
+            }
+            // 规则区两个分段控件（urlScope / urlPhase）只作为「下一条规则」的默认值，
+            // 由 readRuleScope 与保存时读取，无需落盘 —— 这里只负责切换选中态。
+            overlay.querySelectorAll('.iz-seg[data-seg]').forEach(seg => {
+                seg.addEventListener('click', (e) => {
+                    const btn = (e.target && e.target.closest) ? e.target.closest('button[data-val]') : null;
+                    if (!btn || !seg.contains(btn)) return;
+                    seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
+                });
+            });
+
+            $('izHpToggleBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleHomepageDisabled();
+            });
+            syncPlaces();
+            overlay.__iznSyncPlaces = syncPlaces;
+            overlay.querySelectorAll('#iznPlaces .izn-place').forEach(p => p.addEventListener('click', () => {
+                config.previewPlacement = p.dataset.place;
+                saveConfig();
+                syncPlaces();
+                const names = { center: '屏幕居中', around: '原图周围（不遮挡）' };
+                showSaveToast(`显示位置：${names[config.previewPlacement]}（下次预览生效）`);
+            }));
+            syncTransitions();
+            overlay.__iznSyncTransitions = syncTransitions;
+            overlay.querySelectorAll('#iznTransitions .izn-place').forEach(p => p.addEventListener('click', () => {
+                config.previewTransition = p.dataset.fx;
+                saveConfig();
+                syncTransitions();
+                const names = { dock: '从原图弹出', spotlight: '从原图绽开', fade: '直接淡入' };
+                showSaveToast('出现方式：' + (names[config.previewTransition] || config.previewTransition) + '（下次预览生效）');
+            }));
+        }
+
+        function wireIznNav() {
+
+            // ===== izn 导航 / 总览同步 / 总开关 =====
+            const iznContent = $('iznContent');
+            function iznGo(view) {
+                overlay.querySelectorAll('.izn-nav-item').forEach(x => x.classList.toggle('on', x.dataset.view === view));
+                overlay.querySelectorAll('.izn-view').forEach(v => v.classList.toggle('on', v.dataset.view === view));
+                if (iznContent) iznContent.scrollTop = 0;
+            }
+            overlay.querySelectorAll('.izn-nav-item').forEach(x => x.addEventListener('click', () => iznGo(x.dataset.view)));
+            overlay.querySelectorAll('[data-izn-go]').forEach(b => b.addEventListener('click', () => iznGo(b.dataset.iznGo)));
+            overlay.__iznGo = iznGo; overlay.__iznSync = iznSync;
+            overlay.__izSyncAll = syncPanelFromState;
+
+            // 总开关：isEnabled（image_zoom_enabled_<域名>），等效控制球。
+            // 用 overlay 捕获阶段委托（点击目标无论被内部结构如何包裹都能命中）。
+            overlay.addEventListener('click', (e) => {
+                const wrap = (e.target && e.target.closest) ? e.target.closest('#iznMasterWrap') : null;
+                if (!wrap) return;
+                e.stopPropagation();
+                isEnabled = !isEnabled;
+                storageSet('image_zoom_enabled_' + currentDomain, isEnabled);
+                wrap.setAttribute('aria-checked', String(isEnabled));
+                const tg = $('iznMasterToggle');
+                if (tg) tg.classList.toggle('active', isEnabled);
+                try { updateButtonState(); } catch (err) { }   // 同步 dock 球的颜色/状态点
+                showSaveToast(isEnabled ? '已启用本网站图片放大' : '已停用本网站图片放大');
+                if (!isEnabled) { try { zoomFSM.dispatch('RESET'); } catch (err) { } }
+            }, true);
+
+            $('izConflictWrap').addEventListener('click', (e) => {
+                e.stopPropagation();
+                config.avoidClickConflict = !config.avoidClickConflict;
+                conflictToggle.classList.toggle('active', config.avoidClickConflict);
+                saveConfig();
+                showSaveToast(`避免与点击放大功能冲突 ${config.avoidClickConflict ? '已开启' : '已关闭'}`);
+            });
+
+            $('izBlurDismissWrap').addEventListener('click', (e) => {
+                e.stopPropagation();
+                config.blurDismiss = !config.blurDismiss;
+                $('izBlurDismissToggle').classList.toggle('active', config.blurDismiss);
+                saveConfig();
+                showSaveToast(`窗口失焦时收起放大图 ${config.blurDismiss ? '已开启' : '已关闭（切换应用时保留预览）'}`);
+            });
+
+            $('izWheelZoomWrap').addEventListener('click', (e) => {
+                e.stopPropagation();
+                config.wheelZoom = !config.wheelZoom;
+                $('izWheelZoomToggle').classList.toggle('active', config.wheelZoom);
+                saveConfig();
+                showSaveToast(`滚轮控制放大图缩放 ${config.wheelZoom ? '已开启' : '已关闭（恢复上下移动）'}`);
+            });
+
+            $('izVideoHoverWrap').addEventListener('click', (e) => {
+                e.stopPropagation();
+                config.videoHoverPreview = !config.videoHoverPreview;
+                $('izVideoHoverToggle').classList.toggle('active', config.videoHoverPreview);
+                saveConfig();
+                if (!config.videoHoverPreview) videoPreviewModule.hide();
+                showSaveToast(`视频悬停预览 ${config.videoHoverPreview ? '已开启' : '已关闭'}`);
+            });
+
+            $('izGalleryPreloadWrap').addEventListener('click', (e) => {
+                e.stopPropagation();
+                config.galleryPreload = !config.galleryPreload;
+                $('izGalleryPreloadToggle').classList.toggle('active', config.galleryPreload);
+                saveConfig();
+                showSaveToast(`图集邻图预加载 ${config.galleryPreload ? '已开启' : '已关闭'}`);
+            });
+
+
+            $('izImageInfoWrap').addEventListener('click', (e) => {
+                e.stopPropagation();
+                config.showImageInfo = !config.showImageInfo;
+                $('izImageInfoToggle').classList.toggle('active', config.showImageInfo);
+                saveConfig();
+                // 关闭时若正有放大图在显示，顺手把已渲染的浮层摘掉
+                if (!config.showImageInfo) {
+                    const live = document.querySelector('#izImageInfo');
+                    if (live) live.remove();
+                    const liveBar = document.querySelector('.hv-capbar');
+                    if (liveBar) liveBar.remove();
+                }
+                showSaveToast(`图片信息栏 ${config.showImageInfo ? '已开启' : '已关闭'}`);
+            });
+        }
+
+        function wireKeymap() {
+
+            // 键位区：与其它折叠区完全一致的交互
+            const keymapHeader = $('izKeymapHeader');
+            const keymapBody = $('izKeymapBody');
+            const keymapArrow = $('izKeymapArrow');
+            const keymapHint = $('izKeymapHint');
+            if (keymapHeader && keymapBody) {
+                wireCollapseA11y(keymapHeader, keymapBody);
+                keymapHeader.addEventListener('click', () => {
+                    const isOpen = keymapBody.classList.contains('open');
+                    keymapBody.classList.toggle('open');
+                    keymapArrow.classList.toggle('open');
+                    keymapHint.innerHTML = isOpen ? '点右侧按键即可改绑' : '点击收起';
+                });
+            }
+
+            $('iznToFixedBtn').addEventListener('click', () => {
+                config.zoomMode = 'fixed';
+                saveConfig();
+                syncZoomModes();
+                updateDetailState();
+                showSaveToast('已切到固定倍数模式');
+            });
+
+            $('izBiliWrap').addEventListener('click', (e) => {
+                e.stopPropagation();
+                const newState = !bilibiliVolumeModule.isEnabled;
+                bilibiliVolumeModule.setEnabled(newState);
+                biliToggle.classList.toggle('active', newState);
+                showSaveToast(`B站播放器辅助 ${newState ? '已启用' : '已禁用'}`);
+            });
+            let keyRecording = null;
+            config.keymap = normalizeKeymap(config.keymap);   // 兜底，避免旧配置缺字段
+            function stopKeyRecord() {
+                if (!keyRecording) return;
+                window.removeEventListener('keydown', onKeyRecord, true);
+                keyRecording = null;
+            }
+            // 录制：捕获阶段拦截，避免被面板自身的 Esc/其它快捷键吃掉
+            function onKeyRecord(e) {
+                if (!keyRecording) return;
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.key === 'Escape') { stopKeyRecord(); renderKeymap(); return; }
+                if (['Control', 'Shift', 'Alt', 'Meta', 'CapsLock', 'Dead', 'Unidentified'].indexOf(e.key) >= 0) return;
+                const k = e.key;
+                // 一个键只归一个动作：先从其它动作里摘掉，避免同一个键绑两处
+                // （若该键原本绑在别的动作上，提示去向，用户不会疑惑「原来的键怎么失效了」）
+                // 本次动作的旧键先留存：让出者优先「接手旧键」（换键语义），其次才回退默认键。
+                const oldKeysOfMover = (config.keymap[keyRecording] || []).slice();
+                const stolen = [];
+                Object.keys(config.keymap).forEach(function (a) {
+                    if (a !== keyRecording) {
+                        const before = (config.keymap[a] || []).length;
+                        config.keymap[a] = (config.keymap[a] || []).filter(function (x) { return x !== k; });
+                        if (config.keymap[a].length < before) stolen.push(a);
+                    }
+                });
+                config.keymap[keyRecording] = [k];
+                // 让出后若原动作变空（「未设置」）：
+                //   ① 优先接手本次动作换下来的旧键（如 resetZoom 抢走 s → saveImage 得到 resetZoom 原来的 0）；
+                //   ② 否则回退到它的默认键（前提：该默认键未被任何动作占用）。
+                const usedKeys = new Set();
+                Object.keys(config.keymap).forEach(function (a) {
+                    (config.keymap[a] || []).forEach(function (x) { usedKeys.add(x); });
+                });
+                const restored = [];
+                stolen.forEach(function (a) {
+                    if ((config.keymap[a] || []).length) return;
+                    // ① 换键：从本次动作的旧键里取一个仍空闲的
+                    const sw = oldKeysOfMover.filter(function (x) { return x !== k && !usedKeys.has(x); });
+                    if (sw.length) {
+                        config.keymap[a] = [sw[0]];
+                        usedKeys.add(sw[0]);
+                        restored.push({ a: a, kind: 'swap', keys: [sw[0]] });
+                        return;
+                    }
+                    // ② 退默认：默认键未被占用则用它
+                    const free = (KEYMAP_DEFAULTS[a] || []).filter(function (x) { return !usedKeys.has(x); });
+                    if (!free.length) return;
+                    config.keymap[a] = free.slice();
+                    free.forEach(function (x) { usedKeys.add(x); });
+                    restored.push({ a: a, kind: 'default', keys: free.slice() });
+                });
+                saveConfig();
+                saveGlobalKeymap(config.keymap);   // ★ 键位全局：同步写入全局键
                 stopKeyRecord();
                 renderKeymap();
-                showSaveToast('已恢复默认键位');
-            });
-        }
-
-        $('izResetBtn').addEventListener('click', () => {
-            if (!confirm('确定恢复当前网站的默认设置吗？\n其它网站不受影响；全局键位也会保留。')) return;
-            // ★ 键位表是全局配置（跨网站共享），不随「恢复本站默认」一起重置 ——
-            //   否则用户在某站误点一次重置，所有网站的自定义键位都会丢。
-            const keepKeymap = normalizeKeymap(config.keymap);
-            config = { ...defaultConfig };
-            config.keymap = keepKeymap;
-            saveConfig();
-            // 总开关（isEnabled / image_zoom_enabled_<域名>）独立持久化、不在 defaultConfig 里：
-            // 恢复默认时须四处一起同步（存储 / 内存变量 / 面板开关 / dock 球），漏一处就状态不一致。
-            isEnabled = true;
-            storageSet('image_zoom_enabled_' + currentDomain, true);
-            try { updateButtonState(); } catch (e) { }   // 同步 dock 球的颜色/状态点
-            syncPanelFromState();                        // 面板全部控件（含总开关/出现方式/视频悬停/显示位置）
-            updateDetailState();
-            renderKeymap();       // 键位区跟随（全局键位未被改动，这里只是重绘）
-            showToast('已恢复本站默认设置');
-        });
-
-        $('izExportBtn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            exportConfigToFile();
-        });
-
-        const izImportInput = $('izImportInput');
-        $('izImportBtn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            izImportInput.click();
-        });
-        izImportInput.addEventListener('click', (e) => e.stopPropagation());
-        izImportInput.addEventListener('change', (e) => {
-            const file = e.target.files && e.target.files[0];
-            importConfigFromFile(file, (res) => {
-                // 面板是照打开时的 config 渲染的，逐项同步容易漏；整块重建最稳，
-                // 「站点规则自定义」区也会按导入后的规则重新渲染。
-                const msg = '已导入 ' + res.ok + ' 项配置' + (res.skipped ? '，跳过 ' + res.skipped + ' 项' : '') + ' ✅';
-                closePanel();
-                // 提示必须等面板重建完成后再显示：showToast 在面板开着时会挂进 #izConfigPanel，而这里紧接着 remove 整个 overlay → 提示会随之消失。
-                setTimeout(() => { overlay.remove(); toggleConfigPanel(); showToast(msg); }, 320);
-            });
-            e.target.value = '';  // 清空以便连续导入同一个文件
-        });
-
-        function closePanel() {
-            overlay.classList.add('anim-out');
-            setTimeout(() => {
-                overlay.style.display = 'none';
-                overlay.classList.remove('anim-out');
-            }, 300);
-        }
-
-        $('izCloseBtn').addEventListener('click', closePanel);
-        $('izHelpBtn').addEventListener('click', (e) => { e.stopPropagation(); showHelpModal('usage'); });
-        $('izChangelogBtn').addEventListener('click', (e) => { e.stopPropagation(); showHelpModal('changelog'); });
-
-        // 反馈问题：自动附小尺寸截图（若有预览过图片）+ 预填环境信息的 GitHub Issue
-        $('izFeedbackBtn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            // 1) 截图落盘（本地，不上传任何服务器；GitHub 提交时用户自行拖入）
-            let shotName = '';
-            if (lastPreviewShotData) {
-                shotName = 'hv-feedback-screenshot.png';
-                try {
-                    if (typeof GM_download === 'function') {
-                        GM_download({ url: lastPreviewShotData, name: shotName, saveAs: false, onerror: function () { } });
+                if (stolen.length) {
+                    const nameOf = function (a) {
+                        const d = KEYMAP_ACTION_DEFS.find(function (x) { return x.key === a; });
+                        return d ? d.name : a;
+                    };
+                    let msg = '「' + k + '」已从「' + nameOf(stolen[0]) + '」移到当前动作';
+                    const r0 = restored[0];
+                    if (r0 && r0.kind === 'swap') {
+                        msg += '；「' + nameOf(r0.a) + '」自动接手了原键 ' + r0.keys.map(displayKeyName).join(' / ');
+                    } else if (r0) {
+                        msg += '；「' + nameOf(r0.a) + '」已恢复默认键 ' + r0.keys.map(displayKeyName).join(' / ');
                     } else {
-                        downloadViaAnchor(lastPreviewShotData, shotName);
+                        // 换键与默认键都不可用 → 无法自动回退；明确告知「去哪恢复」，避免用户不知原动作为何失效
+                        const lost = stolen.filter(function (a) { return (config.keymap[a] || []).length === 0; });
+                        if (lost.length) {
+                            msg += '；「' + nameOf(lost[0]) + '」已失去快捷键，点它的键帽可重新设置';
+                        }
                     }
-                } catch (err) { shotName = ''; }
-            }
-            // 2) 预填 Issue：环境信息 + 截图指引
-            let ver = '', handler = '';
-            try {
-                if (typeof GM_info !== 'undefined') {
-                    ver = GM_info.script && GM_info.script.version;
-                    handler = (GM_info.scriptHandler || '') + (GM_info.version ? ' ' + GM_info.version : '');
+                    showSaveToast(msg);
                 }
-            } catch (err) { }
-            const body = [
-                '### 问题描述', '', '（请在这里描述遇到的问题）', '',
-                '### 复现步骤', '', '1. ', '2. ', '',
-                '### 环境信息',
-                '- 脚本版本: ' + (ver || '未知'),
-                '- 脚本管理器: ' + (handler || '未知'),
-                '- 出问题的页面: ' + location.href,
-                '- User-Agent: ' + navigator.userAgent, '',
-                '### 附件',
-                shotName
-                    ? '已自动保存截图 `' + shotName + '`（在浏览器下载目录），请把该图片拖进上面的编辑框一并提交。'
-                    : '未能自动截图（最近没有预览过图片或图片受跨域保护），可自行截图后拖进编辑框。'
-            ].join('\n');
-            const url = 'https://github.com/YDGG123/hover-image-zoom/issues/new'
-                + '?title=' + encodeURIComponent('[反馈] ')
-                + '&body=' + encodeURIComponent(body);
-            try { GM_openInTab(url, { active: true }); } catch (err) { window.open(url, '_blank'); }
-            showSaveToast(shotName ? '已保存截图并打开反馈页' : '已打开反馈页');
-        });
-        $('izSaveBtn').addEventListener('click', () => {
-            showSaveToast('设置已保存');
-            setTimeout(closePanel, 350);
-        });
+            }
+            if (keymapGrid) {
+                renderKeymap();
+                keymapGrid.addEventListener('click', function (e) {
+                    const btn = (e.target && e.target.closest) ? e.target.closest('.iz-key-cap') : null;
+                    if (!btn) return;
+                    stopKeyRecord();
+                    keyRecording = btn.dataset.km;
+                    btn.classList.add('recording');
+                    btn.textContent = '按下按键…';
+                    window.addEventListener('keydown', onKeyRecord, true);
+                });
+                // 恢复默认键位（只动键表，不动其它设置）
+                const kmReset = $('izKeymapResetBtn');
+                if (kmReset) kmReset.addEventListener('click', function () {
+                    if (!confirm('把所有按键恢复为默认键位？')) return;
+                    config.keymap = normalizeKeymap(null);
+                    saveConfig();
+                    saveGlobalKeymap(config.keymap);   // ★ 键位全局：默认键位也要落全局键
+                    stopKeyRecord();
+                    renderKeymap();
+                    showSaveToast('已恢复默认键位');
+                });
+            }
+        }
 
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) closePanel();
-        });
+        // 诊断信息：把排障要看的环境事实汇成一段纯文本，用户复制粘贴即可，省去来回追问。
+        function buildDiagnosticsText() {
+            const L = (zh, en) => (isEnUI() ? en : zh);
+            const pack = rulePackState.current || null;
+            const meta = rulePackState.meta || {};
+            const lines = [];
+            lines.push('===== HoverVista ' + L('诊断信息', 'diagnostics') + ' =====');
+            lines.push(L('脚本版本', 'Version') + ': ' + SCRIPT_VERSION + (HV_DEBUG ? ' (debug)' : ''));
+            lines.push(L('界面语言', 'UI language') + ': ' + getLang() + (globalPrefs.lang === 'zh' || globalPrefs.lang === 'en' ? ' (' + globalPrefs.lang + ')' : ' (auto)'));
+            lines.push(L('浏览器', 'Browser') + ': ' + (navigator.userAgent || '-'));
+            lines.push(L('当前网站', 'Site') + ': ' + currentDomain);
+            lines.push(L('页面地址', 'Page') + ': ' + (function () { try { return location.origin + location.pathname; } catch (e) { return '-'; } })());
+            lines.push(L('图片放大', 'Zoom enabled') + ': ' + (isEnabled ? L('已启用', 'yes') : L('已禁用', 'no')));
+            lines.push(L('主页策略', 'Homepage') + ': ' + (isHomepageDisabled() ? L('主页不启用', 'excluded') : L('主页正常', 'normal')));
+            lines.push(L('放大模式', 'Zoom mode') + ': ' + config.zoomMode);
+            lines.push(L('预览尺寸', 'Preview size') + ': ' + config.maxWidth + ' × ' + config.maxHeight);
+            lines.push(L('显示位置', 'Placement') + ': ' + config.previewPlacement);
+            lines.push(L('出现方式', 'Transition') + ': ' + config.previewTransition);
+            lines.push(L('规则包', 'Rule pack') + ': ' + (pack ? ('v' + (pack.version || '?')) : L('未加载', 'not loaded'))
+                + (pack ? ' / ' + (meta.verified ? L('签名校验通过', 'signature ok') : L('未验证', 'unverified')) : '')
+                + (meta.lastError ? ' / ' + L('上次失败', 'last error') + ': ' + meta.lastError : ''));
+            lines.push(L('本站规则', 'Site rules') + ': ' + L('自定义 ', 'custom ') + (config.userUrlRules || []).length
+                + L(' 条 / 规则包', ' / pack') + ': ' + ((pack && pack.domains && pack.domains.indexOf(currentDomain) >= 0) ? 1 : 0));
+            lines.push(L('键位', 'Keymap') + ': ' + (function () {
+                try {
+                    const km = config.keymap || {};
+                    let n = 0;
+                    Object.keys(KEYMAP_DEFAULTS).forEach(function (k) {
+                        if ((km[k] || []).join(',') !== KEYMAP_DEFAULTS[k].join(',')) n++;
+                    });
+                    return n ? L('已自定义 ' + n + ' 项', n + ' customized') : L('默认', 'default');
+                } catch (e) { return '-'; }
+            })());
+            lines.push(L('历史记录', 'History') + ': ' + getHistory().length + L(' 条', ' items'));
+            lines.push(L('生成时间', 'Generated at') + ': ' + new Date().toISOString());
+            return lines.join('\n');
+        }
 
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && overlay.style.display === 'flex') closePanel();
-        });
+        function wireRestoreAndFeedback() {
+
+            $('izResetBtn').addEventListener('click', () => {
+                if (!confirm('确定恢复当前网站的默认设置吗？\n其它网站不受影响；全局键位也会保留。')) return;
+                // ★ 键位表是全局配置（跨网站共享），不随「恢复本站默认」一起重置 ——
+                //   否则用户在某站误点一次重置，所有网站的自定义键位都会丢。
+                const keepKeymap = normalizeKeymap(config.keymap);
+                config = { ...defaultConfig };
+                config.keymap = keepKeymap;
+                saveConfig();
+                // 总开关（isEnabled / image_zoom_enabled_<域名>）独立持久化、不在 defaultConfig 里：
+                // 恢复默认时须四处一起同步（存储 / 内存变量 / 面板开关 / dock 球），漏一处就状态不一致。
+                isEnabled = true;
+                storageSet('image_zoom_enabled_' + currentDomain, true);
+                try { updateButtonState(); } catch (e) { }   // 同步 dock 球的颜色/状态点
+                syncPanelFromState();                        // 面板全部控件（含总开关/出现方式/视频悬停/显示位置）
+                updateDetailState();
+                renderKeymap();       // 键位区跟随（全局键位未被改动，这里只是重绘）
+                showToast('已恢复本站默认设置');
+            });
+
+            $('izExportBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                exportConfigToFile();
+            });
+
+            const izImportInput = $('izImportInput');
+            $('izImportBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                izImportInput.click();
+            });
+            izImportInput.addEventListener('click', (e) => e.stopPropagation());
+            izImportInput.addEventListener('change', (e) => {
+                const file = e.target.files && e.target.files[0];
+                importConfigFromFile(file, (res) => {
+                    // 面板是照打开时的 config 渲染的，逐项同步容易漏；整块重建最稳，
+                    // 「站点规则自定义」区也会按导入后的规则重新渲染。
+                    const msg = '已导入 ' + res.ok + ' 项配置' + (res.skipped ? '，跳过 ' + res.skipped + ' 项' : '') + ' ✅';
+                    closePanel();
+                    // 提示必须等面板重建完成后再显示：showToast 在面板开着时会挂进 #izConfigPanel，而这里紧接着 remove 整个 overlay → 提示会随之消失。
+                    setTimeout(() => { panelAbort.abort(); overlay.remove(); toggleConfigPanel(); showToast(msg); }, 320);
+                });
+                e.target.value = '';  // 清空以便连续导入同一个文件
+            });
+
+            function closePanel() {
+                overlay.classList.add('anim-out');
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                    overlay.classList.remove('anim-out');
+                }, 300);
+            }
+
+            $('izCloseBtn').addEventListener('click', closePanel);
+            $('izHelpBtn').addEventListener('click', (e) => { e.stopPropagation(); showHelpModal('usage'); });
+            $('izChangelogBtn').addEventListener('click', (e) => { e.stopPropagation(); showHelpModal('changelog'); });
+
+            // 复制诊断信息：环境和状态一次给全，报问题时粘贴即可
+            $('izDiagBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                copyText(buildDiagnosticsText()).then(function (ok) {
+                    showSaveToast(ok
+                        ? (isEnUI() ? 'Diagnostics copied ✅' : '诊断信息已复制，粘贴到反馈里即可 ✅')
+                        : (isEnUI() ? 'Copy failed, please copy manually' : '复制失败，请手动复制'));
+                });
+            });
+
+            // 界面语言：全局偏好，切换后整块重建面板（与导入配置同一路径，最稳）
+            const langSeg = $('izLangSeg');
+            if (langSeg) {
+                const cur = (globalPrefs.lang === 'zh' || globalPrefs.lang === 'en') ? globalPrefs.lang : 'auto';
+                langSeg.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.dataset.val === cur); });
+                langSeg.addEventListener('click', function (e) {
+                    const btn = e.target.closest('button[data-val]');
+                    if (!btn || btn.dataset.val === cur) return;
+                    globalPrefs.lang = btn.dataset.val;
+                    saveGlobalPrefs();
+                    const msg = getLang() === 'en' ? 'Language: English ✅' : '界面语言已切换 ✅';
+                    // 固定浮层（控制球/介绍/说明弹窗）逐个还原后再按新语言重新翻译；面板走整块重建
+                    document.querySelectorAll(I18N_ROOTS).forEach(function (el) { restoreI18nDeep(el); });
+                    if (isEnUI()) applyI18nAll();
+                    closePanel();
+                    setTimeout(() => { panelAbort.abort(); overlay.remove(); toggleConfigPanel(); showToast(msg); }, 320);
+                });
+            }
+
+            // 反馈问题：自动附小尺寸截图（若有预览过图片）+ 预填环境信息的 GitHub Issue
+            $('izFeedbackBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                // 1) 截图落盘（本地，不上传任何服务器；GitHub 提交时用户自行拖入）
+                let shotName = '';
+                if (lastPreviewShotData) {
+                    shotName = 'hv-feedback-screenshot.png';
+                    try {
+                        if (typeof GM_download === 'function') {
+                            GM_download({ url: lastPreviewShotData, name: shotName, saveAs: false, onerror: function () { } });
+                        } else {
+                            downloadViaAnchor(lastPreviewShotData, shotName);
+                        }
+                    } catch (err) { shotName = ''; }
+                }
+                // 2) 预填 Issue：环境信息 + 截图指引
+                let ver = '', handler = '';
+                try {
+                    if (typeof GM_info !== 'undefined') {
+                        ver = GM_info.script && GM_info.script.version;
+                        handler = (GM_info.scriptHandler || '') + (GM_info.version ? ' ' + GM_info.version : '');
+                    }
+                } catch (err) { }
+                const body = [
+                    '### 问题描述', '', '（请在这里描述遇到的问题）', '',
+                    '### 复现步骤', '', '1. ', '2. ', '',
+                    '### 环境信息',
+                    '- 脚本版本: ' + (ver || '未知'),
+                    '- 脚本管理器: ' + (handler || '未知'),
+                    '- 出问题的页面: ' + location.href,
+                    '- User-Agent: ' + navigator.userAgent, '',
+                    '### 附件',
+                    shotName
+                        ? '已自动保存截图 `' + shotName + '`（在浏览器下载目录），请把该图片拖进上面的编辑框一并提交。'
+                        : '未能自动截图（最近没有预览过图片或图片受跨域保护），可自行截图后拖进编辑框。'
+                ].join('\n');
+                const url = 'https://github.com/YDGG123/hover-image-zoom/issues/new'
+                    + '?title=' + encodeURIComponent('[反馈] ')
+                    + '&body=' + encodeURIComponent(body);
+                try { GM_openInTab(url, { active: true }); } catch (err) { window.open(url, '_blank'); }
+                showSaveToast(shotName ? '已保存截图并打开反馈页' : '已打开反馈页');
+            });
+            $('izSaveBtn').addEventListener('click', () => {
+                showSaveToast('设置已保存');
+                setTimeout(closePanel, 350);
+            });
+
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) closePanel();
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && overlay.style.display === 'flex') closePanel();
+            }, { signal: panelAbort.signal });
+        }
+
+        // ---- 按原顺序接线 ----
+        wireSwitches();
+        wireRulePack();
+        wireUrlRules();
+        wireHistory();
+        wireAutoFind();
+        wireAdvancedRegex();
+        wireContribute();
+        wireTipBubble();
+        wireNumericParams();
+        wireSegments();
+        wireIznNav();
+        wireKeymap();
+        wireRestoreAndFeedback();
 
         refreshPanelHomepageSection();
         updateDetailState();
@@ -7749,7 +9008,31 @@ const bilibiliVolumeModule = (function() {
         // ★ 调试钩子：仅在 URL 带 ?hvdebug=1 时暴露，用于端到端验证（如防盗链抓取），不影响正常使用
         try {
             if (/[?&]hvdebug=1/.test(location.search)) {
-                window.__hvDebug = { gmFetchBlobUrl, upgradeImgUrl, buildHdCandidates, sizeHintOf, probeCandidates, pickBestCandidate, VERSION: SCRIPT_VERSION };
+                // 用户脚本运行在沙箱里，挂到沙箱 window 上外部读不到 → 优先挂 unsafeWindow
+                const dbgWin = (typeof unsafeWindow !== 'undefined' && unsafeWindow) ? unsafeWindow : window;
+                dbgWin.__hvDebug = {
+                    gmFetchBlobUrl, upgradeImgUrl, buildHdCandidates, sizeHintOf, probeCandidates, pickBestCandidate,
+                    buildSizeVariants, collectElementSources, pickLargestSrcset, absUrl, SIZE_FAMILIES, LAZY_SRC_ATTRS,
+                    isStripLikeImg,                                            // 细长条幅过滤（供端到端验证判据）
+                    rulePackUrls: () => rulePackUrlCandidates(RULE_PACK_URL),   // 规则包取源顺序（主源 + 镜像）
+                    rulePackFetchCount: () => rulePackFetchCount,                 // 本轮页面内对规则包取源的请求次数（0 = 未联网）
+                    rulePackNeedsRefresh: () => rulePackNeedsRefresh(),           // 启动时是否判定为「需要后台重校验」
+                    rulePackMeta: () => rulePackState.meta,                       // 元信息（含 revalidatedAt / 逐域时间戳）
+                    rulePackDomains: () => ((rulePackState.current && rulePackState.current.domains) || []).map(function (d) { return d.domain; }),
+                    probeCacheSize: () => PROBE_CACHE.size,                     // 探测结果缓存条目数
+                    preloadInfo: () => ({ count: preloadCount, urls: Array.from(preloadSeen), suppressed: preloadSuppressed(), enabled: config.galleryPreload !== false }),
+                    VERSION: SCRIPT_VERSION,
+                    fsm: zoomFSM,                                    // 放大状态机（含 state getter）
+                    get config() { return config; },                 // 当前网站配置（只读引用）
+                    snapshot() {                                     // 运行时状态一键快照
+                        return {
+                            version: SCRIPT_VERSION,
+                            state: zoomFSM.state,
+                            hasActiveZoom: zoomFSM.hasActiveZoom(),
+                            config: config
+                        };
+                    }
+                };
             }
         } catch (e) { }
         // ★ UI 入口（dock 控制球/介绍面板/更新弹窗）只在顶层 frame 创建：
@@ -7811,7 +9094,12 @@ const bilibiliVolumeModule = (function() {
         setupAutoBackgroundHover();
         // ★ 规则包：先用本地缓存立刻生效，再按需后台更新（失败静默降级，不影响基本功能）
         loadRulePackFromStorage();
-        if (config.rulePackAuto) setTimeout(function () { updateRulePack(false); }, 1500);
+        // ★ 本地已有「本站命中」且未过期的规则包时不再联网（rulePackNeedsRefresh）：
+        //   云端规则不常变，每开一页都探一次既浪费流量，也会让首屏悬停落在「包还没就绪」的窗口里。
+        //   需要立刻取新的场景仍有手动「↻ 立即更新」。
+        if (config.rulePackAuto && rulePackNeedsRefresh()) {
+            setTimeout(function () { updateRulePack(false).then(function () { refreshPackStatusIfOpen(); }); }, 1500);
+        }
         keymapModule.init();   // ★ 键位系统：Esc 关闭 / +/- 缩放 / 0 原始尺寸
         startObserver();
     }
