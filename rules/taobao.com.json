@@ -6,12 +6,23 @@
  "hd": [
   {
    "id": "tb-alicdn-suffix",
-   "name": "CDN 尺寸后缀（实测）",
-   "loop": false,
+   "name": "阿里系 CDN 缩略图后缀（实测）",
+   "match": "alicdn\\.com",
+   "loop": true,
    "steps": [
     [
-     "_\\d+x\\d+q\\d+\\.(?:jpe?g|png|webp|gif|bmp|avif)_?\\.webp$",
-     "",
+     "(_!![\\w\\-.,]+?\\.(?:jpg|jpeg|png|webp))_[\\w.\\-]+$",
+     "i",
+     "$1"
+    ],
+    [
+     "\\.(jpg|jpeg|png|webp)_[\\w.]+$",
+     "i",
+     ".$1"
+    ],
+    [
+     "_\\.(webp|jpg|jpeg|png)$",
+     "i",
      ""
     ]
    ]
@@ -60,7 +71,7 @@
     [
      "(//.+?\\.alicdn\\.com/.+?\\.heic_).+?((?:jpe?g|png|webp|gif|bmp|avif)).*",
      "",
-     "$1Q100$2"
+     "$1Q100.$2"
     ]
    ]
   }

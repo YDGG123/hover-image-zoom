@@ -12,7 +12,7 @@
         [
           "(//.+\\.wattpad\\.com/cover/\\d+-).+((?:jpe?g|png|webp|gif|bmp|avif))",
           "",
-          "$1512$2"
+          "$1512.$2"
         ]
       ]
     },
@@ -24,7 +24,7 @@
         [
           "(//.+\\.wattpad\\.com/useravatar/\\w+\\.).+((?:jpe?g|png|webp|gif|bmp|avif))",
           "",
-          "$1256$2"
+          "$1256.$2"
         ]
       ]
     },
@@ -36,7 +36,7 @@
         [
           "(//.+\\.wattpad\\.com/userbgs/\\w+\\.).+((?:jpe?g|png|webp|gif|bmp|avif))",
           "",
-          "$11920$2"
+          "$11920.$2"
         ]
       ]
     }

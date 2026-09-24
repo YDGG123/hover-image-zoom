@@ -60,7 +60,7 @@
         [
           "//(\\w+)\\.cloudfront\\.net/(\\w+)/storyboards/(\\w+)-strip.*((?:jpe?g|png|webp|gif|bmp|avif))",
           "",
-          "//static-cdn.jtvnw.net/cf_vods/$1/$2/thumb/thumb$3-1920x1080$4"
+          "//static-cdn.jtvnw.net/cf_vods/$1/$2/thumb/thumb$3-1920x1080.$4"
         ]
       ]
     },
@@ -72,7 +72,7 @@
         [
           "//(\\w+)\\.cloudfront\\.net/(\\w+)/storyboards/(\\w+)-strip.*((?:jpe?g|png|webp|gif|bmp|avif))",
           "",
-          "//static-cdn.jtvnw.net/cf_vods/$1/$2/thumb/thumb0-1920x1080$4"
+          "//static-cdn.jtvnw.net/cf_vods/$1/$2/thumb/thumb0-1920x1080.$4"
         ]
       ]
     }

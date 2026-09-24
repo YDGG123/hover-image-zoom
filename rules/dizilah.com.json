@@ -12,7 +12,7 @@
         [
           "(//img\\.dizi\\.la/.+?/)responsive-images(/.+?)_{3}.+((?:jpe?g|png|webp|gif|bmp|avif))",
           "",
-          "$1conversions$2-medium$3"
+          "$1conversions$2-medium.$3"
         ]
       ]
     },

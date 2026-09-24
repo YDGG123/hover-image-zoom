@@ -48,7 +48,7 @@
         [
           "(//.*\\.(?:douyinpic|ecombdimg)\\.com/.+?~).+((?:jpe?g|png|webp|gif|bmp|avif)).*",
           "",
-          "$1noop$2"
+          "$1noop.$2"
         ]
       ]
     }

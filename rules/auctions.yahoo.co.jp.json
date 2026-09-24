@@ -7,6 +7,7 @@
   {
    "id": "ps-auctions.yahoo.co.jp-1",
    "name": "原图还原",
+   "match": "yimg\\.jp|yahoo\\.co\\.jp",
    "loop": false,
    "steps": [
     [

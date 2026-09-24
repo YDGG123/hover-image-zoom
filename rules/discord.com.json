@@ -19,6 +19,7 @@
     {
       "id": "ps-discord.com-2",
       "name": "原图还原",
+      "match": "discordapp\\.com|discord\\.com",
       "loop": false,
       "steps": [
         [

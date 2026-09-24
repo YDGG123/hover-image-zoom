@@ -7,6 +7,7 @@
     {
       "id": "ps-javsee-1",
       "name": "原图还原",
+      "match": "javbus|javcdn|javsee|seejav",
       "loop": false,
       "steps": [
         [

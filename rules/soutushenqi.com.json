@@ -24,7 +24,7 @@
         [
           "(.+\\.(?:dtstatic|duitang)\\.com/uploads/[^.]+).*((?:jpe?g|png|webp|gif|bmp|avif)).*",
           "",
-          "$1$2"
+          "$1.$2"
         ]
       ]
     }

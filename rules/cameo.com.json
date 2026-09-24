@@ -7,6 +7,7 @@
     {
       "id": "ps-cameo.com-1",
       "name": "原图还原",
+      "match": "cameo\\.com",
       "loop": false,
       "steps": [
         [
@@ -19,12 +20,41 @@
     {
       "id": "ps-cameo.com-2",
       "name": "原图还原",
+      "match": "cameo\\.com",
       "loop": false,
       "steps": [
         [
           "https?://.*?/(https?://cdn\\.cameo\\.com/thumbnails/.*?)(?:-wm)+(.+(?:jpe?g|png|webp|gif|bmp|avif))",
           "",
           "$1-wm$2"
+        ]
+      ]
+    },
+    {
+      "id": "ps-cameo.com-3",
+      "name": "原图还原",
+      "match": "cameo\\.com",
+      "loop": false,
+      "steps": [
+        [
+          "[?&](?:width|height|fit|crop)=[^&]*",
+          "g",
+          ""
+        ],
+        [
+          "([^?&]*)\\?&",
+          "g",
+          "$1?"
+        ],
+        [
+          "^(https?://[^?&]*)&",
+          "",
+          "$1?"
+        ],
+        [
+          "\\?$",
+          "",
+          ""
         ]
       ]
     }

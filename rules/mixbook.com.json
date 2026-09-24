@@ -12,7 +12,7 @@
         [
           "//assets\\.mixbook\\.com/.+/images/templates/(\\w+)/.+((?:jpe?g|png|webp|gif|bmp|avif))",
           "",
-          "//media.mixbook.com/images/templates/$1$2"
+          "//media.mixbook.com/images/templates/$1.$2"
         ]
       ]
     }

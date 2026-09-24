@@ -12,7 +12,7 @@
         [
           "(//.+?\\.sportsdirect\\.com/images/)products/((\\d{2})\\d+_)[^_]+(.*(?:jpe?g|png|webp|gif|bmp|avif))",
           "",
-          "$1imgzoom/$3/$2xxl$4"
+          "$1imgzoom/$3/$2xxl.$4"
         ]
       ]
     }

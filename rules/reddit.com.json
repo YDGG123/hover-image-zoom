@@ -7,12 +7,13 @@
     {
       "id": "ps-reddit.com-1",
       "name": "原图还原",
+      "match": "redd\\.it|reddit\\.com|redditmedia\\.com|redditstatic\\.com",
       "loop": false,
       "steps": [
         [
           "//.+/(?:profileIcon_snoo-?|avatars/)(.+?)-headshot.*((?:jpe?g|png|webp|gif|bmp|avif)).*",
           "",
-          "//i.redd.it/snoovatar/avatars/$1$2"
+          "//i.redd.it/snoovatar/avatars/$1.$2"
         ]
       ]
     },

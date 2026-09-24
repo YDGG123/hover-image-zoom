@@ -12,7 +12,7 @@
         [
           "//(?:i\\d*\\.ytimg|img\\.youtube)\\.com(/vi.*?/.+/)movieposter.*((?:jpe?g|png|webp|gif|bmp|avif)).*",
           "",
-          "//i.ytimg.com$1movieposter_maxres$2"
+          "//i.ytimg.com$1movieposter_maxres.$2"
         ]
       ]
     },
@@ -24,7 +24,7 @@
         [
           "//(?:i\\d*\\.ytimg|img\\.youtube)\\.com(/vi.*?/.+/)movieposter.*((?:jpe?g|png|webp|gif|bmp|avif)).*",
           "",
-          "//i.ytimg.com$1maxresdefault$2"
+          "//i.ytimg.com$1maxresdefault.$2"
         ]
       ]
     }

@@ -36,7 +36,7 @@
         [
           "(//.+?\\.els-cdn\\.com/content/image/.+?)(?:_lrg)?((?:jpe?g|png|webp|gif|bmp|avif))",
           "",
-          "$1_lrg$2"
+          "$1_lrg.$2"
         ]
       ]
     }

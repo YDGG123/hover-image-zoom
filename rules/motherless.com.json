@@ -12,7 +12,7 @@
         [
           "((//cdn\\d*-)thumbs(\\.motherlessmedia\\.com/)thumbs(/\\w+)).*((?:jpe?g|png|webp|gif|bmp|avif))",
           "",
-          "$2images$3images$4$5"
+          "$2images$3images$4.$5"
         ]
       ]
     },
@@ -24,7 +24,7 @@
         [
           "((//cdn\\d*-)thumbs(\\.motherlessmedia\\.com/)thumbs(/\\w+)).*((?:jpe?g|png|webp|gif|bmp|avif))",
           "",
-          "$1$5"
+          "$1.$5"
         ]
       ]
     }

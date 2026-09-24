@@ -7,6 +7,7 @@
     {
       "id": "ps-kanald.com.tr-1",
       "name": "原图还原",
+      "match": "kanald\\.com\\.tr",
       "loop": false,
       "steps": [
         [

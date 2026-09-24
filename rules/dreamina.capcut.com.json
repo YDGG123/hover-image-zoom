@@ -12,7 +12,7 @@
         [
           "(//.+?\\.i?byte(?:acct)?img\\.com/img/user-avatar/.+~).+((?:jpe?g|png|webp|gif|bmp|avif))",
           "",
-          "$1noop$2"
+          "$1noop.$2"
         ]
       ]
     }

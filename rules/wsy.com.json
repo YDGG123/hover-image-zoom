@@ -36,7 +36,7 @@
         [
           "(//.+?\\.com/.+?)\\.(?:\\d+x\\d+[a-z]*|search|summ)((?:jpe?g|png|webp|gif|bmp|avif)).*",
           "",
-          "$1$2"
+          "$1.$2"
         ]
       ]
     },
@@ -48,7 +48,7 @@
         [
           "(//.+?\\.alicdn\\.com/.+?\\.heic_).+?((?:jpe?g|png|webp|gif|bmp|avif)).*",
           "",
-          "$1Q100$2"
+          "$1Q100.$2"
         ]
       ]
     },
