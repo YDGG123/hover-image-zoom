@@ -21,7 +21,7 @@
 @font-face{font-family:'Sora';font-style:normal;font-weight:400 800;font-display:swap;src:url(fonts/sora-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF}
 @font-face{font-family:'Sora';font-style:normal;font-weight:400 800;font-display:swap;src:url(fonts/sora-latin.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
 /* ============================================================
-   悬景 HoverVista · 产品介绍站 v5.9
+   悬景 HoverVista · 产品介绍站 v5.9.2
    设计系统：暖纸底 + 品牌蓝单一强调色 · Sora 显示字 · 零依赖
    ============================================================ */
 *,*::before,*::after{box-sizing:border-box}
@@ -565,6 +565,8 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;bac
 .p-cap{min-width:46px;text-align:center;font-size:11px;font-weight:700;color:var(--iz-tx-2);background:var(--iz-bg-3);border:1px solid var(--iz-bd-2);border-bottom-width:2px;border-radius:7px;padding:5px 8px;cursor:pointer;font-family:inherit}
 .p-cap:hover{border-color:var(--iz-accent)}
 .p-cap.rec{background:var(--iz-accent-solid);color:#fff;border-color:var(--iz-accent-solid)}
+.p-hotkey{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:9px;padding-top:9px;border-top:1px dashed var(--iz-bd-1);font-size:11.5px;color:var(--iz-tx-2)}
+.p-hotkey i{font-style:normal;font-size:11px;color:var(--iz-tx-faint)}
 /* —— 规则 / 历史 / 空态 —— */
 .p-note{font-size:11.5px;color:var(--iz-tx-muted);line-height:1.7;background:var(--iz-bg-4);border:1px dashed var(--iz-bd-2);border-radius:var(--iz-r-sm);padding:10px 12px}
 .p-rule{display:flex;align-items:center;gap:10px;padding:9px 10px;background:var(--iz-bg-4);border:1px solid var(--iz-bd-1);border-radius:var(--iz-r-sm);margin-bottom:7px}
@@ -604,7 +606,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;bac
     <a class="brand" href="#top" aria-label="悬景 HoverVista">
       <svg class="brand-mark" viewBox="0 0 678 678" aria-hidden="true"><use href="#hvLogo"/></svg>
       <span class="brand-txt">
-        <b class="brand-name">悬景<span class="brand-en">HoverVista</span><small>v5.9.0</small></b>
+        <b class="brand-name">悬景<span class="brand-en">HoverVista</span><small>v5.9.2</small></b>
         <em class="brand-slogan">悬于图，景自现</em>
       </span>
     </a>
@@ -628,7 +630,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;bac
 <header class="hero" id="top">
   <div class="shell hero-grid">
     <div>
-      <span class="eyebrow reveal">v5.9 · 视频预览 · 图集打包 · 全新面板</span>
+      <span class="eyebrow reveal">v5.9.2 · 按一下才触发 · 总开关快捷键</span>
       <h1 class="reveal">鼠标停一下，<br>大图就<span class="grad">自己浮出来</span></h1>
       <p class="lead reveal">不点开、不跳转、不打断阅读。悬停即放大、移开即收起；现在还能直接看视频、翻图集、一键打包下载。</p>
       <div class="hero-actions reveal">
@@ -1036,6 +1038,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;bac
                     <div><div class="p-card-t">禁用主页图片放大</div><div class="p-card-s">站首页图片密集、容易误触发；开启后只关首页，内容子页面照常生效。</div></div>
                   </div>
                 </div>
+                <div class="p-hotkey"><span>快捷键</span><button class="p-cap">g</button><i>按一下切换本站开关（默认 g，可改绑）</i></div>
               </div>
               <div class="p-sect">
                 <div class="p-sect-h"><b>规则与数据概况</b></div>
@@ -1114,6 +1117,16 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;bac
               <h3 class="p-title">触发与交互</h3>
               <p class="p-sub">什么时候弹出、怎么操作它，以及和页面点击放大的相处方式。</p>
               <div class="p-sect">
+                <div class="p-sect-h"><b>触发方式</b><i>按一下才放大</i></div>
+                <div class="p-cards">
+                  <div class="p-card" data-name="按一下键才触发放大 / 视频预览" role="switch" tabindex="0" aria-checked="false">
+                    <div class="p-toggle"><div class="p-knob"></div></div>
+                    <div><div class="p-card-t">按一下键才触发放大 / 视频预览</div><div class="p-card-s">开启后默认不触发。按一下触发键给一次「可放大」许可：移到图片上才弹出，用完要再按一下。</div></div>
+                  </div>
+                </div>
+                <div class="p-hotkey"><span>触发键</span><button class="p-cap">h</button><i>点键帽后按新键即可改绑（默认 h）</i></div>
+              </div>
+              <div class="p-sect">
                 <div class="p-sect-h"><b>触发时机</b></div>
                 <div class="p-param"><label>悬停延迟</label>
                   <div class="p-slider-row"><input type="range" class="p-slider" data-param="delay" min="0" max="2000" step="100" value="800"><input type="number" class="p-num" data-param="delay" value="800" min="0" max="2000" step="100"><span class="p-unit">ms</span></div>
@@ -1172,7 +1185,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;bac
             <!-- 键位 -->
             <section class="p-view" data-view="keys">
               <h3 class="p-title">键位</h3>
-              <p class="p-sub">只在预览显示时生效。<b>键位对所有网站通用</b>，改一次到处都是这套键。点键帽再按新键即可改绑（演示中可试）。</p>
+              <p class="p-sub">共 <b>15 项</b>：13 个动作键位（预览显示时生效）+ 2 项全局快捷键（总开关 / 触发键）。<b>键位对所有网站通用</b>，改一次到处都是这套键。点键帽再按新键即可改绑（演示中可试）。</p>
               <div class="p-kbd-grid" id="pvKeys">
                 <div class="p-kbd"><span class="p-kbd-name">关闭预览</span><button class="p-cap" data-km="close">Esc</button></div>
                 <div class="p-kbd"><span class="p-kbd-name">放大</span><button class="p-cap" data-km="zoomIn">+ / =</button></div>
@@ -1187,6 +1200,8 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;bac
                 <div class="p-kbd"><span class="p-kbd-name">下一张</span><button class="p-cap" data-km="nextImage">→</button></div>
                 <div class="p-kbd"><span class="p-kbd-name">全屏</span><button class="p-cap" data-km="fullscreen">f</button></div>
                 <div class="p-kbd"><span class="p-kbd-name">打包下载图集</span><button class="p-cap" data-km="galleryZip">z</button></div>
+                <div class="p-kbd"><span class="p-kbd-name">总开关快捷键</span><button class="p-cap" data-km-global="master">g</button></div>
+                <div class="p-kbd"><span class="p-kbd-name">触发键（按一下才触发）</span><button class="p-cap" data-km-global="hold">h</button></div>
               </div>
               <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
                 <button class="p-btn" id="pvKeysReset">↩ 恢复默认键位</button>
@@ -1303,7 +1318,14 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;bac
     <h2 class="h2 reveal">每个版本，<em>都算数</em></h2>
     <div class="logs reveal" style="margin-top:30px">
       <div class="log">
-        <div class="log-ver">v5.9.1<small>最新版本</small></div>
+        <div class="log-ver">v5.9.2<small>最新版本</small></div>
+        <div>
+          <h4>按一下才触发 · 总开关快捷键 · 一处改处处同步</h4>
+          <p>新增「按一下键才触发」：按一下触发键（默认 h）给一次可放大的许可，移到图上才弹出，用完再按 —— 适合图片密集、容易误触发的页面，也可当作「手动确认」模式；新增悬浮预览总开关快捷键（默认 g），一键启用 / 停用本站放大，等价于点面板总开关或右下角控制球。同一设置在面板多处可改：总开关快捷键并入「启用图片放大」卡片，「触发与交互」区也有一份「触发方式」，两项快捷键同时并进「键位」区（共 15 项）。修复：一次按键只放行一次显示（弹出后移到别的图不再自动弹、图集翻页也要重按，并给出提示）；英文界面下少数提示仍显示中文已修。</p>
+        </div>
+      </div>
+      <div class="log">
+        <div class="log-ver">v5.9.1</div>
         <div>
           <h4>背景图完整预览 · 更会找大图 · 规则包提速</h4>
           <p>CSS 背景大图获得与普通图一致的完整预览（高清升级 / 滚轮 / 键位 / 历史记录 / Esc 关闭）；高清升级扩到 7 族尺寸识别并接入 srcset / data-* 原图，反负升级闸门保证只升不降；规则包改条件请求 + 国内镜像回退，修掉每页重探与跨站覆盖失效；新增英文界面、历史画廊、图集邻图预加载、一键复制诊断信息；修复图片卡片层只能从边缘触发、淘宝图不升级高清、超宽横幅误触发等。</p>
