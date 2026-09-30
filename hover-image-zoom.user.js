@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         悬景 · HoverVista｜鼠标悬停图片自动放大预览
 // @namespace    https://github.com/YDGG123
-// @version      5.9.1
+// @version      5.9.2
 // @description  网页图片鼠标悬停自动放大工具：智能自适应、高清图后台升级、滚轮边界控制、配置备份与恢复
 // @author       益达哥哥
 // @match        *://*/*
@@ -43,7 +43,7 @@ const SCRIPT_VERSION = (function () {
     try {
         if (typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) return GM_info.script.version;
     } catch (e) { }
-    return '5.9.1';
+    return '5.9.2';
 })();
 // 调试模式（URL 带 ?hvdebug=1）：把智能升级器的诊断信息显示在信息浮层里，便于端到端排查
 const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.search); } catch (e) { return false; } })();
@@ -315,6 +315,29 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         '按步进放大约 8%': 'Zooms in about 8% per press',
         '按步进缩小约 7.4%': 'Zooms out about 7.4% per press',
         '回到进入预览时的大小': 'Back to the size when the preview opened',
+        // —— 触发方式（按一下键才触发）——
+        '触发方式': 'Trigger',
+        '悬停触发': 'Hover',
+        '按键触发': 'Key press',
+        '按一下键才触发放大 / 视频预览': 'Trigger zoom / video preview only after pressing a key',
+        '开启后默认不触发。按一下触发键给一次「可放大」信号：移到图片上即弹出，移开鼠标收回；许可用完，下次再看要再按一下。': 'Nothing triggers by default. Press the trigger key once to allow one zoom: hover an image and it opens, move the pointer away and it closes. The allowance is used up, so press again next time.',
+        '触发键': 'Trigger key',
+        '点键帽后按新键即可改绑（支持 Ctrl / Shift / Alt / ⌘ 等修饰键）': 'Click the key cap and press a new key (modifier keys such as Ctrl / Shift / Alt / ⌘ are supported)',
+        '按键触发预览 已开启': 'Key-press trigger: on',
+        '按键触发预览 已关闭': 'Key-press trigger: off',
+        '按下按键…': 'Press a key…',
+        // —— 总开关快捷键 ——
+        '总开关快捷键': 'Master switch shortcut',
+        '一键启用 / 停用本站': 'Enable / disable this site with one key',
+        '快捷键': 'Shortcut',
+        '按一下切换本站开关（默认 g，可改绑；输入框内无效）': 'Press to toggle this site (default g, rebindable; ignored while typing)',
+        '15 项': '15 items',
+        // —— 键位区里并列的「全局快捷键」两项 ——
+        '按一下启用 / 停用本站悬停放大': 'Press to enable / disable hover preview on this site',
+        '触发键（按一下才触发）': 'Trigger key (press-to-trigger)',
+        '开启「触发方式」后，按一下给一次可放大的许可': 'Once “Trigger” is on, each press grants one zoom allowance',
+        '已启用本网站图片放大': 'Hover preview enabled for this site',
+        '已停用本网站图片放大': 'Hover preview disabled for this site',
         '优先保存高清原图': 'Prefer saving the full-resolution original',
         '复制真实来源地址': 'Copy the real source URL',
         '复制图片本体（跨域可能失败）': 'Copy image data (may fail cross-origin)',
@@ -570,7 +593,35 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         ' —— 反负升级闸门：候选比当前图小一律不采，预览不再从清晰退回模糊。': ' — anti-downgrade gate: smaller candidates are always rejected; the preview never degrades from sharp to blurry.',
         ' —— 条件请求 304 免下载 + 国内镜像回退；修掉每页重探与跨站规则覆盖失效。': ' — conditional requests (304 = no download) + China mirror fallback; fixed per-page re-probing and cross-site cache clobbering.',
         ' —— 面板语言切换（跟随浏览器 / 中文 / English），中英随时来回切。': ' — panel language switch (follow browser / 中文 / English), switchable anytime.',
-        '图片卡片层只能从边缘触发、淘宝图不升级高清、超宽横幅误触发、背景图规则延迟计时器空转等一批问题。': 'card overlays only triggering at the edge, Taobao images not upgrading to HD, ultra-wide banner misfires, an idle delay timer on site-rule background images, and more.'
+        '图片卡片层只能从边缘触发、淘宝图不升级高清、超宽横幅误触发、背景图规则延迟计时器空转等一批问题。': 'card overlays only triggering at the edge, Taobao images not upgrading to HD, ultra-wide banner misfires, an idle delay timer on site-rule background images, and more.',
+        // —— 5.9.2 更新说明 / 更新弹窗 ——
+        '按一下键才触发': 'Press-to-trigger',
+        '悬浮预览总开关快捷键': 'Hover preview master shortcut',
+        '同一设置多处可改': 'One setting, several places',
+        '「一次一放」收紧': 'stricter one-shot allowance',
+        '英文提示修复': 'English hint fix',
+        '；另含英文提示修复。': '; plus an English hint fix.',
+        '⌨️ 新增：': '⌨️ New: ',
+        '🎚️ 新增：': '🎚️ New: ',
+        '「按一下键才触发」': '“Press-to-trigger”',
+        '：开启后悬停不再自动放大 —— 按一下触发键（默认 h）给一次「可放大」许可，移到图片上才弹出；许可用完要再按一下。适合图片密集、容易误触发的页面，也可当作「手动确认」模式。': ': hover no longer auto-zooms. Press the trigger key (default h) once to allow a single zoom — move onto an image and it pops. Press again next time. Handy on image-dense pages, or as a “confirm first” mode.',
+        '：默认 g，按一下启用 / 停用本站的悬停放大（等价于点面板总开关或右下角控制球）；可改绑，输入框内不触发。': ': default g. Press to enable / disable hover preview on this site (same as the panel master switch or the floating ball). Rebindable; ignored while typing.',
+        '：总开关快捷键就放在「启用图片放大」卡片里；「触发与交互」区也有一份「触发方式」；两项快捷键同时并进「键位」区（共 15 项）—— 在哪一处改都一样。': ': the master-switch shortcut now sits inside the “Enable zoom” card; the “Trigger” block also appears under “Trigger & interaction”; both shortcuts are listed under “Keys” (15 items) — edit them wherever you like.',
+        '：一次按键只放行一次显示 —— 预览弹出后移到别的图不再自动弹，图集翻页也要重新按一下（会给出提示）。': ': one key press allows exactly one preview. Once it shows, moving to another image no longer auto-pops, and gallery paging needs another press (you get a hint).',
+        '：英文界面下少数提示仍显示中文，已修。': ': a few toasts still showed Chinese in the English UI — fixed.',
+        ' —— 开启后悬停不再自动放大；按一下触发键（默认 h）给一次许可，移到图上即弹出，用完再按。': ' — hover no longer auto-zooms; press the trigger key (default h) to allow one zoom, move onto an image and it pops, press again next time.',
+        ' —— 默认 g，一键启用 / 停用本站放大（等于点面板总开关或控制球），可改绑。': ' — default g; one key to enable / disable zoom on this site (same as the panel master switch or the ball). Rebindable.',
+        ' —— 一次按键只放行一次显示：弹出后移到别的图不再自动弹、图集翻页也要重按（会给提示）；另修英文界面下少数提示显示中文。': ' — one key press allows exactly one preview: after it shows, moving to another image no longer auto-pops and gallery paging needs another press (with a hint); also fixed a few Chinese toasts in the English UI.',
+        // —— 5.9.2 使用说明 tab ——
+        '键盘也能开关：按一下快捷键（默认 ': 'Keyboard toggle: press ',
+        '）即可启用 / 停用本站放大，等价于点控制球。': ' to enable / disable zoom on this site — same as the floating ball.',
+        '按一下才放大（可选）': 'Press-to-trigger (optional)',
+        '在「总览」的启用图片放大卡片里、或「触发与交互」区，开启': 'Turn on ',
+        '：悬停不再自动弹。': ': hover no longer auto-pops.',
+        '用法：按一下触发键（默认 ': 'How it works: press the trigger key (default ',
+        '，可改绑）拿到一次许可 → 移到图片上才弹出；': ', rebindable) to get one allowance → move onto an image and it pops; ',
+        '用完要再按一下': 'press again when done',
+        '。图集翻页也算一次，需要再按。': '. Gallery paging counts as another one — press again.'
     };
     // 带变量的文案用模式匹配（条数、域名、版本号等）
     const I18N_EN_PATTERNS = [
@@ -585,12 +636,21 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         [/^规则包已更新到\s*v(\S+)$/, (m) => 'Rule pack updated to v' + m[1] + ' 🎉'],
         [/^已回滚到\s*v(\S+)$/, (m) => 'Rolled back to v' + m[1]],
         [/^预览尺寸：(.+)$/, (m) => 'Preview size: ' + m[1]],
-        [/^已切到\s*(.+)模式$/, (m) => 'Switched to ' + m[1] + ' mode']
+        [/^已切到\s*(.+)模式$/, (m) => 'Switched to ' + m[1] + ' mode'],
+        [/^触发键已设为「(.+)」$/, (m) => 'Trigger key set to ' + m[1]],
+        [/^总开关快捷键已设为「(.+)」$/, (m) => 'Master switch shortcut set to ' + m[1]],
+        [/^已开启「按一下才触发」：翻页前先按一下 (.+)$/, (m) => '“Press-to-trigger” is on: press ' + m[1] + ' first to page']
     ];
     const I18N_ATTRS = ['title', 'placeholder', 'aria-label', 'alt'];
 
+    // ★ 译文只在**英文界面**生效：中文界面一律返回原文。
+    //   这条判断必须放在 trText 内部（而不是只放在 applyI18nDeep 里）——
+    //   showToast / showSaveToast 是直接调 trText 的，若此函数不判语言，
+    //   「中文界面 + 文案恰好在英文字典里有条目」就会弹出英文提示
+    //   （实测踩过：新增两句提示词条后，中文界面下它们被翻成了英文）。
     function trText(s) {
-        if (!s || !/[\u4e00-\u9fa5]/.test(s)) return s;
+        if (!s || !isEnUI()) return s;
+        if (!/[\u4e00-\u9fa5]/.test(s)) return s;
         const key = s.trim();
         if (!key) return s;
         let out = I18N_EN[key];
@@ -962,6 +1022,14 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         { key: 'galleryZip', name: '打包下载图集', hint: '图集模式下按 Z，把整组图打成 ZIP 下载' }
     ];
 
+    // ★「全局快捷键」：键位区里与动作键位**并列展示**的两项。
+    //   它们是**全局**设置（跨网站共用），与按站点存的 `config.keymap` 不是一套
+    //   → 渲染时用 `data-km-global` 标记区分，改绑走各自的录制路径；计数文案上是「15 项」。
+    const GLOBAL_KEYMAP_DEFS = [
+        { key: 'master', name: '总开关快捷键', hint: '按一下启用 / 停用本站悬停放大', cap: () => displayKeyName(masterHotkey.key) },
+        { key: 'hold', name: '触发键（按一下才触发）', hint: '开启「触发方式」后，按一下给一次可放大的许可', cap: () => displayKeyName(holdTrigger.key) }
+    ];
+
     // 按键显示名（字母保留大小写，大写即代表 Shift 组合）
     const KEYMAP_KEY_LABELS = {
         'Escape': 'Esc', 'ArrowLeft': '←', 'ArrowRight': '→', 'ArrowUp': '↑', 'ArrowDown': '↓',
@@ -996,6 +1064,112 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
     }
     function saveGlobalKeymap(km) {
         try { storageSet(KEYMAP_GLOBAL_KEY, normalizeKeymap(km)); } catch (e) { }
+    }
+
+    // ★「按一下键才触发预览」：全局设置（与键位同属肌肉记忆，不随网站变化）。
+    //   开启后默认不触发。**短按**一下触发键 = 给一次「可放大」的许可（holdArmed），
+    //   许可在**预览真正显示的那一刻当场用掉** ⇒ 一次按键只放行「一次显示」：
+    //     · 预览显示后再移到别的图 / 悬停别的图 → 不弹（想再看要再按一下）；
+    //     · 图集里按 ←/→ 翻页也算「又一次显示」→ 同样要一次许可（被拦时给一条轻提示）；
+    //     · 按了键却没真正显示过（划过太小的图 / 没停稳就移开）→ 许可**不消耗**，继续挂着等下次悬停。
+    //   按键**只有「给许可」这一个方向，没有取消动作**；也不弹提示（翻页被拦那条除外，那是「被拦」的反馈）。
+    //   闸门只拦「新建」：已显示的预览与按键状态无关，一律要移开鼠标才收回。
+    //   默认关闭：开箱不影响任何既有行为。
+    const HOLD_TRIGGER_GLOBAL_KEY = 'image_zoom_hold_trigger';
+    const HOLD_TRIGGER_DEFAULT = Object.freeze({ enabled: false, key: 'h' });
+    function normalizeHoldTrigger(raw) {
+        const o = { enabled: !!(raw && raw.enabled), key: HOLD_TRIGGER_DEFAULT.key };
+        if (raw && typeof raw.key === 'string' && raw.key.length > 0 && raw.key.length <= 24) {
+            // 字母统一小写：按住是持续态、不掺 Shift，录到大小写都归一
+            o.key = (raw.key.length === 1 && /[a-z]/i.test(raw.key)) ? raw.key.toLowerCase() : raw.key;
+        }
+        return o;
+    }
+    let holdTrigger = normalizeHoldTrigger(null);
+    let holdArmed = false;            // 运行期状态：是否持有「可放大」的一次性许可（短按给出）
+    let holdShownSession = false;     // 运行期状态：本次许可是否已经「真正显示过预览」
+                                      //   —— 把「会话结束」收紧到「预览真的收回」：只有显示过的会话才消耗许可，
+                                      //   避免看完一张、淡出中被取消（没有接续出新的预览）时许可残留。
+    function loadHoldTrigger() {
+        try {
+            const raw = storageGet(HOLD_TRIGGER_GLOBAL_KEY, null);
+            if (raw && typeof raw === 'object') holdTrigger = normalizeHoldTrigger(raw);
+        } catch (e) { }
+    }
+    function saveHoldTrigger() {
+        try { storageSet(HOLD_TRIGGER_GLOBAL_KEY, normalizeHoldTrigger(holdTrigger)); } catch (e) { }
+    }
+    // 键位表的字母保留大小写（区分 Shift），但触发键是「单次按压」、不该被 Shift 干扰：
+    // 单字符键一律折叠大小写比较；修饰键（Control/Shift/Alt/Meta）与功能键按原样比较。
+    function holdKeyMatches(e) {
+        if (!e || !holdTrigger || !holdTrigger.key) return false;
+        const k = holdTrigger.key;
+        if (k.length === 1) return String(e.key || '').toLowerCase() === k;
+        return e.key === k;
+    }
+    // ★ 闸门语义：只拦「新建」预览；许可存在期间一切照旧（等价于「一直按着」）。
+    //   已显示的预览与按键状态无关 —— 它由 FSM 心跳的「光标离开源图 → 淡出」收回（= 移开鼠标才收回）。
+    function holdTriggerBlocksNew() {
+        return !!(holdTrigger.enabled && !holdArmed);
+    }
+    // ★ 许可的有效期 = 「这一次预览从弹出到收回」。
+    //   所以**不在触发那一刻消耗**：触发后闸门必须继续开着，否则同一次悬停里的后续裁决会走
+    //   HOVER_NONE，而 HOVER_NONE 对 PENDING 状态是 `actions.cancel()`（FSM 行 4878 区）
+    //   ⇒ 等待中的预览会被自己取消掉，表现为「按了没反应」。
+    //   真正的消耗点 = 「这次看真的结束了」：
+    //     · 图片/背景图：FSM 淡出**完成**落 IDLE（不是在 beginFade 处 —— 图集翻页/切图会在其后接续 startPending，本次看并没结束）
+    //     · 视频：videoPreviewModule 的 hide()
+    //     · 预览被强制拆除（RESET）/ 实例丢失：也算结束
+    function holdConsumeArmed() {
+        holdArmed = false;
+        holdShownSession = false;
+    }
+    // ★「会话结束」的统一判定：只有**本次许可已经显示过预览**（holdShownSession）才消耗许可。
+    //   所有「落 IDLE」的出口都调它 —— 这样「看完一张 → 淡出中被打断（没有接续出新的预览）」
+    //   也会正确消耗，不会把一次许可留着反复用（修复「按一下能连续放大好几次」）。
+    //   注：接续（FADING → startPending → 新预览又显示）不落 IDLE ⇒ 仍算同一次会话（「连续看算一次」）。
+    function holdSettleSession() {
+        if (holdShownSession) holdConsumeArmed();
+    }
+    // ★ 图集翻页被「按一下才触发」拦下时的轻提示：翻页 = 又一次「新的显示」，同样要一次许可。
+    //   节流 1.5s（连按 ←/→ 不至于刷屏）；之所以给提示，是为了不让「按了没反应」被误当成坏了。
+    let holdBlockedToastAt = 0;
+    function notifyHoldBlockedGallery() {
+        const now = Date.now();
+        if (now - holdBlockedToastAt < 1500) return;
+        holdBlockedToastAt = now;
+        try { showSaveToast('已开启「按一下才触发」：翻页前先按一下 ' + displayKeyName(holdTrigger.key)); } catch (e) { }
+    }
+
+    // ★「悬浮预览总开关」快捷键：一键启用 / 停用本站（等价点面板总开关，isEnabled / image_zoom_enabled_<域名>）。
+    //   与 h 的「许可」无关：它不是许可，而是直接切总开关状态。
+    //   装上即生效（常驻监听、默认 g、可改绑），输入框内不触发；切换时不主动弹预览，交给下一次悬停。
+    const MASTER_HOTKEY_GLOBAL_KEY = 'image_zoom_master_hotkey';
+    const MASTER_HOTKEY_DEFAULT = Object.freeze({ key: 'g' });
+    function normalizeMasterHotkey(raw) {
+        const o = { key: MASTER_HOTKEY_DEFAULT.key };
+        if (raw && typeof raw.key === 'string' && raw.key.length > 0 && raw.key.length <= 24) {
+            // 与触发键同一套归一：单字符字母折叠大小写（单次按压不掺 Shift）
+            o.key = (raw.key.length === 1 && /[a-z]/i.test(raw.key)) ? raw.key.toLowerCase() : raw.key;
+        }
+        return o;
+    }
+    let masterHotkey = normalizeMasterHotkey(null);
+    function loadMasterHotkey() {
+        try {
+            const raw = storageGet(MASTER_HOTKEY_GLOBAL_KEY, null);
+            if (raw && typeof raw === 'object') masterHotkey = normalizeMasterHotkey(raw);
+        } catch (e) { }
+    }
+    function saveMasterHotkey() {
+        try { storageSet(MASTER_HOTKEY_GLOBAL_KEY, normalizeMasterHotkey(masterHotkey)); } catch (e) { }
+    }
+    // 与 holdKeyMatches 同规则：单字符折叠大小写；修饰键 / 功能键原样比较。
+    function masterHotkeyMatches(e) {
+        if (!e || !masterHotkey || !masterHotkey.key) return false;
+        const k = masterHotkey.key;
+        if (k.length === 1) return String(e.key || '').toLowerCase() === k;
+        return e.key === k;
     }
 
     // 用户自定义「图片地址变换规则」：{ id, label, phase:'hd'|'clean', pattern, flags, replace, enabled, scope, domain }
@@ -1197,6 +1371,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         if (ok === 0) { showToast('导入失败：没有可识别的配置项'); return null; }
         // 让当前会话立刻用上新配置，而不是等下次刷新
         loadConfig();
+        loadHoldTrigger();   // ★ 备份里的「按住键才触发」设置也立刻生效
+        loadMasterHotkey();  // ★ 备份里的「总开关快捷键」也立刻生效
         loadState();
         try { bilibiliVolumeModule.setEnabled(storageGet('bilibili_volume_enabled', true)); } catch (e) { }
         return { ok, skipped };
@@ -2616,6 +2792,14 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             if (document.hidden) return;
             if (!pointerInWindow) return;   // ★ 光标不在浏览器内，不做背景图识别
             if (!isEnabled || isHomepageZoomDisabled()) return;
+            // ★「按住键才触发」闸门（只拦新建）：未按住触发键时不排「显示」计时器。
+            //   这里**不**收预览：已显示的背景预览在上面 `hasActiveZoom()` 已提前 return 保留，
+            //   它由 FSM 心跳按「光标离开源元素 → 淡出」收回（= 移开鼠标才收回，松手不收回）。
+            //   放开后第一个轮询周期里 `lastBgCard` 会被归零 ⇒ 能重新走一遍显示流程。
+            if (holdTriggerBlocksNew()) {
+                if (bgDelayTimer) { clearTimeout(bgDelayTimer); bgDelayTimer = null; }
+                return;
+            }
             // 背景预览一旦不在显示（无论是被 Esc / 心跳 / 光标离开收掉），就允许重新进入同一张卡片时再次显示。
             // 若只在「光标离开卡片」时重置 lastBgCard，则「离开又立刻回来」会因卡片不变而不再弹出。
             // ★ 但「延迟显示计时器在途」时必须例外：本函数按 pollInterval 轮询，若每 tick 都把 lastBgCard
@@ -2695,6 +2879,10 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         function show(loadUrls, zOffset, srcEl) {
             const target = loadUrls && loadUrls.cleaned;
             if (!target || !srcEl) return;
+            // ★「按住键才触发」闸门（只拦新建）：背景图的两条触发路径（站点规则轮询 / 自动识别）
+            //   都汇聚到本函数，在这里拦一道即可与 resolveCursorTarget 的闸门同语义 —— 未按住触发键就不**新开**。
+            //   已显示的背景预览不在这里收（由 FSM 心跳按「移开即收」处理）。
+            if (holdTriggerBlocksNew()) return;
             // 普通图片预览优先级更高：背景图是兜底路径，不抢用户正在看的那张图
             if (zoomFSM.hasActiveZoom() && !zoomFSM.isBgActive()) return;
             if (target === lastUrl && zoomFSM.isBgActive()) return;   // 同一张图已在显示
@@ -2705,6 +2893,11 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         return { show, hide };
     })();
 
+    // ★ 按住触发键时的「唤醒」钩子：由 setupAutoBackgroundHover 注册。
+    //   光标停着不动时不会再有 mouseover，背景图自动识别因此不会自己重跑；
+    //   按住触发键后需要手动复算一次，否则「先停在背景图上、再按键」不会弹。
+    let pokeAutoBgHover = null;
+
     function setupAutoBackgroundHover() {
         let bgTimer = null, pendingUrl = null;
         const cancelBg = () => {
@@ -2712,20 +2905,24 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             pendingUrl = null;
         };
 
-        document.addEventListener('mouseover', throttleLeading((e) => {
+        // 背景图自动识别：入参显式化为 (x, y, target) —— 这样「按住触发键」时可以在
+        // 不产生 mouseover 的情况下复用同一段逻辑复算一次。
+        function autoBgAt(x, y, target) {
             if (!isEnabled || isHomepageZoomDisabled()) { cancelBg(); bgZoomLayer.hide(); return; }
+            // ★「按住键才触发」闸门（只拦新建）：未按住触发键时不做识别、也不排显示计时器；
+            //   **不**收已显示的预览 —— 它由 FSM 心跳按「光标离开源元素 → 淡出」收回。
+            if (holdTriggerBlocksNew()) { cancelBg(); return; }
             if (config.avoidClickConflict && isImageInLightboxMode()) { cancelBg(); bgZoomLayer.hide(); return; }
-            if (e.target.closest && e.target.closest('#zoomDockZone, #izModalOverlay, #izIntroOverlay, #izUpdateNotice, #izHelpModal, .image-zoom-container')) return;
-            if (isHoverBlocker(e.target) && !canPierceBlocker(e.target)) { cancelBg(); bgZoomLayer.hide(); return; }
+            if (target.closest && target.closest('#zoomDockZone, #izModalOverlay, #izIntroOverlay, #izUpdateNotice, #izHelpModal, .image-zoom-container')) return;
+            if (isHoverBlocker(target) && !canPierceBlocker(target)) { cancelBg(); bgZoomLayer.hide(); return; }
             if (zoomFSM.hasActiveZoom()) { cancelBg(); return; }
 
-            const x = e.clientX, y = e.clientY;
             // 光标下已有合格 img → 不做背景图识别
             if (pickVisibleImgUnderPoint(x, y)) { cancelBg(); return; }
 
-            if (!(e.target instanceof Element)) { cancelBg(); return; }
+            if (!(target instanceof Element)) { cancelBg(); return; }
 
-            let node = e.target, bgEl = null, bgFromSibling = false;
+            let node = target, bgEl = null, bgFromSibling = false;
             while (node && node !== document.body) {
                 try {
                     const bg = getComputedStyle(node).backgroundImage;
@@ -2798,7 +2995,18 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 }
                 bgZoomLayer.show({ cleaned: url, raw: url }, 2, bgEl);
             }, config.delay);
+        }
+
+        document.addEventListener('mouseover', throttleLeading((e) => {
+            autoBgAt(e.clientX, e.clientY, e.target);
         }, 100), true);
+
+        // ★ 按住触发键时唤醒：复用同一条识别逻辑（光标没动 ⇒ 没有 mouseover ⇒ 必须手动复算）
+        pokeAutoBgHover = function () {
+            if (lastMouse.x < 0) return;
+            const el = document.elementFromPoint(lastMouse.x, lastMouse.y);
+            if (el) autoBgAt(lastMouse.x, lastMouse.y, el);
+        };
 
         document.addEventListener('mouseout', (e) => {
             if (!e.relatedTarget) { cancelBg(); bgZoomLayer.hide(); }
@@ -2997,6 +3205,9 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         // 点图选图模式：不触发悬停预览（预览会挡住要点的那张图）
         if (urlPickMode) { zoomFSM.dispatch('HOVER_NONE', { x, y, force: true }); return; }
         if (!isEnabled || isHomepageZoomDisabled()) { zoomFSM.dispatch('DISMISS'); return; }
+        // ★「按住键才触发」闸门只拦「新建」，不在这里收已有预览：
+        //   已显示的预览由 FSM 心跳的「光标离开原图 → 淡出」负责收回（即「移开鼠标才收回」）。
+        //   因此本函数下面的 HOVER_NONE 分支全部保留原样，闸门只落在「发起 HOVER / 排显示计时器」的点上。
         // 网页自身进入灯箱后：旧的 hover 放大立即收起，且灯箱内部图片不再触发新的放大。
         if (isImageInLightboxMode(t)) {
             zoomFSM.dispatch('HOVER_NONE', { x, y, force: true });
@@ -3103,7 +3314,10 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
         //   在这里统一收口，路径 A~C 全覆盖；同时避免被标记成已处理图。
         if (img && isStripLikeImg(img)) img = null;
 
-        if (img) {
+        // ★「按住键才触发」闸门（只拦新建）：未按住触发键时，本张图不发起 HOVER → 落到下面的 HOVER_NONE。
+        //   HOVER_NONE 自带「光标仍在当前预览的源图上就保持」的保活判断 ⇒ 已显示的预览既不会被误收，
+        //   也无需额外 force-hide；光标一离开源图，它自然会淡出（正是「移开鼠标才收回」）。
+        if (img && !holdTriggerBlocksNew()) {
             if (!img.classList.contains('image-zoom-processed')) processImage(img);
             if (img.classList.contains('image-zoom-processed')) {
                 zoomFSM.dispatch('HOVER', { img, x, y });
@@ -4293,12 +4507,13 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 generation++;                       // ★ 作废在途异步任务
                 if (currentAbort) { currentAbort.abort(); currentAbort = null; }
                 state = S.IDLE;
+                holdSettleSession();                // ★ 等待被放弃：若本次许可已显示过预览，视为「这次看结束」
             },
             show(payload) {
                 // payload 两种形态：① 裸元素（<img>，既有调用方）② { el, srcOpts }（背景图等「无 <img> 可读地址」的来源）
                 const el = (payload && payload.el) || payload;
                 const srcOpts = (payload && payload.srcOpts) || null;
-                if (!el) { hideHoverWaitIndicator(); state = S.IDLE; wheelManager.sync(); return; }
+                if (!el) { hideHoverWaitIndicator(); state = S.IDLE; holdSettleSession(); wheelManager.sync(); return; }
                 // ★ 等待动画保持显示，直到该实例真正 LOADED/ACTIVE。
                 // 新目标：作废上一代在途任务并开启新代（ADR-002）
                 if (currentAbort) currentAbort.abort();
@@ -4308,6 +4523,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 if (!inst) {
                     hideHoverWaitIndicator();
                     state = S.IDLE;
+                    holdSettleSession();
                     wheelManager.sync();
                     return;
                 }
@@ -4335,6 +4551,10 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                     showToast(config.wheelZoom ? '滚动滚轮缩放图片' : '图片超出屏幕，滚动滚轮查看其余部分', 800);
                 }
                 state = S.ACTIVE;
+                // ★ 预览真正显示 = 这次许可**当场用掉**（闸门重新关上）：一次按键只放行「一次显示」，
+                //   此后移到别的图不再弹（想再看要再按一下）。holdShownSession 只用于标记「这个会话开始过」，
+                //   供会话结束时的 holdSettleSession() 收尾（幂等）。
+                if (holdArmed) { holdShownSession = true; holdArmed = false; }
                 // ★ 邻图预加载：图集里把前后张的高清地址预热进缓存，翻页零等待（实例已换/已收起则自动放弃）
                 scheduleGalleryPrefetch(inst, function () { return instance === inst && state === S.ACTIVE; });
                 // ★ 通知其他 frame：本 frame 已有 ACTIVE 预览
@@ -4365,6 +4585,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 fadeOutContainer(inst.container);
                 instance = null;
                 state = S.IDLE;
+                holdSettleSession();
                 wheelManager.sync();
                 // 源图直连、高清候选、GM 兜底抓取全部失败：给出明确提示，避免用户「悬停后空白框一闪 / 无反应」却不知为何。
                 try { showToast('图片加载失败，已跳过'); } catch (e) { }
@@ -4379,7 +4600,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 }
                 state = S.FADING;
                 arbiterStopRenew();                 // ★ 预览开始淡出即释放仲裁
-                setTimeout(() => { if (state === S.FADING) state = S.IDLE; }, FADE_MS);
+                // ★ 许可在这里结束：淡出**完成**且没有被 startPending 接续（图集翻页 / 切图会接续 → 本次看还没结束）
+                setTimeout(() => { if (state === S.FADING) { state = S.IDLE; holdSettleSession(); } }, FADE_MS);
                 wheelManager.sync();
             },
             // 最大倍率：按原图分辨率动态放宽，但不生成失控的超大 DOM（拿不到原图尺寸时用保守上限）
@@ -4717,7 +4939,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 }
 
                 if (state === S.SHOWING || state === S.ACTIVE) {
-                    if (!instance) { state = S.IDLE; return; }
+                    if (!instance) { state = S.IDLE; holdSettleSession(); return; }
                     // 只要在原图区域内就保持；离开原图（即使在放大图上方）→ 淡出
                     const sRect = instance.sourceImg.isConnected ? instance.sourceImg.getBoundingClientRect() : null;
                     if (!galleryHoldAt && !inRect(x, y, sRect)) actions.beginFade();
@@ -4864,12 +5086,24 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                         return false;
                     }
                     // 图集翻页 / 全屏
+                    // ★「按一下才触发」下，翻页 = 又一次「新的显示」⇒ 与悬停新建走**同一道闸门**：
+                    //   没有许可就不翻（并给一条轻提示，避免「按了没反应」被当成坏了）；翻成功即用掉这次许可。
                     case 'GALLERY_PREV': {
-                        if ((state === S.ACTIVE || state === S.SHOWING) && instance && isEnabled) { actions.switchGallery(-1); return true; }
+                        if ((state === S.ACTIVE || state === S.SHOWING) && instance && isEnabled) {
+                            if (holdTriggerBlocksNew()) { notifyHoldBlockedGallery(); return true; }
+                            holdConsumeArmed();
+                            actions.switchGallery(-1);
+                            return true;
+                        }
                         return false;
                     }
                     case 'GALLERY_NEXT': {
-                        if ((state === S.ACTIVE || state === S.SHOWING) && instance && isEnabled) { actions.switchGallery(1); return true; }
+                        if ((state === S.ACTIVE || state === S.SHOWING) && instance && isEnabled) {
+                            if (holdTriggerBlocksNew()) { notifyHoldBlockedGallery(); return true; }
+                            holdConsumeArmed();
+                            actions.switchGallery(1);
+                            return true;
+                        }
                         return false;
                     }
                     case 'GALLERY_ZIP': {
@@ -4928,6 +5162,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                             c.remove();
                         });
                         state = S.IDLE;
+                        holdConsumeArmed();                 // ★ 预览被强制拆除 → 这次看结束
                         wheelManager.sync();
                         break;
                     }
@@ -5019,6 +5254,11 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             if (e.defaultPrevented) return;
             if (e.ctrlKey || e.metaKey || e.altKey) return;
             if (isTypingTarget(e.target) || isTypingTarget(document.activeElement)) return;
+            // ★「按住键才触发」的触发键是闸门、不是动作：按住它时不参与动作快捷键解析
+            //   （否则把触发键设成字母后，长按会自动重复触发同名动作）
+            if (holdTrigger.enabled && holdKeyMatches(e)) return;
+            // ★ 总开关快捷键同样是「开关」而不是动作：不让它参与动作键解析
+            if (masterHotkeyMatches(e)) return;
             const imageActive = zoomFSM.hasActiveZoom();
             const videoActive = videoPreviewModule.isActive();
             if (!imageActive && !videoActive) return;      // 预览（图片/视频）没显示就不掺和
@@ -5242,6 +5482,7 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             clearTimeout(hoverTimer); hoverTimer = null;
             clearTimeout(leaveTimer); leaveTimer = null;
             if (!cur) return false;
+            holdConsumeArmed();               // ★「按一下才触发」的许可到此结束（视频预览关闭）
             destroy();
             // 单次避让：刚关掉视频预览后，若用户设「屏幕居中」，把下一次图片预览临时改成「原图周围」（避免挡住站点自带视频预览）。
             if (config.previewPlacement === 'center') { placeOnce = 'around'; placeOnceAt = Date.now(); }
@@ -5326,6 +5567,8 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             cur.container = c;
             cur.borrowedFrom = borrowedFrom;
             cur.content = content;
+            // ★ 视频预览真正显示 = 这次许可当场用掉（与图片/背景图同一条规矩：一次按键只放行一次显示）
+            if (holdArmed) { holdShownSession = true; holdArmed = false; }
             if (borrowedFrom) startWatchdog();
             requestAnimationFrame(function () { c.style.opacity = '1'; });
         }
@@ -5354,6 +5597,14 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
             const key = cardKey(card);
             if (cur && cur.container && cur.container.isConnected && cur.key === key) return true;   // 已经在播这张
             if (cur && cur.key === key) return true;
+            // ★「按住键才触发」闸门（只拦新建）：未按住触发键时不新开、也不切换视频预览。
+            //   「换到别的卡片」按「离开原卡片」处理（宽限后收起），与「移开鼠标才收回」一致；
+            //   若光标仍在原来那张卡片上，上面两行已 return true ⇒ 预览保留（松手不收回）。
+            if (holdTriggerBlocksNew()) {
+                clearTimeout(hoverTimer); hoverTimer = null;
+                if (cur) { clearTimeout(leaveTimer); leaveTimer = setTimeout(function () { hide(); }, LEAVE_GRACE); }
+                return true;
+            }
             clearTimeout(hoverTimer);
             hoverTimer = setTimeout(function () {
                 if (!config.videoHoverPreview) return;
@@ -5445,6 +5696,50 @@ const HV_DEBUG = (function () { try { return /[?&]hvdebug=1/.test(location.searc
                 }
             }
         });
+    }
+
+    // ★「按一下键才触发预览」：**短按**触发键 = 切换闸门（进入 / 退出预览模式）。
+    //   是「切换」而不是「按住」：一次物理按压切换一次状态，松手与切走窗口都不改变它。
+    //   监听常驻（与开关状态无关），内部按 holdTrigger.enabled 判定，避免开关切换还要重挂监听。
+    function setupHoldTrigger() {
+        function isTyping(el) {
+            if (!el) return false;
+            const tag = (el.tagName || '').toLowerCase();
+            return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable === true;
+        }
+        window.addEventListener('keydown', (e) => {
+            if (!holdTrigger.enabled || !holdKeyMatches(e)) return;
+            if (masterHotkeyMatches(e)) return;                                  // 与总开关快捷键撞键时让总开关优先
+            if (isTyping(e.target) || isTyping(document.activeElement)) return;   // 输入框里按键不算触发
+            if (e.repeat) return;                                                // 忽略键盘自动重复：一次物理按压只给一次许可
+            holdArmed = true;                                                    // ★ 只「给许可」；没有取消方向，也不弹提示
+            // 光标已在图上时「按键即刻生效」：立刻在当前光标处复裁一次，省去再动一下鼠标。
+            // （若此刻光标不在图上，许可会挂着，等移到图上时由悬停流用掉。）
+            if (pointerInWindow && lastMouse.x >= 0) {
+                resolveCursorTarget(lastMouse.x, lastMouse.y, document.elementFromPoint(lastMouse.x, lastMouse.y));
+                // ★ 背景图自动识别是 mouseover 驱动的：光标不动就不会重跑 → 这里显式唤醒一次
+                try { if (typeof pokeAutoBgHover === 'function') pokeAutoBgHover(); } catch (err) { }
+            }
+        }, { capture: true });
+        // 注：不再监听 keyup / blur —— 状态由「按键切换」得出，松手与切走窗口都不该改变它。
+    }
+
+    // ★「悬浮预览总开关」快捷键：按一下 = 切换本站总开关（等价点面板总开关 / 右下角控制球）。
+    //   不是许可、不碰 h 的许可状态；监听常驻 —— 总开关关着时更要能按它开回来。
+    //   切换后不主动弹预览（交给下一次悬停）。
+    function setupMasterHotkey() {
+        function isTyping(el) {
+            if (!el) return false;
+            const tag = (el.tagName || '').toLowerCase();
+            return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable === true;
+        }
+        window.addEventListener('keydown', (e) => {
+            if (!masterHotkeyMatches(e)) return;
+            if (isTyping(e.target) || isTyping(document.activeElement)) return;   // 输入框里按键不算触发
+            if (e.repeat) return;                                                // 忽略键盘自动重复：一次物理按压切一次
+            toggleEnabled();            // ★ 复用总开关的正式链路：持久化 + 控制球状态 + 面板同步 + 关闭时 RESET
+            showSaveToast(isEnabled ? '已启用本网站图片放大' : '已停用本网站图片放大');
+        }, { capture: true });
     }
 
     function setupHeartbeat() {
@@ -6173,6 +6468,9 @@ const bilibiliVolumeModule = (function() {
                 .iz-toggle.active{background:var(--iz-grad)!important}
                 .iz-toggle .iz-knob{position:absolute;top:3px;left:3px;width:22px;height:22px;background:#fff;border-radius:50%;transition:all .3s cubic-bezier(.34,1.56,.64,1);box-shadow:0 2px 6px rgba(0,0,0,.18)}
                 .iz-toggle.active .iz-knob{left:21px}
+                .iz-master-hotkey{grid-column:1 / -1;grid-row:3;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px dashed var(--iz-bd-1)}
+                .iz-master-hotkey .iz-mh-label{font-size:12px;color:var(--iz-tx)}
+                .iz-master-hotkey .iz-mh-note{font-size:11px;color:var(--iz-tx-muted)}
                 .iz-exclusion-box{background-color:var(--iz-bg-4);border-radius:var(--iz-r-md);padding:10px 12px;border:1px solid var(--iz-bd-1)}
                 .iz-exclusion-box .iz-status-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
                 .iz-exclusion-box .iz-status-text{font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;color:var(--iz-tx-2)}
@@ -6822,7 +7120,12 @@ const bilibiliVolumeModule = (function() {
                             <div class="izn-hgroup"><h4>基本玩法</h4><ul>
                                 <li>鼠标<b>悬停任意图片</b>，停留片刻即放大预览；<b>滚轮</b>缩放（或上下平移），<b>拖拽</b>查看细节。</li>
                                 <li>页面右下角的<b>控制球</b>随时开/关本站放大，也能打开设置面板。</li>
+                                <li>键盘也能开关：按一下快捷键（默认 <kbd>g</kbd>）即可启用 / 停用本站放大，等价于点控制球。</li>
                                 <li>面板里的设置<b>只对当前网站生效</b>——每个网站一套，互不干扰。</li>
+                            </ul></div>
+                            <div class="izn-hgroup"><h4>按一下才放大（可选）</h4><ul>
+                                <li>在「总览」的启用图片放大卡片里、或「触发与交互」区，开启<b>按一下键才触发</b>：悬停不再自动弹。</li>
+                                <li>用法：按一下触发键（默认 <kbd>h</kbd>，可改绑）拿到一次许可 → 移到图片上才弹出；<b>用完要再按一下</b>。图集翻页也算一次，需要再按。</li>
                             </ul></div>
                             <div class="izn-hgroup"><h4>动作快捷键（预览显示时）</h4><ul>
                                 <li><kbd>s</kbd> 保存高清图 · <kbd>c</kbd> 复制图片地址 · <kbd>Shift</kbd>+<kbd>C</kbd> 复制图片本体</li>
@@ -6840,29 +7143,15 @@ const bilibiliVolumeModule = (function() {
                         </div>
                         <div class="izn-htab" data-tab="changelog">
                             <div class="izn-hverline"><span class="v">${UPDATE_VERSION}</span><span class="d">${/test/i.test(UPDATE_VERSION) ? '测试版' : '正式版'}</span><span class="iz-badge ok" style="margin-left:auto">🔒 规则包已验签</span></div>
-                            <p class="izn-hnew">本次更新：<b>背景图接入预览</b> · <b>更会找大图</b>（尺寸 7 族 + srcset / data-* 原图）· <b>规则包秒开</b> · <b>英文界面</b> · <b>历史画廊</b>；另含一批稳定性修复。</p>
+                            <p class="izn-hnew">本次更新：<b>按一下键才触发</b> · <b>悬浮预览总开关快捷键</b> · <b>同一设置多处可改</b> · <b>「一次一放」收紧</b>；另含英文提示修复。</p>
                             <div class="izn-hgroup"><h4>新功能</h4><ul>
-                                <li><b>背景图也能放大</b>：CSS 背景图预览一次继承全部能力——高清升级、滚轮缩放、键位、图片信息、历史记录、Esc 关闭。</li>
-                                <li><b>更会找大图</b>：尺寸识别扩到 7 族（?w= / _Nw. / _NxN. / 七牛 / OSS 等），并接入网页自己声明的原图（srcset、picture、13 个 data-* 属性）。</li>
-                                <li><b>不换成更小的图</b>：反负升级闸门——候选比当前图小一律不采，宁可没有候选也不让预览变模糊。</li>
-                                <li><b>规则包更快更省</b>：条件请求（服务端说没变就免下载）+ 国内镜像回退。</li>
-                                <li><b>英文界面</b>：面板语言切换（跟随浏览器 / 中文 / English），中英随时来回切。</li>
-                                <li><b>历史记录画廊</b>：历史区可在「列表 / 缩略图墙」间切换，一眼找回看过的图。</li>
-                                <li><b>图集邻图预加载</b>：翻页前静默预热相邻高清图（省流量 / 2G 自动跳过，可关闭）。</li>
-                            </ul></div>
-                            <div class="izn-hgroup"><h4>规则与安全</h4><ul>
-                                <li><b>三层换图规则</b>：我的规则 → 云端规则包 → 内置兜底，命中即停；「点图选图」自动生成规则，遮罩层 / 背景图也能放大。</li>
-                                <li><b>规则包签名校验</b>：云端规则带签名与逐站哈希校验，被篡改即拒用。</li>
-                                <li><b>镜像回退，信任链不变</b>：镜像只换「字节从哪来」，签名与逐域哈希校验照旧执行。</li>
-                                <li><b>规则包缓存修复</b>：修掉「每次开页都联网重探」与「多站共用缓存互相顶掉」。</li>
+                                <li><b>按一下键才触发</b>：开启后悬停不再自动放大 —— 按一下触发键（默认 h）给一次「可放大」许可，移到图片上才弹出；许可用完要再按一下。适合图片密集、容易误触发的页面，也可当作「手动确认」模式。</li>
+                                <li><b>悬浮预览总开关快捷键</b>：默认 g，按一下启用 / 停用本站的悬停放大（等价于点面板总开关或右下角控制球）；可改绑，输入框内不触发。</li>
+                                <li><b>同一设置多处可改</b>：总开关快捷键就放在「启用图片放大」卡片里；「触发与交互」区也有一份「触发方式」；两项快捷键同时并进「键位」区（共 15 项）—— 在哪一处改都一样。</li>
                             </ul></div>
                             <div class="izn-hgroup"><h4>修复与优化</h4><ul>
-                                <li><b>图片卡片覆盖层只能从边缘触发</b>：卡片层被误判成菜单浮层已修，整张图都能正常悬停放大。</li>
-                                <li><b>淘宝 / 天猫图片不升级高清</b>：首页 460×460 → 1280×1280，搜索页 580×580 → 800×800。</li>
-                                <li><b>超宽横幅误触发</b>：细长条幅（如 7680×120）不再弹预览。</li>
-                                <li>站点规则背景图延迟计时器空转已修；淘宝 / 天猫已失效的内置规则表退役。</li>
-                                <li>低分辨率图高倍放大不再出现<b>马赛克</b>（重采样按倍率分级）。</li>
-                                <li>面板文字与选中态<b>不再被站点样式染色</b>；404 / 死链不再出现空白框。</li>
+                                <li><b>「一次一放」收紧</b>：一次按键只放行一次显示 —— 预览弹出后移到别的图不再自动弹，图集翻页也要重新按一下（会给出提示）。</li>
+                                <li><b>英文提示修复</b>：英文界面下少数提示仍显示中文，已修。</li>
                             </ul></div>
                         </div>
                     </div>
@@ -6910,8 +7199,9 @@ const bilibiliVolumeModule = (function() {
                     </div>
                 </div>
                 <div class="iz-update-body">
-                    <div class="iz-update-item">🇬🇧 新增：<b>英文界面</b> —— 面板语言切换（跟随浏览器 / 中文 / English），中英随时来回切。</div>
-                    <div class="iz-update-item">🐛 修复：图片卡片层只能从边缘触发、淘宝图不升级高清、超宽横幅误触发、背景图规则延迟计时器空转等一批问题。</div>
+                    <div class="iz-update-item">⌨️ 新增：<b>「按一下键才触发」</b> —— 开启后悬停不再自动放大；按一下触发键（默认 h）给一次许可，移到图上即弹出，用完再按。</div>
+                    <div class="iz-update-item">🎚️ 新增：<b>悬浮预览总开关快捷键</b> —— 默认 g，一键启用 / 停用本站放大（等于点面板总开关或控制球），可改绑。</div>
+                    <div class="iz-update-item">🐛 修复：<b>「一次一放」收紧</b> —— 一次按键只放行一次显示：弹出后移到别的图不再自动弹、图集翻页也要重按（会给提示）；另修英文界面下少数提示显示中文。</div>
                 </div>
                 <div class="iz-update-footer">
                     <button class="iz-btn-primary-solid iz-update-ok" id="izUpdateOk">知道了</button>
@@ -7318,7 +7608,7 @@ const bilibiliVolumeModule = (function() {
                         <div class="izn-nav-group">行为</div>
                         <button class="izn-nav-item" data-view="trigger"><span>⌁</span>触发与交互</button>
                         <button class="izn-nav-item" data-view="fixed"><span>⤢</span>固定模式参数<span class="izn-tag">5</span></button>
-                        <button class="izn-nav-item" data-view="keys"><span>⌨</span>键位<span class="izn-tag">13</span></button>
+                        <button class="izn-nav-item" data-view="keys"><span>⌨</span>键位<span class="izn-tag">15</span></button>
                         <div class="izn-nav-group">规则与数据</div>
                         <button class="izn-nav-item" data-view="rules"><span>⇄</span>图片规则</button>
                         <button class="izn-nav-item" data-view="sitefit"><span>◎</span>站点适配</button>
@@ -7338,6 +7628,11 @@ const bilibiliVolumeModule = (function() {
                                     <div class="iz-switch-card" id="iznMasterWrap" role="switch" tabindex="0" aria-checked="true">
                                         <div class="iz-toggle" id="iznMasterToggle"><div class="iz-knob"></div></div>
                                         <div class="iz-switch-text"><div class="iz-switch-title">启用图片放大</div><div class="iz-switch-sub">关闭后本网站的悬停放大与视频预览全部停用（其它网站不受影响）。等效于点击页面上的控制球。</div></div>
+                                        <div class="iz-master-hotkey">
+                                            <span class="iz-mh-label">快捷键</span>
+                                            <button type="button" class="iz-key-cap" id="izMasterKeyBtn">${escapeHtml(displayKeyName(masterHotkey.key))}</button>
+                                            <span class="iz-mh-note">按一下切换本站开关（默认 g，可改绑；输入框内无效）</span>
+                                        </div>
                                     </div>
                                     <div class="iz-exclusion-box" style="padding:9px 10px;">
                                         <div class="iz-status-row">
@@ -7346,6 +7641,18 @@ const bilibiliVolumeModule = (function() {
                                         </div>
                                         <div class="iz-exclusion-note">站首页通常图片密集、容易误触发；开启后只关首页，内容子页面照常生效。</div>
                                     </div>
+                                </div>
+                            </div>
+                            <div class="izn-sect">
+                                <div class="izn-sect-h"><b>触发方式</b><span class="izn-hint" id="izHoldCount">悬停触发</span></div>
+                                <div class="iz-switch-card" id="izHoldWrap" role="switch" tabindex="0" aria-checked="${holdTrigger.enabled ? 'true' : 'false'}">
+                                    <div class="iz-toggle ${holdTrigger.enabled ? 'active' : ''}" id="izHoldToggle"><div class="iz-knob"></div></div>
+                                    <div class="iz-switch-text"><div class="iz-switch-title">按一下键才触发放大 / 视频预览</div><div class="iz-switch-sub">开启后默认不触发。按一下触发键给一次「可放大」信号：移到图片上即弹出，移开鼠标收回；许可用完，下次再看要再按一下。</div></div>
+                                </div>
+                                <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                                    <span style="font-size:12px;color:var(--iz-tx);">触发键</span>
+                                    <button type="button" class="iz-key-cap" id="izHoldKeyBtn">${escapeHtml(displayKeyName(holdTrigger.key))}</button>
+                                    <span style="font-size:11px;color:var(--iz-tx-muted);">点键帽后按新键即可改绑（支持 Ctrl / Shift / Alt / ⌘ 等修饰键）</span>
                                 </div>
                             </div>
                             <div class="izn-sect">
@@ -7470,6 +7777,18 @@ const bilibiliVolumeModule = (function() {
                                 <p class="izn-vsub">什么时候弹出、怎么操作它，以及和页面点击放大的相处方式。</p>
                             </div>
                             <div class="izn-sect">
+                                <div class="izn-sect-h"><b>触发方式</b><span class="izn-hint" id="izHold2Count">悬停触发</span></div>
+                                <div class="iz-switch-card" id="izHold2Wrap" role="switch" tabindex="0" aria-checked="${holdTrigger.enabled ? 'true' : 'false'}">
+                                    <div class="iz-toggle ${holdTrigger.enabled ? 'active' : ''}" id="izHold2Toggle"><div class="iz-knob"></div></div>
+                                    <div class="iz-switch-text"><div class="iz-switch-title">按一下键才触发放大 / 视频预览</div><div class="iz-switch-sub">开启后默认不触发。按一下触发键给一次「可放大」信号：移到图片上即弹出，移开鼠标收回；许可用完，下次再看要再按一下。</div></div>
+                                </div>
+                                <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                                    <span style="font-size:12px;color:var(--iz-tx);">触发键</span>
+                                    <button type="button" class="iz-key-cap" id="izHold2KeyBtn">${escapeHtml(displayKeyName(holdTrigger.key))}</button>
+                                    <span style="font-size:11px;color:var(--iz-tx-muted);">点键帽后按新键即可改绑（支持 Ctrl / Shift / Alt / ⌘ 等修饰键）</span>
+                                </div>
+                            </div>
+                            <div class="izn-sect">
                                 <div class="izn-sect-h"><b>触发时机</b></div>
                                 <div class="iz-param-grid" style="margin-bottom:10px;grid-template-columns:1fr">${renderParams(TRIGGER_BASIC_DEFS)}</div>
                                 <div class="iz-switch-grid">
@@ -7532,7 +7851,7 @@ const bilibiliVolumeModule = (function() {
                             <div class="izn-sect">
                                 <div class="iz-collapse-header" id="izKeymapHeader" role="button" tabindex="0" aria-expanded="false" style="border-bottom:0">
                                     <div>
-                                        <div class="iz-left"><span class="iz-arrow open" id="izKeymapArrow">▶</span><span class="iz-header-name">动作快捷键</span><span class="iz-count">13 项</span></div>
+                                        <div class="iz-left"><span class="iz-arrow open" id="izKeymapArrow">▶</span><span class="iz-header-name">快捷键</span><span class="iz-count">15 项</span></div>
                                         <div class="iz-collapse-description">点右侧键帽再按新键即可改绑；按到已占用的键时，原动作自动让出</div>
                                     </div>
                                     <span style="font-size:12px;color:var(--iz-tx-muted);text-align:right;max-width:150px;" id="izKeymapHint">点击收起</span>
@@ -7933,6 +8252,15 @@ const bilibiliVolumeModule = (function() {
             } catch (e) { }
         }
 
+        // 「按住键才触发」的渲染钩子：面板只构建一次，之后靠 syncPanelFromState 校正 →
+        // 与 refreshPackStatusIfOpen 同一套路，wireKeymap 里赋值、syncPanelFromState 里调用。
+        let renderHoldTrigger = function () { };
+        let renderMasterHotkey = function () { };   // 「总开关快捷键」键帽渲染钩子（与上面同一套路）
+        // 键位区里那两项「全局快捷键」的改绑入口：由 wireSwitches 赋值
+        //   —— 与总览区/触发与交互区那几处键帽**共用同一套录制逻辑**，避免两份实现跑偏。
+        let startHoldKeyRecord = function () { };
+        let startMasterKeyRecord = function () { };
+
         // 面板控件「单一同步入口」：把每个控件校正为「当前 config + isEnabled + 哔哩开关」的真实状态；
         // 「打开面板」与「恢复默认」都走这里。
         function syncPanelFromState() {
@@ -7953,6 +8281,8 @@ const bilibiliVolumeModule = (function() {
             //   面板「构建时 / 折叠展开时 / 删除时」调用 → 重开面板看到的是陈旧列表
             //   （角标 iznHistTag 却由 iznSync 更新过，于是出现「角标 4 条、列表 0 条」的错位）。
             renderHistory();
+            renderHoldTrigger();   // 「按住键才触发」开关 / 触发键帽 / 模式徽标
+            renderMasterHotkey();  // 「总开关快捷键」键帽
             iznSync();          // 总开关 aria-checked + 规则/规则包/历史条数角标
         }
 
@@ -7963,12 +8293,18 @@ const bilibiliVolumeModule = (function() {
             const list = (config.keymap && config.keymap[action]) || [];
             return list.length ? list.map(displayKeyName).join(' / ') : '未设置';
         }
+        // 行模板：动作键位与全局快捷键只在「标记属性 + 取键名」上不同，其余完全一致
+        function keyRowHtml(d, attr, capText) {
+            return '<div class="iz-key-row"><div class="iz-key-name"><b>' + escapeHtml(d.name) + '</b><span>'
+                + escapeHtml(d.hint) + '</span></div><button type="button" class="iz-key-cap" ' + attr + '="' + d.key + '">'
+                + escapeHtml(capText) + '</button></div>';
+        }
         function renderKeymap() {
             if (!keymapGrid) return;
             keymapGrid.innerHTML = KEYMAP_ACTION_DEFS.map(function (d) {
-                return '<div class="iz-key-row"><div class="iz-key-name"><b>' + escapeHtml(d.name) + '</b><span>'
-                    + escapeHtml(d.hint) + '</span></div><button type="button" class="iz-key-cap" data-km="' + d.key + '">'
-                    + escapeHtml(keyCapText(d.key)) + '</button></div>';
+                return keyRowHtml(d, 'data-km', keyCapText(d.key));
+            }).join('') + GLOBAL_KEYMAP_DEFS.map(function (d) {
+                return keyRowHtml(d, 'data-km-global', d.cap());
             }).join('');
         }
 
@@ -8576,6 +8912,9 @@ const bilibiliVolumeModule = (function() {
             overlay.addEventListener('click', (e) => {
                 const wrap = (e.target && e.target.closest) ? e.target.closest('#iznMasterWrap') : null;
                 if (!wrap) return;
+                // ★ 卡片内的「快捷键」键帽是另一个交互目标（点它 = 改绑，不是切开关）。
+                //   本监听挂在 capture 阶段，键帽自身在冒泡/target 阶段的 stopPropagation 拦不住它，只能在这里排除。
+                if (e.target.closest && e.target.closest('.iz-key-cap')) return;
                 e.stopPropagation();
                 isEnabled = !isEnabled;
                 storageSet('image_zoom_enabled_' + currentDomain, isEnabled);
@@ -8586,6 +8925,122 @@ const bilibiliVolumeModule = (function() {
                 showSaveToast(isEnabled ? '已启用本网站图片放大' : '已停用本网站图片放大');
                 if (!isEnabled) { try { zoomFSM.dispatch('RESET'); } catch (err) { } }
             }, true);
+
+            // ===== 触发方式：「按住键才触发」开关 + 触发键改绑（总览区，非折叠）=====
+            // 赋值给 createConfigPanel 作用域的钩子（而非声明局部函数）→ 让 syncPanelFromState 也能调用
+            // 「触发方式」在**两处**都有（总览区 + 触发与交互区）：渲染与事件都按同一套 id 约定遍历，
+            //   触发与交互区那份用 `2` 后缀（izHold2*）；两处共用同一份 holdTrigger 状态 → 天然双向同步。
+            function eachHoldPane(fn) { ['', '2'].forEach(function (sfx) { fn(sfx); }); }
+            renderHoldTrigger = function () {
+                eachHoldPane(function (sfx) {
+                    const tg = $('izHold' + sfx + 'Toggle');
+                    const wrap = $('izHold' + sfx + 'Wrap');
+                    const btn = $('izHold' + sfx + 'KeyBtn');
+                    const cnt = $('izHold' + sfx + 'Count');
+                    if (tg) tg.classList.toggle('active', !!holdTrigger.enabled);
+                    if (wrap) wrap.setAttribute('aria-checked', String(!!holdTrigger.enabled));
+                    if (btn && !btn.classList.contains('recording')) btn.textContent = displayKeyName(holdTrigger.key);
+                    if (cnt) cnt.textContent = holdTrigger.enabled ? '按键触发' : '悬停触发';
+                });
+                renderKeymap();   // 键位区那份也要跟着变
+            };
+            renderHoldTrigger();
+            eachHoldPane(function (sfx) {
+                const el = $('izHold' + sfx + 'Wrap');
+                if (!el) return;
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    holdTrigger.enabled = !holdTrigger.enabled;
+                    if (!holdTrigger.enabled) holdConsumeArmed();     // 关掉时清掉「预览模式」状态与已显示标记，避免残留
+                    saveHoldTrigger();
+                    renderHoldTrigger();
+                    if (!holdTrigger.enabled) {
+                        // 关掉后立即恢复正常悬停：在当前光标处复裁一次（若本来按着键，也顺手复位）
+                        if (pointerInWindow && lastMouse.x >= 0) {
+                            resolveCursorTarget(lastMouse.x, lastMouse.y, document.elementFromPoint(lastMouse.x, lastMouse.y));
+                        }
+                    }
+                    // ★ 开启时**不**收起已弹出的预览：本功能语义是「只拦新建」，
+                    //   已显示的预览照旧留着，等光标移开源图时自然收回。
+                    showSaveToast('按键触发预览 ' + (holdTrigger.enabled ? '已开启' : '已关闭'));
+                });
+            });
+            let holdKeyRecording = false;
+            function stopHoldKeyRecord() {
+                if (!holdKeyRecording) return;
+                window.removeEventListener('keydown', onHoldKeyRecord, true);
+                holdKeyRecording = false;
+                ['izHoldKeyBtn', 'izHold2KeyBtn'].forEach(function (id) {
+                    const b = $(id);
+                    if (b) b.classList.remove('recording');
+                });
+            }
+            // 触发键录制：与动作键不同，这里**允许** Control/Shift/Alt/Meta 等纯修饰键
+            function onHoldKeyRecord(e) {
+                if (!holdKeyRecording) return;
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.key === 'Escape') { stopHoldKeyRecord(); renderHoldTrigger(); return; }
+                if (['CapsLock', 'Dead', 'Unidentified'].indexOf(e.key) >= 0) return;
+                holdTrigger.key = normalizeHoldTrigger({ key: e.key }).key;
+                saveHoldTrigger();
+                stopHoldKeyRecord();
+                renderHoldTrigger();
+                showSaveToast('触发键已设为「' + displayKeyName(holdTrigger.key) + '」');
+            }
+            function beginHoldKeyRecord(el) {
+                if (!el) return;
+                stopHoldKeyRecord();
+                holdKeyRecording = true;
+                el.classList.add('recording');
+                el.textContent = '按下按键…';
+                window.addEventListener('keydown', onHoldKeyRecord, true);
+            }
+            startHoldKeyRecord = beginHoldKeyRecord;   // ★ 键位区里那项「触发键」也走这条路径
+            ['izHoldKeyBtn', 'izHold2KeyBtn'].forEach(function (id) {
+                const el = $(id);
+                if (el) el.addEventListener('click', (e) => { e.stopPropagation(); beginHoldKeyRecord(el); });
+            });
+
+            // ===== 总开关快捷键（键帽可改绑；装上即生效，无独立开关）=====
+            renderMasterHotkey = function () {
+                const btn = $('izMasterKeyBtn');
+                if (btn && !btn.classList.contains('recording')) btn.textContent = displayKeyName(masterHotkey.key);
+                renderKeymap();   // 键位区那份也要跟着变
+            };
+            renderMasterHotkey();
+            let masterKeyRecording = false;
+            function stopMasterKeyRecord() {
+                if (!masterKeyRecording) return;
+                window.removeEventListener('keydown', onMasterKeyRecord, true);
+                masterKeyRecording = false;
+                const b = $('izMasterKeyBtn');
+                if (b) b.classList.remove('recording');
+            }
+            // 总开关快捷键录制：与触发键同规矩（允许 Control/Shift/Alt/Meta 等纯修饰键）
+            function onMasterKeyRecord(e) {
+                if (!masterKeyRecording) return;
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.key === 'Escape') { stopMasterKeyRecord(); renderMasterHotkey(); return; }
+                if (['CapsLock', 'Dead', 'Unidentified'].indexOf(e.key) >= 0) return;
+                masterHotkey.key = normalizeMasterHotkey({ key: e.key }).key;
+                saveMasterHotkey();
+                stopMasterKeyRecord();
+                renderMasterHotkey();
+                showSaveToast('总开关快捷键已设为「' + displayKeyName(masterHotkey.key) + '」');
+            }
+            function beginMasterKeyRecord(el) {
+                if (!el) return;
+                stopMasterKeyRecord();
+                masterKeyRecording = true;
+                el.classList.add('recording');
+                el.textContent = '按下按键…';
+                window.addEventListener('keydown', onMasterKeyRecord, true);
+            }
+            startMasterKeyRecord = beginMasterKeyRecord;   // ★ 键位区里那项「总开关快捷键」也走这条路径
+            const masterKeyBtnEl = $('izMasterKeyBtn');
+            if (masterKeyBtnEl) masterKeyBtnEl.addEventListener('click', (e) => { e.stopPropagation(); beginMasterKeyRecord(masterKeyBtnEl); });
 
             $('izConflictWrap').addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -8760,6 +9215,15 @@ const bilibiliVolumeModule = (function() {
                 keymapGrid.addEventListener('click', function (e) {
                     const btn = (e.target && e.target.closest) ? e.target.closest('.iz-key-cap') : null;
                     if (!btn) return;
+                    // ★ 两项「全局快捷键」不属于动作键位表（那套是 `config.keymap`，按站点存）：
+                    //   走各自的录制路径，改完由 renderHoldTrigger / renderMasterHotkey 一并刷新三处键帽。
+                    const g = btn.dataset.kmGlobal;
+                    if (g) {
+                        stopKeyRecord();
+                        if (g === 'master') startMasterKeyRecord(btn);
+                        else if (g === 'hold') startHoldKeyRecord(btn);
+                        return;
+                    }
                     stopKeyRecord();
                     keyRecording = btn.dataset.km;
                     btn.classList.add('recording');
@@ -8773,8 +9237,14 @@ const bilibiliVolumeModule = (function() {
                     config.keymap = normalizeKeymap(null);
                     saveConfig();
                     saveGlobalKeymap(config.keymap);   // ★ 键位全局：默认键位也要落全局键
+                    // ★ 两项「全局快捷键」一并复位（只动键，不动功能开关）
+                    masterHotkey.key = MASTER_HOTKEY_DEFAULT.key;
+                    saveMasterHotkey();
+                    holdTrigger.key = HOLD_TRIGGER_DEFAULT.key;
+                    saveHoldTrigger();
                     stopKeyRecord();
-                    renderKeymap();
+                    renderHoldTrigger();
+                    renderMasterHotkey();
                     showSaveToast('已恢复默认键位');
                 });
             }
@@ -9003,6 +9473,8 @@ const bilibiliVolumeModule = (function() {
     // 颜色标记：🟢 性能/结构优化区 · 🟡 兼容性相关区（改动需重点测试）· 🔴 hover 放大核心链路（避免直接重构）。
     function mainInit() {
         loadConfig();
+        loadHoldTrigger();   // ★ 按住键才触发（全局设置，与按站点配置分开存）
+        loadMasterHotkey();  // ★ 总开关快捷键（全局设置）
         loadState();
         injectStyles();
         // ★ 调试钩子：仅在 URL 带 ?hvdebug=1 时暴露，用于端到端验证（如防盗链抓取），不影响正常使用
@@ -9014,6 +9486,11 @@ const bilibiliVolumeModule = (function() {
                     gmFetchBlobUrl, upgradeImgUrl, buildHdCandidates, sizeHintOf, probeCandidates, pickBestCandidate,
                     buildSizeVariants, collectElementSources, pickLargestSrcset, absUrl, SIZE_FAMILIES, LAZY_SRC_ATTRS,
                     isStripLikeImg,                                            // 细长条幅过滤（供端到端验证判据）
+                    holdTrigger: () => holdTrigger,                            // ★ 按键才触发：当前设置（enabled/key）
+                    holdArmed: () => holdArmed,                                // ★ 按键才触发：闸门此刻是否已打开（预览模式）
+                    holdShownSession: () => holdShownSession,                  // ★ 按键才触发：本次许可是否已显示过预览（会话是否已开始）
+                    masterHotkey: () => masterHotkey,                          // ★ 总开关快捷键：当前设置（key）
+                    isEnabled: () => isEnabled,                                // ★ 本站总开关状态（快捷键用例校验用）
                     rulePackUrls: () => rulePackUrlCandidates(RULE_PACK_URL),   // 规则包取源顺序（主源 + 镜像）
                     rulePackFetchCount: () => rulePackFetchCount,                 // 本轮页面内对规则包取源的请求次数（0 = 未联网）
                     rulePackNeedsRefresh: () => rulePackNeedsRefresh(),           // 启动时是否判定为「需要后台重校验」
@@ -9088,6 +9565,8 @@ const bilibiliVolumeModule = (function() {
         setupLightboxObserver();
         if (isEnabled) initImages();
         bilibiliVolumeModule.init();         setupGlobalHoverStream(); // ★ mouseover 流 + 停稳裁决器 双保险
+        setupHoldTrigger();                  // ★ 按住键才触发：按住闸门键才允许触发，松开即收起
+        setupMasterHotkey();                 // ★ 总开关快捷键：按一下启用 / 停用本站
         videoPreviewModule.init();           // ★ 视频悬停预览：滚动/失焦/变形即关闭
         setupHeartbeat();         // ★ 持续复核（PENDING/ACTIVE，带失败容忍，后台页暂停）
         setupBgRuleProxy();
